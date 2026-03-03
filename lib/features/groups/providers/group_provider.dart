@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../auth/models/user_model.dart';
 import '../../chat/models/message_model.dart';
 import '../models/group_model.dart';
@@ -89,6 +90,7 @@ class GroupService {
       photoUrl: photoUrl,
       createdBy: _myUid,
       members: allMembers,
+      memberIds: allMembers,
       admins: [_myUid],
       createdAt: DateTime.now(),
     );
@@ -131,12 +133,43 @@ class GroupService {
     });
 
     await batch.commit();
+
+    // Send push notification to all group members via OneSignal
+    try {
+      final groupDoc = await _firestore.collection('groups').doc(groupId).get();
+      final memberIds = List<String>.from(
+          groupDoc.data()?['memberIds'] ?? groupDoc.data()?['members'] ?? []);
+      final recipients = memberIds.where((id) => id != _myUid).toList();
+
+      final myDoc = await _firestore.collection('users').doc(_myUid).get();
+      final myName = myDoc.data()?['name'] as String? ?? 'Someone';
+      final groupName = groupDoc.data()?['name'] as String? ?? 'Group';
+
+      final playerIds = <String>[];
+      for (final uid in recipients) {
+        final doc = await _firestore.collection('users').doc(uid).get();
+        final pid = doc.data()?['oneSignalPlayerId'] as String?;
+        if (pid != null && pid.isNotEmpty) playerIds.add(pid);
+      }
+
+      if (playerIds.isNotEmpty) {
+        final notifText = type == MessageType.text ? text : '📎 Attachment';
+        await NotificationService.sendGroupMessageNotification(
+          recipientPlayerIds: playerIds,
+          senderName: myName,
+          groupName: groupName,
+          messageText: notifText,
+          groupId: groupId,
+        );
+      }
+    } catch (_) {}
   }
 
   /// Add members to a group
   Future<void> addMembers(String groupId, List<String> uids) async {
     await _firestore.collection('groups').doc(groupId).update({
       'members': FieldValue.arrayUnion(uids),
+      'memberIds': FieldValue.arrayUnion(uids),
     });
   }
 
@@ -147,6 +180,7 @@ class GroupService {
 
     batch.update(groupRef, {
       'members': FieldValue.arrayRemove([uid]),
+      'memberIds': FieldValue.arrayRemove([uid]),
       'admins': FieldValue.arrayRemove([uid]),
     });
 
@@ -169,11 +203,39 @@ class GroupService {
 
   /// Leave a group
   Future<void> leaveGroup(String groupId) async {
+    final groupDoc = await _firestore.collection('groups').doc(groupId).get();
+    if (!groupDoc.exists) return;
+
+    final data = groupDoc.data()!;
+    final members = List<String>.from(data['members'] ?? []);
+    final admins = List<String>.from(data['admins'] ?? []);
+    final isAdmin = admins.contains(_myUid);
+
+    // If admin and more than one member, auto-promote first non-admin
+    if (isAdmin && members.length > 1) {
+      final firstNonAdmin = members.firstWhere(
+        (id) => id != _myUid && !admins.contains(id),
+        orElse: () => '',
+      );
+      if (firstNonAdmin.isNotEmpty) {
+        await _firestore.collection('groups').doc(groupId).update({
+          'admins': FieldValue.arrayUnion([firstNonAdmin]),
+        });
+      }
+    }
+
+    // If last member, delete the group
+    if (members.length <= 1) {
+      await _firestore.collection('groups').doc(groupId).delete();
+      return;
+    }
+
     final batch = _firestore.batch();
     final groupRef = _firestore.collection('groups').doc(groupId);
 
     batch.update(groupRef, {
       'members': FieldValue.arrayRemove([_myUid]),
+      'memberIds': FieldValue.arrayRemove([_myUid]),
       'admins': FieldValue.arrayRemove([_myUid]),
     });
 
@@ -197,8 +259,53 @@ class GroupService {
     }
   }
 
-  /// Delete a group (admin only)
+  /// Delete a group — client-side batch delete (no Cloud Functions needed)
   Future<void> deleteGroup(String groupId) async {
-    await _firestore.collection('groups').doc(groupId).delete();
+    final groupRef = _firestore.collection('groups').doc(groupId);
+
+    // Step 1: Delete all messages in batches of 500
+    QuerySnapshot messages =
+        await groupRef.collection('messages').limit(500).get();
+
+    while (messages.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (final doc in messages.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      // Get next batch
+      messages =
+          await groupRef.collection('messages').limit(500).get();
+    }
+
+    // Step 2: Delete the group document itself
+    await groupRef.delete();
+  }
+
+  /// Toggle canEditInfo permission for a member
+  Future<void> toggleCanEditInfo(String groupId, String uid) async {
+    final doc = await _firestore.collection('groups').doc(groupId).get();
+    if (!doc.exists) return;
+    final perms = Map<String, dynamic>.from(doc.data()!['memberPermissions'] ?? {});
+    final userPerms = Map<String, dynamic>.from(perms[uid] ?? {});
+    userPerms['canEditInfo'] = !(userPerms['canEditInfo'] ?? false);
+    perms[uid] = userPerms;
+    await _firestore.collection('groups').doc(groupId).update({
+      'memberPermissions': perms,
+    });
+  }
+
+  /// Toggle canAddMembers permission for a member
+  Future<void> toggleCanAddMembers(String groupId, String uid) async {
+    final doc = await _firestore.collection('groups').doc(groupId).get();
+    if (!doc.exists) return;
+    final perms = Map<String, dynamic>.from(doc.data()!['memberPermissions'] ?? {});
+    final userPerms = Map<String, dynamic>.from(perms[uid] ?? {});
+    userPerms['canAddMembers'] = !(userPerms['canAddMembers'] ?? false);
+    perms[uid] = userPerms;
+    await _firestore.collection('groups').doc(groupId).update({
+      'memberPermissions': perms,
+    });
   }
 }

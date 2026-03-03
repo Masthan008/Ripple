@@ -6,6 +6,7 @@ class UserModel {
   final String name;
   final String email;
   final String photoUrl;
+  final String bio;
   final bool isOnline;
   final DateTime? lastSeen;
   final String fcmToken;
@@ -13,12 +14,16 @@ class UserModel {
   final List<String> friends;
   final List<String> blockedUsers;
   final Map<String, List<String>> friendRequests;
+  final Map<String, bool> notificationSettings;
+  final Map<String, bool> privacySettings;
+  final bool twoFactorEnabled;
 
   const UserModel({
     required this.uid,
     required this.name,
     required this.email,
     this.photoUrl = '',
+    this.bio = '',
     this.isOnline = false,
     this.lastSeen,
     this.fcmToken = '',
@@ -26,16 +31,32 @@ class UserModel {
     this.friends = const [],
     this.blockedUsers = const [],
     this.friendRequests = const {'sent': [], 'received': []},
+    this.notificationSettings = const {
+      'messages': true,
+      'groupMessages': true,
+      'friendRequests': true,
+      'calls': true,
+      'sounds': true,
+      'vibration': true,
+    },
+    this.privacySettings = const {
+      'showOnlineStatus': true,
+      'showLastSeen': true,
+      'readReceipts': true,
+      'allowFriendRequests': true,
+    },
+    this.twoFactorEnabled = false,
   });
 
   /// Create from Firestore document
   factory UserModel.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
-    final data = doc.data()!;
+    final data = doc.data() ?? {};
     return UserModel(
       uid: doc.id,
       name: data['name'] ?? '',
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'] ?? '',
+      bio: data['bio'] ?? '',
       isOnline: data['isOnline'] ?? false,
       lastSeen: (data['lastSeen'] as Timestamp?)?.toDate(),
       fcmToken: data['fcmToken'] ?? '',
@@ -46,6 +67,9 @@ class UserModel {
         'sent': List<String>.from(data['friendRequests']?['sent'] ?? []),
         'received': List<String>.from(data['friendRequests']?['received'] ?? []),
       },
+      notificationSettings: Map<String, bool>.from(data['notificationSettings'] ?? {}),
+      privacySettings: Map<String, bool>.from(data['privacySettings'] ?? {}),
+      twoFactorEnabled: data['twoFactorEnabled'] ?? false,
     );
   }
 
@@ -56,6 +80,7 @@ class UserModel {
       name: data['name'] ?? '',
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'] ?? '',
+      bio: data['bio'] ?? '',
       isOnline: data['isOnline'] ?? false,
       lastSeen: (data['lastSeen'] as Timestamp?)?.toDate(),
       fcmToken: data['fcmToken'] ?? '',
@@ -66,6 +91,9 @@ class UserModel {
         'sent': List<String>.from(data['friendRequests']?['sent'] ?? []),
         'received': List<String>.from(data['friendRequests']?['received'] ?? []),
       },
+      notificationSettings: Map<String, bool>.from(data['notificationSettings'] ?? {}),
+      privacySettings: Map<String, bool>.from(data['privacySettings'] ?? {}),
+      twoFactorEnabled: data['twoFactorEnabled'] ?? false,
     );
   }
 
@@ -76,6 +104,7 @@ class UserModel {
       'name': name,
       'email': email,
       'photoUrl': photoUrl,
+      'bio': bio,
       'isOnline': isOnline,
       'lastSeen': lastSeen != null ? Timestamp.fromDate(lastSeen!) : null,
       'fcmToken': fcmToken,
@@ -83,6 +112,9 @@ class UserModel {
       'friends': friends,
       'blockedUsers': blockedUsers,
       'friendRequests': friendRequests,
+      'notificationSettings': notificationSettings,
+      'privacySettings': privacySettings,
+      'twoFactorEnabled': twoFactorEnabled,
     };
   }
 
@@ -92,6 +124,7 @@ class UserModel {
     String? name,
     String? email,
     String? photoUrl,
+    String? bio,
     bool? isOnline,
     DateTime? lastSeen,
     String? fcmToken,
@@ -99,12 +132,16 @@ class UserModel {
     List<String>? friends,
     List<String>? blockedUsers,
     Map<String, List<String>>? friendRequests,
+    Map<String, bool>? notificationSettings,
+    Map<String, bool>? privacySettings,
+    bool? twoFactorEnabled,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
       name: name ?? this.name,
       email: email ?? this.email,
       photoUrl: photoUrl ?? this.photoUrl,
+      bio: bio ?? this.bio,
       isOnline: isOnline ?? this.isOnline,
       lastSeen: lastSeen ?? this.lastSeen,
       fcmToken: fcmToken ?? this.fcmToken,
@@ -112,6 +149,9 @@ class UserModel {
       friends: friends ?? this.friends,
       blockedUsers: blockedUsers ?? this.blockedUsers,
       friendRequests: friendRequests ?? this.friendRequests,
+      notificationSettings: notificationSettings ?? this.notificationSettings,
+      privacySettings: privacySettings ?? this.privacySettings,
+      twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
     );
   }
 }

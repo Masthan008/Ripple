@@ -23,9 +23,8 @@ class Env {
   static String get firebaseDatabaseUrl =>
       dotenv.env['FIREBASE_DATABASE_URL'] ?? '';
 
-  // ─── ZegoCloud ───────────────────────────────────────
-  static String get zegoAppId => dotenv.env['ZEGO_APP_ID'] ?? '';
-  static String get zegoAppSign => dotenv.env['ZEGO_APP_SIGN'] ?? '';
+  // ─── Agora (Video & Audio Calls) ────────────────────
+  static String get agoraAppId => dotenv.env['AGORA_APP_ID'] ?? '';
 
   // ─── Supabase ────────────────────────────────────────
   static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
@@ -54,6 +53,12 @@ class Env {
       dotenv.env['IMAGEKIT_PRIVATE_KEY'] ?? '';
   static String get imagekitUrlEndpoint =>
       dotenv.env['IMAGEKIT_URL_ENDPOINT'] ?? '';
+
+  // ─── OneSignal ────────────────────────────────────────
+  static String get oneSignalAppId =>
+      dotenv.env['ONESIGNAL_APP_ID'] ?? '';
+  static String get oneSignalRestApiKey =>
+      dotenv.env['ONESIGNAL_REST_API_KEY'] ?? '';
 
   // ─── App Config ──────────────────────────────────────
   static String get appName => dotenv.env['APP_NAME'] ?? 'Ripple';

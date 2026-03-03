@@ -10,6 +10,7 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/google_logo.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
 import '../providers/auth_provider.dart';
+import 'register_screen.dart';
 
 /// Login / Register Screen — PRD §6.1
 /// Liquid Glass card with Google + Email auth, water ripple effects
@@ -74,8 +75,30 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     });
     try {
       final authService = ref.read(authServiceProvider);
-      await authService.signInWithGoogle();
-      if (mounted) context.go('/home');
+      final result = await authService.signInWithGoogle();
+      if (result == null) {
+        if (mounted) setState(() => _isLoading = false);
+        return;
+      }
+      if (mounted) {
+        if (result.isNewUser) {
+          // New Google user — go to registration
+          final user = result.credential.user!;
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => RegisterScreen(
+                uid: user.uid,
+                name: user.displayName ?? '',
+                email: user.email ?? '',
+                photoUrl: user.photoURL ?? '',
+                isGoogleSignIn: true,
+              ),
+            ),
+          );
+        } else {
+          context.go('/home');
+        }
+      }
     } catch (e) {
       setState(() => _errorMessage = e.toString());
     } finally {
@@ -95,11 +118,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       final authService = ref.read(authServiceProvider);
 
       if (_isSignUp) {
-        await authService.signUpWithEmail(
+        final result = await authService.signUpWithEmail(
           email: _emailController.text,
           password: _passwordController.text,
           name: _nameController.text,
         );
+        if (mounted) {
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => RegisterScreen(
+                uid: result.credential.user!.uid,
+                name: _nameController.text.trim(),
+                email: _emailController.text.trim(),
+              ),
+            ),
+          );
+          return;
+        }
       } else {
         await authService.signInWithEmail(
           _emailController.text,

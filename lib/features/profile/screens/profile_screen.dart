@@ -1,6 +1,8 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -8,7 +10,17 @@ import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../profile/providers/profile_provider.dart';
+import 'edit_profile_screen.dart';
+import 'qr_code_screen.dart';
+import 'account_security_screen.dart';
+import 'notifications_settings_screen.dart';
+import 'privacy_screen.dart';
+import 'appearance_screen.dart';
+import 'language_screen.dart';
+import 'storage_usage_screen.dart';
+import 'data_usage_screen.dart';
+import 'help_screen.dart';
+import 'about_screen.dart';
 
 /// Profile Screen — PRD §6.8
 /// Full profile view with avatar, name, email, settings, about, and sign out
@@ -42,14 +54,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
   Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
 
-    return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
-      appBar: AppBar(
-        title: Text('Profile', style: AppTextStyles.heading),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: user.when(
+    return SafeArea(
+      child: user.when(
         loading: () => const Center(
           child: CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
@@ -59,7 +65,51 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           child: Text('Error: $e', style: AppTextStyles.caption),
         ),
         data: (u) {
-          if (u == null) return const SizedBox.shrink();
+          if (u == null) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.person_outline_rounded,
+                      color: AppColors.aquaCore.withValues(alpha: 0.3),
+                      size: 80),
+                  const SizedBox(height: 16),
+                  Text('Complete your profile',
+                      style: AppTextStyles.heading.copyWith(fontSize: 20)),
+                  const SizedBox(height: 8),
+                  Text('Set up your name and photo to get started',
+                      style: AppTextStyles.caption),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: 200,
+                    height: 44,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: AppColors.buttonGradient,
+                        borderRadius: BorderRadius.circular(14),
+                      ),
+                      child: ElevatedButton(
+                        onPressed: () => Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen(),
+                          ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.transparent,
+                          shadowColor: Colors.transparent,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                        child: Text('Set Up Profile',
+                            style: AppTextStyles.button),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
 
           return FadeTransition(
             opacity: _animController,
@@ -67,6 +117,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Column(
                 children: [
+                  const SizedBox(height: 12),
+
+                  // Header
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('Profile', style: AppTextStyles.heading),
+                  ),
+
                   const SizedBox(height: 16),
 
                   // ─── Avatar with glow ─────────────────────
@@ -165,21 +223,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     title: 'Edit Profile',
                     subtitle: 'Change name, bio, photo',
                     iconColor: AppColors.aquaCore,
-                    onTap: () => _showEditProfileDialog(u.name),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const EditProfileScreen())),
                   ),
                   _SettingsTile(
                     icon: Icons.qr_code_rounded,
                     title: 'QR Code',
                     subtitle: 'Share your profile',
                     iconColor: const Color(0xFF9C27B0),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const QrCodeScreen())),
                   ),
                   _SettingsTile(
                     icon: Icons.shield_outlined,
                     title: 'Account Security',
                     subtitle: 'Password, 2FA',
                     iconColor: const Color(0xFFFF9800),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const AccountSecurityScreen())),
                   ),
 
                   const SizedBox(height: 20),
@@ -193,28 +254,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     title: 'Notifications',
                     subtitle: 'Push notifications, sounds',
                     iconColor: const Color(0xFF2196F3),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const NotificationsSettingsScreen())),
                   ),
                   _SettingsTile(
                     icon: Icons.lock_outline_rounded,
                     title: 'Privacy',
                     subtitle: 'Blocked users, read receipts',
                     iconColor: const Color(0xFF4CAF50),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const PrivacyScreen())),
                   ),
                   _SettingsTile(
                     icon: Icons.color_lens_outlined,
                     title: 'Appearance',
                     subtitle: 'Theme, chat bubbles, font size',
                     iconColor: const Color(0xFFE91E63),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const AppearanceScreen())),
                   ),
                   _SettingsTile(
                     icon: Icons.language_rounded,
                     title: 'Language',
                     subtitle: 'English',
                     iconColor: const Color(0xFF009688),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const LanguageScreen())),
                   ),
 
                   const SizedBox(height: 20),
@@ -228,14 +293,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     title: 'Storage Usage',
                     subtitle: 'Manage cache, media',
                     iconColor: const Color(0xFF795548),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const StorageUsageScreen())),
                   ),
                   _SettingsTile(
                     icon: Icons.cloud_download_outlined,
                     title: 'Data Usage',
                     subtitle: 'Auto-download, quality',
                     iconColor: const Color(0xFF607D8B),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const DataUsageScreen())),
                   ),
 
                   const SizedBox(height: 20),
@@ -249,21 +316,35 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     title: 'Help & FAQ',
                     subtitle: 'Get help, report issues',
                     iconColor: const Color(0xFF3F51B5),
-                    onTap: () {},
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const HelpScreen())),
                   ),
                   _SettingsTile(
                     icon: Icons.info_outline_rounded,
                     title: 'About Ripple',
                     subtitle: 'Version, licenses, terms',
                     iconColor: AppColors.aquaCyan,
-                    onTap: () => _showAboutDialog(),
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const AboutScreen())),
                   ),
                   _SettingsTile(
                     icon: Icons.star_outline_rounded,
                     title: 'Rate Us',
                     subtitle: 'Love Ripple? Rate us!',
                     iconColor: const Color(0xFFFFC107),
-                    onTap: () {},
+                    onTap: () async {
+                      final url = Platform.isAndroid
+                          ? 'market://details?id=com.yourcompany.ripple'
+                          : 'https://apps.apple.com/app/idYOUR_APP_ID';
+                      try {
+                        await launchUrl(Uri.parse(url));
+                      } catch (_) {
+                        if (Platform.isAndroid) {
+                          await launchUrl(Uri.parse(
+                              'https://play.google.com/store/apps/details?id=com.yourcompany.ripple'));
+                        }
+                      }
+                    },
                   ),
 
                   const SizedBox(height: 24),
@@ -304,7 +385,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       if (confirmed == true && mounted) {
                         final authService = ref.read(authServiceProvider);
                         await authService.signOut();
-                        if (mounted) context.go('/login');
+                        // GoRouter auto-redirects to /login via auth state listener
                       }
                     },
                     child: Container(
@@ -349,98 +430,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             ),
           );
         },
-      ),
-    );
-  }
-
-  void _showEditProfileDialog(String currentName) {
-    final nameController = TextEditingController(text: currentName);
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0D1B2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('Edit Profile',
-            style:
-                AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
-        content: TextField(
-          controller: nameController,
-          style: AppTextStyles.body,
-          decoration: InputDecoration(
-            hintText: 'Enter new name',
-            hintStyle: TextStyle(color: AppColors.textMuted),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: AppColors.glassBorder),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: const BorderSide(color: AppColors.aquaCore),
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child:
-                Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () async {
-              final newName = nameController.text.trim();
-              if (newName.isNotEmpty) {
-                final profileService = ref.read(profileServiceProvider);
-                await profileService.updateName(newName);
-                // ignore: use_build_context_synchronously
-                Navigator.pop(ctx);
-              }
-            },
-            child: const Text('Save',
-                style: TextStyle(color: AppColors.aquaCore)),
-          ),
-        ],
-      ),
-    );
-    nameController.dispose;
-  }
-
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0D1B2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: ShaderMask(
-          shaderCallback: (bounds) => AppColors.aquaGradient.createShader(
-            Rect.fromLTWH(0, 0, bounds.width, bounds.height),
-          ),
-          child: Text('Ripple',
-              style: AppTextStyles.display
-                  .copyWith(fontSize: 24, color: Colors.white)),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Version 1.0.0', style: AppTextStyles.body),
-            const SizedBox(height: 8),
-            Text(
-              'Ripple is a modern chat app with liquid glass aesthetics and AI-powered features.',
-              style: AppTextStyles.caption,
-            ),
-            const SizedBox(height: 16),
-            Text('© 2026 Ripple Team',
-                style: AppTextStyles.caption
-                    .copyWith(color: AppColors.textMuted)),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Close',
-                style: TextStyle(color: AppColors.aquaCore)),
-          ),
-        ],
       ),
     );
   }

@@ -1,10 +1,12 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 import 'core/utils/env.dart';
+import 'core/utils/app_lifecycle_observer.dart';
 import 'core/services/firebase_service.dart';
+import 'core/services/notification_service.dart';
 import 'app.dart';
 
 void main() async {
@@ -32,10 +34,29 @@ void main() async {
 
     // Initialize Firebase
     await FirebaseService.initialize();
+
+    // ── OneSignal MUST be initialized before runApp() ──
+    final oneSignalId = Env.oneSignalAppId;
+    if (oneSignalId.isEmpty) {
+      debugPrint('❌ ONESIGNAL_APP_ID is missing or empty from .env!');
+    } else {
+      debugPrint('✅ OneSignal ID loaded: $oneSignalId');
+    }
+
+    OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+    OneSignal.initialize(oneSignalId);
+    OneSignal.consentRequired(false);
+    OneSignal.consentGiven(true);
+
+    debugPrint('🔔 OneSignal initialized, requesting permission...');
+    await OneSignal.Notifications.requestPermission(true);
+    debugPrint('🔔 OneSignal permission requested successfully');
+
+    // Initialize local notification channels
+    await NotificationService.initialize();
   } catch (e, stack) {
     debugPrint('⚠️ Initialization error: $e');
     debugPrint('$stack');
-    // Show error app instead of black screen
     runApp(MaterialApp(
       home: Scaffold(
         backgroundColor: const Color(0xFF060D1A),
@@ -54,10 +75,12 @@ void main() async {
     return;
   }
 
+  // Register lifecycle observer for online/offline status
+  WidgetsBinding.instance.addObserver(AppLifecycleObserver());
+
   runApp(
     const ProviderScope(
       child: App(),
     ),
   );
 }
-

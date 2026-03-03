@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/utils/helpers.dart';
 import '../../auth/models/user_model.dart';
 import '../models/message_model.dart';
@@ -105,6 +106,30 @@ class ChatService {
     );
 
     await batch.commit();
+
+    // Send push notification via OneSignal
+    try {
+      final otherDoc = await _firestore.collection('users').doc(otherUid).get();
+      final playerId = otherDoc.data()?['oneSignalPlayerId'] as String?;
+      final myDoc = await _firestore.collection('users').doc(_myUid).get();
+      final myName = myDoc.data()?['name'] as String? ?? 'Someone';
+
+      if (playerId != null && playerId.isNotEmpty) {
+        final notifText = type == MessageType.text
+            ? text
+            : type == MessageType.image
+                ? '📷 Sent a photo'
+                : type == MessageType.video
+                    ? '🎥 Sent a video'
+                    : '📎 Sent a file';
+        await NotificationService.sendMessageNotification(
+          recipientPlayerId: playerId,
+          senderName: myName,
+          messageText: notifText,
+          chatId: chatId,
+        );
+      }
+    } catch (_) {}
   }
 
   /// Mark all messages in a chat as read (for the current user)

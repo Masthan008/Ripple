@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../auth/models/user_model.dart';
 
 // ─── All Users Provider (excluding self & blocked) ───────
@@ -113,7 +114,7 @@ class FriendsService {
   Future<void> sendFriendRequest(String targetUid) async {
     final batch = _firestore.batch();
 
-    // Add to my sent requests
+    // Add to my sent requests (dot notation to target nested field only)
     batch.update(_firestore.collection('users').doc(_myUid), {
       'friendRequests.sent': FieldValue.arrayUnion([targetUid]),
     });
@@ -124,6 +125,24 @@ class FriendsService {
     });
 
     await batch.commit();
+
+    // Send friend request push notification via OneSignal
+    try {
+      final targetDoc =
+          await _firestore.collection('users').doc(targetUid).get();
+      final playerId =
+          targetDoc.data()?['oneSignalPlayerId'] as String?;
+      final myDoc =
+          await _firestore.collection('users').doc(_myUid).get();
+      final myName = myDoc.data()?['name'] as String? ?? 'Someone';
+
+      if (playerId != null && playerId.isNotEmpty) {
+        await NotificationService.sendFriendRequestNotification(
+          recipientPlayerId: playerId,
+          senderName: myName,
+        );
+      }
+    } catch (_) {}
   }
 
   /// Accept a friend request
@@ -143,6 +162,23 @@ class FriendsService {
     });
 
     await batch.commit();
+
+    // Create chat document between the two users if it doesn't exist
+    final ids = [_myUid, fromUid]..sort();
+    final chatId = ids.join('_');
+    final chatRef = _firestore.collection('chats').doc(chatId);
+    final chatDoc = await chatRef.get();
+    if (!chatDoc.exists) {
+      await chatRef.set({
+        'chatId': chatId,
+        'participants': [_myUid, fromUid],
+        'lastMessage': null,
+        'lastMessageTime': null,
+        'unreadCount': {_myUid: 0, fromUid: 0},
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
   }
 
   /// Reject / decline a friend request

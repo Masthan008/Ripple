@@ -1,80 +1,254 @@
-import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/foundation.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:dio/dio.dart';
+import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
-/// Notification service — FCM + local notifications
-/// Full implementation in Phase 9
+import '../utils/env.dart';
+import 'firebase_service.dart';
+
+/// Notification service — OneSignal push notifications
+///
+/// OneSignal handles ALL notification display automatically
+/// including foreground notifications on Android 13+.
+/// No flutter_local_notifications needed.
 class NotificationService {
   NotificationService._();
 
-  static FlutterLocalNotificationsPlugin? _localNotifications;
+  static const _oneSignalBaseUrl =
+      'https://onesignal.com/api/v1/notifications';
+  static final Dio _dio = Dio();
 
-  /// Initialize notification channels and permissions
+  // ─── Initialization ─────────────────────────────────────
+
+  /// Initialize notification service.
+  /// OneSignal is already initialized in main.dart before runApp().
   static Future<void> initialize() async {
+    // OneSignal handles everything — no local notification setup needed
+    debugPrint('🔔 NotificationService initialized (OneSignal-only mode)');
+  }
+
+  // ─── OneSignal Player ID Sync ───────────────────────────
+
+  /// Save OneSignal player ID to user's Firestore document.
+  /// Call this after user signs in and OneSignal is initialized.
+  static Future<void> syncPlayerId(String uid) async {
     try {
-      final fcm = FirebaseMessaging.instance;
+      debugPrint('🔔 Starting OneSignal player ID sync for uid: $uid');
 
-      // Request permission
-      await fcm.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
+      // First check if already opted in
+      final isOptedIn =
+          OneSignal.User.pushSubscription.optedIn ?? false;
+      debugPrint('🔔 OneSignal optedIn: $isOptedIn');
 
-      // Initialize local notifications
-      _localNotifications = FlutterLocalNotificationsPlugin();
-      const androidSettings =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
-      const iosSettings = DarwinInitializationSettings();
-      const initSettings = InitializationSettings(
-        android: androidSettings,
-        iOS: iosSettings,
-      );
+      if (!isOptedIn) {
+        // Request permission again if not opted in
+        await OneSignal.Notifications.requestPermission(true);
+        // Wait for permission response
+        await Future.delayed(const Duration(seconds: 3));
+      }
 
-      await _localNotifications!.initialize(initSettings);
+      // Try to get player ID with extended retry
+      String? playerId = OneSignal.User.pushSubscription.id;
+      debugPrint('🔔 Initial player ID: $playerId');
+
+      int attempts = 0;
+      while ((playerId == null || playerId.isEmpty) && attempts < 15) {
+        await Future.delayed(const Duration(seconds: 3));
+        playerId = OneSignal.User.pushSubscription.id;
+        attempts++;
+        debugPrint('🔔 Attempt $attempts: $playerId');
+      }
+
+      if (playerId != null && playerId.isNotEmpty) {
+        await FirebaseService.firestore.collection('users').doc(uid).set({
+          'oneSignalPlayerId': playerId,
+        }, SetOptions(merge: true));
+        debugPrint('✅ Player ID saved: $playerId');
+      } else {
+        debugPrint('❌ Could not get player ID after 15 attempts');
+      }
+
+      // Always set up observer for future changes
+      _setupSubscriptionObserver(uid);
     } catch (e) {
-      debugPrint('⚠️ NotificationService init error: $e');
+      debugPrint('⚠️ syncPlayerId error: $e');
     }
   }
 
-  /// Get the current FCM token
-  static Future<String?> getToken() async {
-    try {
-      return await FirebaseMessaging.instance.getToken();
-    } catch (e) {
-      debugPrint('⚠️ FCM getToken error: $e');
-      return null;
+  static void _setupSubscriptionObserver(String uid) {
+    OneSignal.User.pushSubscription.addObserver((state) async {
+      final newId = state.current.id;
+      final optedIn = state.current.optedIn;
+      debugPrint(
+          '📱 Subscription state changed: id=$newId, optedIn=$optedIn');
+
+      if (newId != null && newId.isNotEmpty) {
+        await FirebaseService.firestore.collection('users').doc(uid).set({
+          'oneSignalPlayerId': newId,
+        }, SetOptions(merge: true));
+        debugPrint('✅ Player ID saved from observer: $newId');
+      }
+    });
+  }
+
+  // ─── Notification Tap Handlers ──────────────────────────
+
+  /// Setup notification tap handlers for navigation
+  static void setupNotificationHandlers(BuildContext context) {
+    final router = GoRouter.of(context);
+
+    // OneSignal notification opened handler
+    OneSignal.Notifications.addClickListener((event) {
+      final data = event.notification.additionalData ?? {};
+      _handleNotificationNavigation(router, data);
+    });
+  }
+
+  static void _handleNotificationNavigation(
+      GoRouter router, Map<String, dynamic> data) {
+    final type = data['type'];
+    switch (type) {
+      case 'chat':
+        final chatId = data['chatId'];
+        if (chatId != null) router.push('/chat/$chatId');
+        break;
+      case 'group':
+        final groupId = data['groupId'];
+        if (groupId != null) router.push('/group-chat/$groupId');
+        break;
+      case 'friend_request':
+        router.push('/friends');
+        break;
+      case 'call':
+        break;
     }
   }
 
-  /// Listen for token refreshes
-  static Stream<String> get onTokenRefresh =>
-      FirebaseMessaging.instance.onTokenRefresh;
+  // ─── Send Notifications via OneSignal REST API ──────────
 
-  /// Show a local notification
-  static Future<void> showNotification({
+  /// Send a 1-to-1 chat message notification
+  static Future<void> sendMessageNotification({
+    required String recipientPlayerId,
+    required String senderName,
+    required String messageText,
+    required String chatId,
+  }) async {
+    await _sendOneSignalNotification(
+      playerIds: [recipientPlayerId],
+      title: senderName,
+      body: messageText,
+      data: {'type': 'chat', 'chatId': chatId},
+    );
+  }
+
+  /// Send a group chat message notification to all members
+  static Future<void> sendGroupMessageNotification({
+    required List<String> recipientPlayerIds,
+    required String senderName,
+    required String groupName,
+    required String messageText,
+    required String groupId,
+  }) async {
+    if (recipientPlayerIds.isEmpty) return;
+    await _sendOneSignalNotification(
+      playerIds: recipientPlayerIds,
+      title: groupName,
+      body: '$senderName: $messageText',
+      data: {'type': 'group', 'groupId': groupId},
+    );
+  }
+
+  /// Send a friend request notification
+  static Future<void> sendFriendRequestNotification({
+    required String recipientPlayerId,
+    required String senderName,
+  }) async {
+    await _sendOneSignalNotification(
+      playerIds: [recipientPlayerId],
+      title: 'New Friend Request 👋',
+      body: '$senderName wants to connect with you',
+      data: {'type': 'friend_request'},
+    );
+  }
+
+  /// Send a call notification
+  static Future<void> sendCallNotification({
+    required String recipientPlayerId,
+    required String callerName,
+    required String callId,
+    required String callType,
+    required bool isGroup,
+  }) async {
+    final title = callType == 'video'
+        ? '📹 Incoming Video Call'
+        : '📞 Incoming Voice Call';
+    await _sendOneSignalNotification(
+      playerIds: [recipientPlayerId],
+      title: title,
+      body: '$callerName is calling you',
+      data: {
+        'type': 'call',
+        'callId': callId,
+        'callType': callType,
+        'isGroup': isGroup.toString(),
+      },
+      ttl: 30,
+    );
+  }
+
+  // ─── Internal ───────────────────────────────────────────
+
+  static Future<void> _sendOneSignalNotification({
+    required List<String> playerIds,
     required String title,
     required String body,
-    String? payload,
+    Map<String, dynamic>? data,
+    int? ttl,
   }) async {
-    if (_localNotifications == null) return;
+    final appId = Env.oneSignalAppId;
+    final restKey = Env.oneSignalRestApiKey;
 
-    const androidDetails = AndroidNotificationDetails(
-      'ripple_messages',
-      'Messages',
-      channelDescription: 'Chat message notifications',
-      importance: Importance.high,
-      priority: Priority.high,
-    );
+    // Debug logging for key validation
+    debugPrint(
+        '🔑 OneSignal App ID: ${appId.isEmpty ? "MISSING" : "${appId.substring(0, 8)}..."}');
+    debugPrint(
+        '🔑 REST Key: ${restKey.isEmpty ? "MISSING" : "${restKey.substring(0, 12)}..."}');
 
-    const details = NotificationDetails(android: androidDetails);
+    if (appId.isEmpty || restKey.isEmpty || restKey.contains('your_')) {
+      debugPrint('❌ Configure ONESIGNAL_REST_API_KEY in .env file!');
+      debugPrint(
+          '   OneSignal Dashboard → Settings → Keys & IDs → REST API Key');
+      return;
+    }
+    if (playerIds.isEmpty) {
+      debugPrint('⚠️ ONESIGNAL: No player IDs to send to');
+      return;
+    }
 
-    await _localNotifications!.show(
-      DateTime.now().millisecondsSinceEpoch ~/ 1000,
-      title,
-      body,
-      details,
-      payload: payload,
-    );
+    try {
+      debugPrint(
+          '📤 Sending OneSignal notification to ${playerIds.length} user(s): $title');
+      final response = await _dio.post(
+        _oneSignalBaseUrl,
+        options: Options(headers: {
+          'Authorization': 'Basic $restKey',
+          'Content-Type': 'application/json',
+        }),
+        data: {
+          'app_id': appId,
+          'include_player_ids': playerIds,
+          'headings': {'en': title},
+          'contents': {'en': body},
+          if (data != null) 'data': data,
+          'priority': 10,
+          if (ttl != null) 'ttl': ttl,
+        },
+      );
+      debugPrint(
+          '✅ OneSignal response: ${response.statusCode} ${response.data}');
+    } catch (e) {
+      debugPrint('❌ OneSignal notification FAILED: $e');
+    }
   }
 }
