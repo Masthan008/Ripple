@@ -7,6 +7,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/google_logo.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
 import '../providers/auth_provider.dart';
 
@@ -231,11 +232,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       children: [
         // Logo
         Container(
-          width: 64,
-          height: 64,
+          width: 80,
+          height: 80,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            gradient: AppColors.aquaGradient,
             boxShadow: [
               BoxShadow(
                 color: AppColors.aquaCyan.withValues(alpha: 0.35),
@@ -244,10 +244,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               ),
             ],
           ),
-          child: const Icon(
-            Icons.water_drop_rounded,
-            color: Colors.white,
-            size: 32,
+          child: ClipOval(
+            child: Image.asset(
+              'assets/images/ripple_logo.png',
+              width: 80,
+              height: 80,
+              fit: BoxFit.cover,
+            ),
           ),
         ),
 
@@ -292,25 +295,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        // Google icon placeholder
-                        Container(
-                          width: 22,
-                          height: 22,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Center(
-                            child: Text(
-                              'G',
-                              style: TextStyle(
-                                color: Color(0xFF4285F4),
-                                fontWeight: FontWeight.w700,
-                                fontSize: 14,
-                              ),
-                            ),
-                          ),
-                        ),
+                        // Google logo
+                        const GoogleLogo(size: 22),
                         const SizedBox(width: 12),
                         Text(
                           AppStrings.continueWithGoogle,

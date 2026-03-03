@@ -150,20 +150,12 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        // Water droplet logo
+                        // Ripple Logo
                         Container(
-                          width: 80,
-                          height: 80,
+                          width: 100,
+                          height: 100,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            gradient: const LinearGradient(
-                              colors: [
-                                AppColors.aquaCore,
-                                AppColors.aquaCyan,
-                              ],
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                            ),
                             boxShadow: [
                               BoxShadow(
                                 color: AppColors.aquaCyan.withValues(alpha: 0.4),
@@ -172,10 +164,13 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.water_drop_rounded,
-                            color: Colors.white,
-                            size: 40,
+                          child: ClipOval(
+                            child: Image.asset(
+                              'assets/images/ripple_logo.png',
+                              width: 100,
+                              height: 100,
+                              fit: BoxFit.cover,
+                            ),
                           ),
                         ),
 

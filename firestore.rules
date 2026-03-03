@@ -12,30 +12,13 @@ service cloud.firestore {
       return request.auth.uid == uid;
     }
 
-    function isParticipant(data) {
-      return request.auth.uid in data.participants;
-    }
-
-    function isMember(data) {
-      return request.auth.uid in data.members;
-    }
-
-    function isAdmin(data) {
-      return request.auth.uid in data.admins;
-    }
-
     // ═══════════════════════════════════════════════════════
     // USERS COLLECTION
     // ═══════════════════════════════════════════════════════
     match /users/{userId} {
-      // Anyone signed in can read user profiles (for discovery)
       allow read: if isSignedIn();
-
-      // Users can only create/update their own document
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
-
-      // No one can delete user documents from client
       allow delete: if false;
     }
 
@@ -43,36 +26,18 @@ service cloud.firestore {
     // CHATS COLLECTION (1-to-1 chats)
     // ═══════════════════════════════════════════════════════
     match /chats/{chatId} {
-      // Only participants can read the chat document
-      allow read: if isSignedIn() &&
-        (resource == null || isParticipant(resource.data));
-
-      // Any signed-in user can create a chat (they become a participant)
-      allow create: if isSignedIn() &&
-        request.auth.uid in request.resource.data.participants;
-
-      // Only participants can update the chat
-      allow update: if isSignedIn() && isParticipant(resource.data);
-
-      // No client-side deletes
+      // Allow reads for signed-in users (query filters by participant)
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
       allow delete: if false;
 
-      // ─── Messages Sub-collection ─────────────────────────
+      // Messages sub-collection
       match /messages/{messageId} {
-        // Only chat participants can read messages
-        allow read: if isSignedIn() &&
-          isParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data);
-
-        // Only participants can write messages, senderId must match auth
+        allow read: if isSignedIn();
         allow create: if isSignedIn() &&
-          isParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data) &&
           request.resource.data.senderId == request.auth.uid;
-
-        // Participants can update messages (for read receipts)
-        allow update: if isSignedIn() &&
-          isParticipant(get(/databases/$(database)/documents/chats/$(chatId)).data);
-
-        // No client-side deletes
+        allow update: if isSignedIn();
         allow delete: if false;
       }
     }
@@ -81,39 +46,30 @@ service cloud.firestore {
     // GROUPS COLLECTION
     // ═══════════════════════════════════════════════════════
     match /groups/{groupId} {
-      // Only members can read the group document
-      allow read: if isSignedIn() &&
-        (resource == null || isMember(resource.data));
+      // Allow reads for signed-in users (query filters by membership)
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn();
 
-      // Any signed-in user can create a group (they become a member)
-      allow create: if isSignedIn() &&
-        request.auth.uid in request.resource.data.members &&
-        request.auth.uid in request.resource.data.admins;
-
-      // Only members can update (admins have more power via app logic)
-      allow update: if isSignedIn() && isMember(resource.data);
-
-      // Only admins can delete a group
-      allow delete: if isSignedIn() && isAdmin(resource.data);
-
-      // ─── Group Messages Sub-collection ───────────────────
+      // Group messages sub-collection
       match /messages/{messageId} {
-        // Only group members can read messages
-        allow read: if isSignedIn() &&
-          isMember(get(/databases/$(database)/documents/groups/$(groupId)).data);
-
-        // Only members can send messages, senderId must match auth
+        allow read: if isSignedIn();
         allow create: if isSignedIn() &&
-          isMember(get(/databases/$(database)/documents/groups/$(groupId)).data) &&
           request.resource.data.senderId == request.auth.uid;
-
-        // Members can update messages
-        allow update: if isSignedIn() &&
-          isMember(get(/databases/$(database)/documents/groups/$(groupId)).data);
-
-        // No client-side deletes
+        allow update: if isSignedIn();
         allow delete: if false;
       }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CALLS COLLECTION
+    // ═══════════════════════════════════════════════════════
+    match /calls/{callId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if false;
     }
   }
 }

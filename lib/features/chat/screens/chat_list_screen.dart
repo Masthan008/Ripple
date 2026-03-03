@@ -12,6 +12,7 @@ import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../groups/providers/group_provider.dart';
+import '../../profile/screens/profile_screen.dart';
 
 /// Home screen with bottom navigation bar — glass style per PRD §4.3
 /// Tab stubs for Chats, Groups, Calls, Profile (Phase 2+)
@@ -362,102 +363,12 @@ class _CallsTab extends StatelessWidget {
   }
 }
 
-class _ProfileTab extends ConsumerWidget {
+class _ProfileTab extends StatelessWidget {
   const _ProfileTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final user = ref.watch(currentUserProvider);
-
-    return SafeArea(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(AppStrings.profile, style: AppTextStyles.heading),
-            const SizedBox(height: 24),
-            Center(
-              child: Column(
-                children: [
-                  // Avatar placeholder
-                  Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: AppColors.aquaGradient,
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.aquaCyan.withValues(alpha: 0.3),
-                          blurRadius: 20,
-                        ),
-                      ],
-                    ),
-                    child: Icon(
-                      Icons.person_rounded,
-                      color: Colors.white.withValues(alpha: 0.8),
-                      size: 48,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  user.when(
-                    data: (u) => Column(
-                      children: [
-                        Text(
-                          u?.name ?? 'User',
-                          style: AppTextStyles.heading,
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          u?.email ?? '',
-                          style: AppTextStyles.caption,
-                        ),
-                      ],
-                    ),
-                    loading: () => const CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
-                    ),
-                    error: (_, __) => Text(
-                      'Error loading profile',
-                      style: AppTextStyles.caption,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Spacer(),
-            // Sign out button
-            Center(
-              child: GestureDetector(
-                onTap: () async {
-                  final authService = ref.read(authServiceProvider);
-                  await authService.signOut();
-                },
-                child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  decoration: BoxDecoration(
-                    color: AppColors.errorRed.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(14),
-                    border: Border.all(
-                      color: AppColors.errorRed.withValues(alpha: 0.3),
-                    ),
-                  ),
-                  child: Text(
-                    'Sign Out',
-                    style: AppTextStyles.button.copyWith(
-                      color: AppColors.errorRed,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 20),
-          ],
-        ),
-      ),
-    );
+  Widget build(BuildContext context) {
+    return const ProfileScreen();
   }
 }
+

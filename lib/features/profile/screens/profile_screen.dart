@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -7,14 +8,38 @@ import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../profile/providers/profile_provider.dart';
 
 /// Profile Screen — PRD §6.8
-/// Full profile view with avatar, name, email, edit, and settings
-class ProfileScreen extends ConsumerWidget {
+/// Full profile view with avatar, name, email, settings, about, and sign out
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _animController;
+
+  @override
+  void initState() {
+    super.initState();
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..forward();
+  }
+
+  @override
+  void dispose() {
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final user = ref.watch(currentUserProvider);
 
     return Scaffold(
@@ -22,6 +47,7 @@ class ProfileScreen extends ConsumerWidget {
       appBar: AppBar(
         title: Text('Profile', style: AppTextStyles.heading),
         backgroundColor: Colors.transparent,
+        elevation: 0,
       ),
       body: user.when(
         loading: () => const Center(
@@ -35,149 +61,426 @@ class ProfileScreen extends ConsumerWidget {
         data: (u) {
           if (u == null) return const SizedBox.shrink();
 
-          return SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Column(
-              children: [
-                const SizedBox(height: 24),
+          return FadeTransition(
+            opacity: _animController,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Column(
+                children: [
+                  const SizedBox(height: 16),
 
-                // Avatar with gradient glow
-                Stack(
-                  alignment: Alignment.bottomRight,
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color:
-                                AppColors.aquaCyan.withValues(alpha: 0.25),
-                            blurRadius: 30,
-                            spreadRadius: 5,
-                          ),
-                        ],
-                      ),
-                      child: AquaAvatar(
-                        imageUrl: u.photoUrl,
-                        name: u.name,
-                        size: 100,
-                      ),
-                    ),
-                    // Edit photo button
-                    Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        gradient: AppColors.buttonGradient,
-                        shape: BoxShape.circle,
-                        border: Border.all(
-                          color: AppColors.abyssBackground,
-                          width: 2,
+                  // ─── Avatar with glow ─────────────────────
+                  Stack(
+                    alignment: Alignment.bottomRight,
+                    children: [
+                      Container(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.aquaCyan.withValues(alpha: 0.3),
+                              blurRadius: 30,
+                              spreadRadius: 5,
+                            ),
+                          ],
+                        ),
+                        child: AquaAvatar(
+                          imageUrl: u.photoUrl,
+                          name: u.name,
+                          size: 100,
                         ),
                       ),
-                      child: const Icon(Icons.camera_alt_rounded,
-                          color: Colors.white, size: 14),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 20),
-
-                // Name
-                Text(u.name, style: AppTextStyles.display.copyWith(fontSize: 26)),
-                const SizedBox(height: 4),
-                Text(u.email, style: AppTextStyles.caption),
-
-                const SizedBox(height: 32),
-
-                // Settings cards
-                _SettingsTile(
-                  icon: Icons.person_outline_rounded,
-                  title: 'Edit Profile',
-                  subtitle: 'Change name, photo',
-                  onTap: () {},
-                ),
-                _SettingsTile(
-                  icon: Icons.notifications_outlined,
-                  title: 'Notifications',
-                  subtitle: 'Push notifications, sounds',
-                  onTap: () {},
-                ),
-                _SettingsTile(
-                  icon: Icons.lock_outline_rounded,
-                  title: 'Privacy',
-                  subtitle: 'Blocked users, visibility',
-                  onTap: () {},
-                ),
-                _SettingsTile(
-                  icon: Icons.color_lens_outlined,
-                  title: 'Appearance',
-                  subtitle: 'Theme, chat bubbles',
-                  onTap: () {},
-                ),
-                _SettingsTile(
-                  icon: Icons.help_outline_rounded,
-                  title: 'Help & Support',
-                  subtitle: 'FAQs, contact us',
-                  onTap: () {},
-                ),
-
-                const SizedBox(height: 20),
-
-                // Sign out
-                WaterRippleEffect(
-                  onTap: () async {
-                    final authService = ref.read(authServiceProvider);
-                    await authService.signOut();
-                  },
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.errorRed.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(
-                        color: AppColors.errorRed.withValues(alpha: 0.3),
+                      Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          gradient: AppColors.buttonGradient,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: AppColors.abyssBackground,
+                            width: 3,
+                          ),
+                        ),
+                        child: const Icon(Icons.camera_alt_rounded,
+                            color: Colors.white, size: 14),
                       ),
+                    ],
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // ─── Name & Email ──────────────────────────
+                  Text(
+                    u.name,
+                    style: AppTextStyles.display.copyWith(fontSize: 26),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(u.email, style: AppTextStyles.caption),
+
+                  const SizedBox(height: 8),
+
+                  // Online status badge
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 12, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: AppColors.aquaCore.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(20),
                     ),
-                    child: Center(
-                      child: Text(
-                        'Sign Out',
-                        style: AppTextStyles.button
-                            .copyWith(color: AppColors.errorRed),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: u.isOnline
+                                ? AppColors.onlineGreen
+                                : AppColors.textMuted,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          u.isOnline ? 'Online' : 'Offline',
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 11,
+                            color: u.isOnline
+                                ? AppColors.onlineGreen
+                                : AppColors.textMuted,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 28),
+
+                  // ─── Account Section ──────────────────────
+                  _SectionHeader(title: 'Account'),
+                  const SizedBox(height: 8),
+
+                  _SettingsTile(
+                    icon: Icons.person_outline_rounded,
+                    title: 'Edit Profile',
+                    subtitle: 'Change name, bio, photo',
+                    iconColor: AppColors.aquaCore,
+                    onTap: () => _showEditProfileDialog(u.name),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.qr_code_rounded,
+                    title: 'QR Code',
+                    subtitle: 'Share your profile',
+                    iconColor: const Color(0xFF9C27B0),
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.shield_outlined,
+                    title: 'Account Security',
+                    subtitle: 'Password, 2FA',
+                    iconColor: const Color(0xFFFF9800),
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ─── Preferences Section ──────────────────
+                  _SectionHeader(title: 'Preferences'),
+                  const SizedBox(height: 8),
+
+                  _SettingsTile(
+                    icon: Icons.notifications_outlined,
+                    title: 'Notifications',
+                    subtitle: 'Push notifications, sounds',
+                    iconColor: const Color(0xFF2196F3),
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.lock_outline_rounded,
+                    title: 'Privacy',
+                    subtitle: 'Blocked users, read receipts',
+                    iconColor: const Color(0xFF4CAF50),
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.color_lens_outlined,
+                    title: 'Appearance',
+                    subtitle: 'Theme, chat bubbles, font size',
+                    iconColor: const Color(0xFFE91E63),
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.language_rounded,
+                    title: 'Language',
+                    subtitle: 'English',
+                    iconColor: const Color(0xFF009688),
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ─── Storage Section ──────────────────────
+                  _SectionHeader(title: 'Storage & Data'),
+                  const SizedBox(height: 8),
+
+                  _SettingsTile(
+                    icon: Icons.storage_rounded,
+                    title: 'Storage Usage',
+                    subtitle: 'Manage cache, media',
+                    iconColor: const Color(0xFF795548),
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.cloud_download_outlined,
+                    title: 'Data Usage',
+                    subtitle: 'Auto-download, quality',
+                    iconColor: const Color(0xFF607D8B),
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // ─── Support Section ──────────────────────
+                  _SectionHeader(title: 'Support'),
+                  const SizedBox(height: 8),
+
+                  _SettingsTile(
+                    icon: Icons.help_outline_rounded,
+                    title: 'Help & FAQ',
+                    subtitle: 'Get help, report issues',
+                    iconColor: const Color(0xFF3F51B5),
+                    onTap: () {},
+                  ),
+                  _SettingsTile(
+                    icon: Icons.info_outline_rounded,
+                    title: 'About Ripple',
+                    subtitle: 'Version, licenses, terms',
+                    iconColor: AppColors.aquaCyan,
+                    onTap: () => _showAboutDialog(),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.star_outline_rounded,
+                    title: 'Rate Us',
+                    subtitle: 'Love Ripple? Rate us!',
+                    iconColor: const Color(0xFFFFC107),
+                    onTap: () {},
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // ─── Sign Out ─────────────────────────────
+                  WaterRippleEffect(
+                    onTap: () async {
+                      final confirmed = await showDialog<bool>(
+                        context: context,
+                        builder: (ctx) => AlertDialog(
+                          backgroundColor: const Color(0xFF0D1B2A),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          title: Text('Sign Out?',
+                              style: AppTextStyles.body
+                                  .copyWith(fontWeight: FontWeight.w600)),
+                          content: Text(
+                            'Are you sure you want to sign out?',
+                            style: AppTextStyles.caption,
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, false),
+                              child: Text('Cancel',
+                                  style: TextStyle(
+                                      color: AppColors.textMuted)),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(ctx, true),
+                              child: Text('Sign Out',
+                                  style:
+                                      TextStyle(color: AppColors.errorRed)),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirmed == true && mounted) {
+                        final authService = ref.read(authServiceProvider);
+                        await authService.signOut();
+                        if (mounted) context.go('/login');
+                      }
+                    },
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      decoration: BoxDecoration(
+                        color: AppColors.errorRed.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.errorRed.withValues(alpha: 0.3),
+                        ),
+                      ),
+                      child: Center(
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.logout_rounded,
+                                color: AppColors.errorRed, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Sign Out',
+                              style: AppTextStyles.button
+                                  .copyWith(color: AppColors.errorRed),
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                const SizedBox(height: 16),
+                  const SizedBox(height: 16),
 
-                // App version
-                Text(
-                  'Ripple v1.0.0',
-                  style: AppTextStyles.caption
-                      .copyWith(color: AppColors.textMuted, fontSize: 10),
-                ),
-                const SizedBox(height: 32),
-              ],
+                  // App version
+                  Text(
+                    'Ripple v1.0.0 • Made with 💙',
+                    style: AppTextStyles.caption
+                        .copyWith(color: AppColors.textMuted, fontSize: 10),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ),
             ),
           );
         },
       ),
     );
   }
+
+  void _showEditProfileDialog(String currentName) {
+    final nameController = TextEditingController(text: currentName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1B2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Edit Profile',
+            style:
+                AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
+        content: TextField(
+          controller: nameController,
+          style: AppTextStyles.body,
+          decoration: InputDecoration(
+            hintText: 'Enter new name',
+            hintStyle: TextStyle(color: AppColors.textMuted),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(color: AppColors.glassBorder),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.aquaCore),
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child:
+                Text('Cancel', style: TextStyle(color: AppColors.textMuted)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final newName = nameController.text.trim();
+              if (newName.isNotEmpty) {
+                final profileService = ref.read(profileServiceProvider);
+                await profileService.updateName(newName);
+                // ignore: use_build_context_synchronously
+                Navigator.pop(ctx);
+              }
+            },
+            child: const Text('Save',
+                style: TextStyle(color: AppColors.aquaCore)),
+          ),
+        ],
+      ),
+    );
+    nameController.dispose;
+  }
+
+  void _showAboutDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1B2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: ShaderMask(
+          shaderCallback: (bounds) => AppColors.aquaGradient.createShader(
+            Rect.fromLTWH(0, 0, bounds.width, bounds.height),
+          ),
+          child: Text('Ripple',
+              style: AppTextStyles.display
+                  .copyWith(fontSize: 24, color: Colors.white)),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Version 1.0.0', style: AppTextStyles.body),
+            const SizedBox(height: 8),
+            Text(
+              'Ripple is a modern chat app with liquid glass aesthetics and AI-powered features.',
+              style: AppTextStyles.caption,
+            ),
+            const SizedBox(height: 16),
+            Text('© 2026 Ripple Team',
+                style: AppTextStyles.caption
+                    .copyWith(color: AppColors.textMuted)),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close',
+                style: TextStyle(color: AppColors.aquaCore)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
+// ─── Section Header ─────────────────────────────────────
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Text(
+        title.toUpperCase(),
+        style: AppTextStyles.caption.copyWith(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.2,
+          color: AppColors.aquaCore.withValues(alpha: 0.7),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Settings Tile ──────────────────────────────────────
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final Color iconColor;
   final VoidCallback onTap;
 
   const _SettingsTile({
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.iconColor,
     required this.onTap,
   });
 
@@ -193,13 +496,13 @@ class _SettingsTile extends StatelessWidget {
           child: Row(
             children: [
               Container(
-                width: 36,
-                height: 36,
+                width: 38,
+                height: 38,
                 decoration: BoxDecoration(
-                  color: AppColors.aquaCore.withValues(alpha: 0.1),
+                  color: iconColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(icon, color: AppColors.aquaCore, size: 18),
+                child: Icon(icon, color: iconColor, size: 20),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -208,13 +511,14 @@ class _SettingsTile extends StatelessWidget {
                   children: [
                     Text(title,
                         style: AppTextStyles.body.copyWith(fontSize: 14)),
+                    const SizedBox(height: 2),
                     Text(subtitle,
                         style: AppTextStyles.caption.copyWith(fontSize: 11)),
                   ],
                 ),
               ),
               Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textMuted, size: 18),
+                  color: AppColors.textMuted, size: 20),
             ],
           ),
         ),
