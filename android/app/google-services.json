@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "965795380677",
+    "project_id": "ripple-cd77c",
+    "storage_bucket": "ripple-cd77c.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:965795380677:android:57151f3ad28ccd83869fac",
+        "android_client_info": {
+          "package_name": "com.valli.ripple"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "965795380677-hv8sn84j15m0o2pbbmqvbu8etuhojaf3.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.valli.ripple",
+            "certificate_hash": "9fc76a366d4096ff181f54bc232787a766df0b94"
+          }
+        },
+        {
+          "client_id": "965795380677-5ptfd71vme07l45d7ui5qh585pebvt25.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-ZlO7BMYxRy6hFdj0opbZIq1BtCoqN0o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "965795380677-5ptfd71vme07l45d7ui5qh585pebvt25.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
