@@ -1,34 +1,27 @@
 import 'package:flutter/widgets.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
-import '../services/firebase_service.dart';
+import '../services/presence_service.dart';
 
-/// Watches app lifecycle to update online/offline status in Firestore
+/// Watches app lifecycle to update online/offline status via PresenceService.
+/// Uses Firebase Realtime Database for instant offline detection.
 class AppLifecycleObserver extends WidgetsBindingObserver {
+  final String uid;
+
+  AppLifecycleObserver(this.uid);
+
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    final user = FirebaseService.auth.currentUser;
-    if (user == null) return;
-
-    final docRef = FirebaseService.firestore.collection('users').doc(user.uid);
+    if (uid.isEmpty) return;
 
     switch (state) {
       case AppLifecycleState.resumed:
-        // App came to foreground → set online
-        docRef.update({
-          'isOnline': true,
-          'lastSeen': FieldValue.serverTimestamp(),
-        }).catchError((_) {});
+        PresenceService.setOnline(uid);
         break;
       case AppLifecycleState.paused:
       case AppLifecycleState.inactive:
       case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
-        // App went to background or closed → set offline
-        docRef.update({
-          'isOnline': false,
-          'lastSeen': FieldValue.serverTimestamp(),
-        }).catchError((_) {});
+        PresenceService.setOffline(uid);
         break;
     }
   }

@@ -121,7 +121,17 @@ final routerProvider = Provider<GoRouter>((ref) {
 /// Helper to make GoRouter refresh when auth state changes
 class _GoRouterRefreshStream extends ChangeNotifier {
   _GoRouterRefreshStream(Ref ref) {
-    ref.listen(authStateProvider, (_, __) {
+    ref.listen(authStateProvider, (previous, next) {
+      final prevUid = previous?.valueOrNull?.uid;
+      final nextUid = next.valueOrNull?.uid;
+
+      // When user changes (sign out or switch account),
+      // invalidate ALL data providers so streams re-subscribe
+      // with the new user's credentials
+      if (prevUid != nextUid) {
+        ref.invalidate(currentUserProvider);
+      }
+
       notifyListeners();
     });
   }

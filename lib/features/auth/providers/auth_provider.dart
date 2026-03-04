@@ -5,6 +5,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/presence_service.dart';
 import '../models/user_model.dart';
 
 // ─── Auth State Provider ─────────────────────────────────
@@ -143,6 +144,7 @@ class AuthService {
   Future<void> signOut() async {
     final uid = _auth.currentUser?.uid;
     if (uid != null) {
+      await PresenceService.setOffline(uid);
       await _setOnlineStatus(uid, false);
       await _clearFcmToken(uid);
     }
@@ -169,6 +171,7 @@ class AuthService {
         'isTypingTo': '',
         'friends': [],
         'blockedUsers': [],
+        'blockedWereFriends': [],
         'friendRequests': {'sent': [], 'received': []},
         'notificationSettings': {
           'messages': true,

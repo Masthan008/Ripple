@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -14,6 +15,9 @@ const _uuid = Uuid();
 /// Real-time stream of messages for a specific chat
 final chatMessagesProvider =
     StreamProvider.family<List<MessageModel>, String>((ref, chatId) {
+  final currentUser = FirebaseService.auth.currentUser;
+  if (currentUser == null) return Stream.value([]);
+
   return FirebaseService.chatsCollection
       .doc(chatId)
       .collection('messages')
@@ -44,7 +48,7 @@ class ChatService {
   final _firestore = FirebaseService.firestore;
   final _auth = FirebaseService.auth;
 
-  String get _myUid => _auth.currentUser!.uid;
+  String get _myUid => _auth.currentUser?.uid ?? '';
 
   /// Public getter for current user UID
   String get myUid => _myUid;
@@ -59,6 +63,36 @@ class ChatService {
     MessageType type = MessageType.text,
     String? mediaUrl,
   }) async {
+    if (_myUid.isEmpty) return; // Guard during auth transition
+
+    final otherUid = _getOtherUid(chatId);
+
+    // ── Block check ──────────────────────────────────────
+    // Check if either user has blocked the other
+    final recipientDoc =
+        await _firestore.collection('users').doc(otherUid).get();
+    final theirBlockedList = List<String>.from(
+        recipientDoc.data()?['blockedUsers'] as List? ?? []);
+
+    if (theirBlockedList.contains(_myUid)) {
+      // Silently skip — recipient blocked me
+      // (message appears sent on my side but never delivered,
+      //  same behavior as WhatsApp/iMessage)
+      debugPrint('🚫 Message blocked — recipient has blocked sender');
+      return;
+    }
+
+    final myDoc =
+        await _firestore.collection('users').doc(_myUid).get();
+    final myBlockedList = List<String>.from(
+        myDoc.data()?['blockedUsers'] as List? ?? []);
+
+    if (myBlockedList.contains(otherUid)) {
+      throw Exception(
+          'You have blocked this user. Unblock them to send messages.');
+    }
+
+    // ── Send message ─────────────────────────────────────
     final messageId = _uuid.v4();
     final message = MessageModel(
       id: messageId,
@@ -96,7 +130,6 @@ class ChatService {
     );
 
     // Increment unread count for the other user
-    final otherUid = _getOtherUid(chatId);
     batch.set(
       chatRef,
       {

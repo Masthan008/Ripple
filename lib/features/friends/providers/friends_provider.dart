@@ -223,28 +223,66 @@ class FriendsService {
     await batch.commit();
   }
 
-  /// Block a user (bidirectional update)
+  /// Block a user — preserves friendship status for restore on unblock
   Future<void> blockUser(String targetUid) async {
+    final myRef = _firestore.collection('users').doc(_myUid);
+
+    // Check if they are currently friends so we can restore later
+    final myDoc = await myRef.get();
+    final friendsList =
+        List<String>.from(myDoc.data()?['friends'] as List? ?? []);
+    final isFriend = friendsList.contains(targetUid);
+
     final batch = _firestore.batch();
 
-    // Add to my blocked list
-    batch.update(_firestore.collection('users').doc(_myUid), {
+    // Add to blocked list + save was-friend status
+    batch.update(myRef, {
       'blockedUsers': FieldValue.arrayUnion([targetUid]),
-      'friends': FieldValue.arrayRemove([targetUid]),
+      if (isFriend)
+        'blockedWereFriends': FieldValue.arrayUnion([targetUid]),
     });
 
-    // Remove me from their friends
-    batch.update(_firestore.collection('users').doc(targetUid), {
-      'friends': FieldValue.arrayRemove([_myUid]),
-    });
+    // Remove from MY friends only (not theirs — they still see me
+    // but can't send messages, matching WhatsApp/iMessage behavior)
+    if (isFriend) {
+      batch.update(myRef, {
+        'friends': FieldValue.arrayRemove([targetUid]),
+      });
+    }
 
     await batch.commit();
   }
 
-  /// Unblock a user
+  /// Unblock a user — restores friendship if they were friends before block
   Future<void> unblockUser(String targetUid) async {
-    await _firestore.collection('users').doc(_myUid).update({
+    final myRef = _firestore.collection('users').doc(_myUid);
+
+    // Check if they were friends before the block
+    final myDoc = await myRef.get();
+    final wereFriends =
+        (myDoc.data()?['blockedWereFriends'] as List? ?? [])
+            .contains(targetUid);
+
+    final batch = _firestore.batch();
+
+    // Remove from blocked list and wereFriends tracking
+    batch.update(myRef, {
       'blockedUsers': FieldValue.arrayRemove([targetUid]),
+      'blockedWereFriends': FieldValue.arrayRemove([targetUid]),
     });
+
+    // Restore friendship if they were friends before block
+    if (wereFriends) {
+      batch.update(myRef, {
+        'friends': FieldValue.arrayUnion([targetUid]),
+      });
+      // Also ensure they still have me as friend
+      batch.update(
+        _firestore.collection('users').doc(targetUid),
+        {'friends': FieldValue.arrayUnion([_myUid])},
+      );
+    }
+
+    await batch.commit();
   }
 }

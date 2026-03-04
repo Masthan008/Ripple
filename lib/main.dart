@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 import 'core/utils/env.dart';
-import 'core/utils/app_lifecycle_observer.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
 import 'app.dart';
@@ -75,8 +74,8 @@ void main() async {
     return;
   }
 
-  // Register lifecycle observer for online/offline status
-  WidgetsBinding.instance.addObserver(AppLifecycleObserver());
+  // Note: AppLifecycleObserver is now registered in HomeScreen
+  // with the user's UID after login (requires PresenceService)
 
   runApp(
     const ProviderScope(

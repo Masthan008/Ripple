@@ -26,7 +26,7 @@ service cloud.firestore {
       allow update: if isOwner(userId)
         || (isSignedIn()
             && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['friendRequests', 'friends', 'blockedUsers']));
+               .hasOnly(['friendRequests', 'friends', 'blockedUsers', 'oneSignalPlayerId']));
 
       allow delete: if false;
     }

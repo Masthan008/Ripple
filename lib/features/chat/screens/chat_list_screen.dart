@@ -6,6 +6,8 @@ import 'package:intl/intl.dart';
 
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../../../core/services/presence_service.dart';
+import '../../../core/utils/app_lifecycle_observer.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -27,6 +29,7 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentIndex = 0;
+  AppLifecycleObserver? _lifecycleObserver;
 
   final _tabs = const [
     _ChatsTab(),
@@ -38,7 +41,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // Wire up notification handlers after first frame
+    // Wire up notification handlers + presence after first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       // Setup notification tap navigation
@@ -53,8 +56,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           const Duration(seconds: 10),
           () => NotificationService.syncPlayerId(uid),
         );
+
+        // Initialize real-time presence (RTDB + Firestore sync)
+        PresenceService.initialize(uid);
+
+        // Register lifecycle observer for foreground/background status
+        _lifecycleObserver = AppLifecycleObserver(uid);
+        WidgetsBinding.instance.addObserver(_lifecycleObserver!);
       }
     });
+  }
+
+  @override
+  void dispose() {
+    if (_lifecycleObserver != null) {
+      WidgetsBinding.instance.removeObserver(_lifecycleObserver!);
+    }
+    super.dispose();
   }
 
   @override
@@ -81,7 +99,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
       stream: FirebaseService.chatsCollection
           .where('participants', arrayContains: myUid)
-          .snapshots(),
+          .snapshots()
+          .handleError((_) {}),
       builder: (ctx, chatSnap) {
         int totalChatUnread = 0;
         if (chatSnap.hasData) {
@@ -95,7 +114,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           stream: FirebaseService.firestore
               .collection('groups')
               .where('members', arrayContains: myUid)
-              .snapshots(),
+              .snapshots()
+              .handleError((_) {}),
           builder: (ctx2, groupSnap) {
             int totalGroupUnread = 0;
             if (groupSnap.hasData) {
@@ -158,23 +178,16 @@ class _ChatsTab extends ConsumerWidget {
               style: AppTextStyles.subtitle,
             ),
             const SizedBox(height: 16),
-            // Search bar stub
-            Container(
-              height: 44,
-              decoration: GlassTheme.inputDecoration(),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              child: Row(
-                children: [
-                  const Icon(Icons.search_rounded,
-                      color: AppColors.textMuted, size: 20),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Search messages...',
-                    style: AppTextStyles.caption
-                        .copyWith(color: AppColors.textMuted),
-                  ),
-                ],
-              ),
+            // Search bar
+            _ChatSearchBar(
+              chatsStream: currentUser == null
+                  ? null
+                  : FirebaseService.chatsCollection
+                      .where('participants',
+                          arrayContains: currentUser.uid)
+                      .snapshots()
+                      .handleError((_) {}),
+              currentUid: currentUser?.uid ?? '',
             ),
             const SizedBox(height: 16),
             // Chat list
@@ -185,7 +198,8 @@ class _ChatsTab extends ConsumerWidget {
                       stream: FirebaseService.chatsCollection
                           .where('participants',
                               arrayContains: currentUser.uid)
-                          .snapshots(),
+                          .snapshots()
+                          .handleError((_) {}),
                       builder: (ctx, snapshot) {
                         if (snapshot.connectionState ==
                             ConnectionState.waiting) {
@@ -268,6 +282,199 @@ class _ChatsTab extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Interactive search bar for filtering chats by name
+class _ChatSearchBar extends StatefulWidget {
+  final Stream<QuerySnapshot<Map<String, dynamic>>>? chatsStream;
+  final String currentUid;
+
+  const _ChatSearchBar({
+    required this.chatsStream,
+    required this.currentUid,
+  });
+
+  @override
+  State<_ChatSearchBar> createState() => _ChatSearchBarState();
+}
+
+class _ChatSearchBarState extends State<_ChatSearchBar> {
+  bool _isSearching = false;
+  final _controller = TextEditingController();
+  final _focusNode = FocusNode();
+  List<Map<String, dynamic>> _searchResults = [];
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _allChats = [];
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onSearchChanged(String query) async {
+    if (query.trim().isEmpty) {
+      setState(() => _searchResults = []);
+      return;
+    }
+
+    final lowerQuery = query.toLowerCase();
+    final results = <Map<String, dynamic>>[];
+
+    for (final chatDoc in _allChats) {
+      final data = chatDoc.data();
+      final participants =
+          List<String>.from(data['participants'] ?? []);
+      final otherUid = participants.firstWhere(
+        (id) => id != widget.currentUid,
+        orElse: () => '',
+      );
+      if (otherUid.isEmpty) continue;
+
+      // Fetch partner name
+      try {
+        final userDoc = await FirebaseService.usersCollection
+            .doc(otherUid)
+            .get();
+        final name =
+            (userDoc.data()?['name'] as String? ?? '').toLowerCase();
+        if (name.contains(lowerQuery)) {
+          results.add({
+            'chatId': chatDoc.id,
+            'otherUid': otherUid,
+            'name': userDoc.data()?['name'] ?? 'User',
+            'photoUrl': userDoc.data()?['photoUrl'] ?? '',
+          });
+        }
+      } catch (_) {}
+    }
+
+    if (mounted) setState(() => _searchResults = results);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Listen to chats stream to populate _allChats for search
+    if (widget.chatsStream != null) {
+      widget.chatsStream!.listen((snapshot) {
+        _allChats = snapshot.docs;
+      });
+    }
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        GestureDetector(
+          onTap: () {
+            setState(() => _isSearching = !_isSearching);
+            if (_isSearching) {
+              _focusNode.requestFocus();
+            } else {
+              _controller.clear();
+              _searchResults = [];
+              _focusNode.unfocus();
+            }
+          },
+          child: Container(
+            height: 44,
+            decoration: GlassTheme.inputDecoration(),
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            child: _isSearching
+                ? Row(
+                    children: [
+                      const Icon(Icons.search_rounded,
+                          color: AppColors.aquaCore, size: 20),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: TextField(
+                          controller: _controller,
+                          focusNode: _focusNode,
+                          onChanged: _onSearchChanged,
+                          style: AppTextStyles.body
+                              .copyWith(fontSize: 14),
+                          decoration: InputDecoration(
+                            hintText: 'Search by name...',
+                            hintStyle: AppTextStyles.caption
+                                .copyWith(color: AppColors.textMuted),
+                            border: InputBorder.none,
+                            isDense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isSearching = false;
+                            _controller.clear();
+                            _searchResults = [];
+                          });
+                          _focusNode.unfocus();
+                        },
+                        child: const Icon(Icons.close_rounded,
+                            color: AppColors.textMuted, size: 18),
+                      ),
+                    ],
+                  )
+                : Row(
+                    children: [
+                      const Icon(Icons.search_rounded,
+                          color: AppColors.textMuted, size: 20),
+                      const SizedBox(width: 10),
+                      Text(
+                        'Search messages...',
+                        style: AppTextStyles.caption
+                            .copyWith(color: AppColors.textMuted),
+                      ),
+                    ],
+                  ),
+          ),
+        ),
+        // Search results
+        if (_searchResults.isNotEmpty)
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: AppColors.glassPanel,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.glassBorder, width: 0.5),
+            ),
+            constraints: const BoxConstraints(maxHeight: 200),
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: _searchResults.length,
+              itemBuilder: (ctx, i) {
+                final result = _searchResults[i];
+                return ListTile(
+                  dense: true,
+                  leading: AquaAvatar(
+                    imageUrl: result['photoUrl'],
+                    name: result['name'],
+                    size: 32,
+                  ),
+                  title: Text(
+                    result['name'],
+                    style: AppTextStyles.body.copyWith(fontSize: 13),
+                  ),
+                  onTap: () {
+                    setState(() {
+                      _isSearching = false;
+                      _controller.clear();
+                      _searchResults = [];
+                    });
+                    GoRouter.of(context).push(
+                      '/chat?chatId=${result['chatId']}'
+                      '&partnerUid=${result['otherUid']}'
+                      '&partnerName=${Uri.encodeComponent(result['name'])}',
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+      ],
     );
   }
 }
