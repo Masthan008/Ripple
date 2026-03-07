@@ -306,6 +306,7 @@ class _ChatSearchBarState extends State<_ChatSearchBar> {
   final _focusNode = FocusNode();
   List<Map<String, dynamic>> _searchResults = [];
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _allChats = [];
+  bool _hasSubscribed = false;
 
   @override
   void dispose() {
@@ -322,6 +323,7 @@ class _ChatSearchBarState extends State<_ChatSearchBar> {
 
     final lowerQuery = query.toLowerCase();
     final results = <Map<String, dynamic>>[];
+    final seenUids = <String>{};
 
     for (final chatDoc in _allChats) {
       final data = chatDoc.data();
@@ -331,7 +333,7 @@ class _ChatSearchBarState extends State<_ChatSearchBar> {
         (id) => id != widget.currentUid,
         orElse: () => '',
       );
-      if (otherUid.isEmpty) continue;
+      if (otherUid.isEmpty || seenUids.contains(otherUid)) continue;
 
       // Fetch partner name
       try {
@@ -341,6 +343,7 @@ class _ChatSearchBarState extends State<_ChatSearchBar> {
         final name =
             (userDoc.data()?['name'] as String? ?? '').toLowerCase();
         if (name.contains(lowerQuery)) {
+          seenUids.add(otherUid);
           results.add({
             'chatId': chatDoc.id,
             'otherUid': otherUid,
@@ -354,14 +357,18 @@ class _ChatSearchBarState extends State<_ChatSearchBar> {
     if (mounted) setState(() => _searchResults = results);
   }
 
+  void _subscribeToChats() {
+    if (_hasSubscribed || widget.chatsStream == null) return;
+    _hasSubscribed = true;
+    widget.chatsStream!.listen((snapshot) {
+      _allChats = snapshot.docs;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Listen to chats stream to populate _allChats for search
-    if (widget.chatsStream != null) {
-      widget.chatsStream!.listen((snapshot) {
-        _allChats = snapshot.docs;
-      });
-    }
+    // Subscribe once to populate _allChats for search
+    _subscribeToChats();
 
     return Column(
       mainAxisSize: MainAxisSize.min,

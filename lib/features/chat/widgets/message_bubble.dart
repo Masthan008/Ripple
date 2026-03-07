@@ -1,19 +1,29 @@
+import 'package:any_link_preview/any_link_preview.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../../core/utils/helpers.dart';
 import '../models/message_model.dart';
+import 'voice_message_bubble.dart';
 
-/// Message bubble widget — incoming (glass) and outgoing (cyan gradient)
-/// Per PRD §4.3 Component Specs — Message Bubbles
+/// Message bubble widget — Phase 1 with reactions, reply, edit, delete,
+/// forwarded tag, seen receipts, multi-select support
 class MessageBubble extends StatelessWidget {
   final MessageModel message;
   final bool isMe;
   final bool showSenderName;
   final String? senderName;
+  final String currentUid;
+  final String chatId;
+  final bool isGroup;
+  final VoidCallback? onLongPress;
+  final VoidCallback? onTap;
+  final bool isSelected;
+  final bool isMultiSelectMode;
 
   const MessageBubble({
     super.key,
@@ -21,10 +31,148 @@ class MessageBubble extends StatelessWidget {
     required this.isMe,
     this.showSenderName = false,
     this.senderName,
+    this.currentUid = '',
+    this.chatId = '',
+    this.isGroup = false,
+    this.onLongPress,
+    this.onTap,
+    this.isSelected = false,
+    this.isMultiSelectMode = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    // ── Deleted message placeholder ──
+    if (message.isDeleted) {
+      return _buildDeletedBubble();
+    }
+
+    return GestureDetector(
+      onLongPress: onLongPress,
+      onTap: onTap,
+      child: Container(
+        color: isSelected
+            ? AppColors.aquaCore.withOpacity(0.08)
+            : Colors.transparent,
+        child: Padding(
+          padding: EdgeInsets.only(
+            left: isMe ? 60 : 12,
+            right: isMe ? 12 : 60,
+            bottom: 6,
+            top: 2,
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Multi-select checkbox
+              if (isMultiSelectMode) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, right: 8),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    width: 22,
+                    height: 22,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: isSelected
+                          ? AppColors.aquaCore
+                          : Colors.transparent,
+                      border: Border.all(
+                        color: isSelected
+                            ? AppColors.aquaCore
+                            : Colors.white.withOpacity(0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: isSelected
+                        ? const Icon(Icons.check,
+                            color: Colors.white, size: 13)
+                        : null,
+                  ),
+                ),
+              ],
+
+              // Bubble content
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: isMe
+                      ? CrossAxisAlignment.end
+                      : CrossAxisAlignment.start,
+                  children: [
+                    // Sender name (group chats)
+                    if (showSenderName && senderName != null && !isMe)
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(left: 4, bottom: 3),
+                        child: Text(senderName!,
+                            style: AppTextStyles.senderLabel),
+                      ),
+
+                    // Forwarded tag
+                    if (message.isForwarded)
+                      Padding(
+                        padding:
+                            const EdgeInsets.only(left: 4, bottom: 2),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.forward_rounded,
+                                color: Colors.white.withOpacity(0.4),
+                                size: 12),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Forwarded',
+                              style: AppTextStyles.caption.copyWith(
+                                fontSize: 10,
+                                fontStyle: FontStyle.italic,
+                                color: Colors.white.withOpacity(0.4),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                    // Bubble
+                    Container(
+                      padding: _getPadding(),
+                      decoration: isMe
+                          ? GlassTheme.outgoingBubbleDecoration()
+                          : GlassTheme.incomingBubbleDecoration(),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          // Reply preview inside bubble
+                          if (message.replyTo != null)
+                            _buildReplyPreview(),
+
+                          // Content
+                          Column(
+                            crossAxisAlignment:
+                                CrossAxisAlignment.end,
+                            children: [
+                              _buildContent(),
+                              const SizedBox(height: 4),
+                              _buildTimestamp(),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // Reaction badges below bubble
+                    if (message.reactions.isNotEmpty)
+                      _buildReactionBadges(),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDeletedBubble() {
     return Padding(
       padding: EdgeInsets.only(
         left: isMe ? 60 : 12,
@@ -32,30 +180,72 @@ class MessageBubble extends StatelessWidget {
         bottom: 6,
         top: 2,
       ),
-      child: Column(
-        crossAxisAlignment:
-            isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          // Sender name (group chats)
-          if (showSenderName && senderName != null && !isMe)
-            Padding(
-              padding: const EdgeInsets.only(left: 4, bottom: 3),
-              child: Text(senderName!, style: AppTextStyles.senderLabel),
-            ),
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white12),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.block,
+                  color: Colors.white.withOpacity(0.38), size: 16),
+              const SizedBox(width: 8),
+              Text(
+                'This message was deleted',
+                style: TextStyle(
+                  color: Colors.white.withOpacity(0.38),
+                  fontStyle: FontStyle.italic,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
-          // Bubble
-          Container(
-            padding: _getPadding(),
-            decoration: isMe
-                ? GlassTheme.outgoingBubbleDecoration()
-                : GlassTheme.incomingBubbleDecoration(),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                _buildContent(),
-                const SizedBox(height: 4),
-                _buildTimestamp(),
-              ],
+  Widget _buildReplyPreview() {
+    final reply = message.replyTo!;
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: AppColors.aquaCore.withOpacity(0.1),
+        border: Border(
+          left: BorderSide(color: AppColors.aquaCore, width: 3),
+        ),
+        borderRadius: const BorderRadius.only(
+          topRight: Radius.circular(8),
+          bottomRight: Radius.circular(8),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            reply.senderName,
+            style: AppTextStyles.caption.copyWith(
+              color: AppColors.aquaCore,
+              fontWeight: FontWeight.bold,
+              fontSize: 11,
+            ),
+          ),
+          Text(
+            reply.text.isEmpty
+                ? '[${reply.type}]'
+                : reply.text,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.caption.copyWith(
+              color: Colors.white.withOpacity(0.5),
+              fontSize: 11,
             ),
           ),
         ],
@@ -72,28 +262,141 @@ class MessageBubble extends StatelessWidget {
 
   Widget _buildContent() {
     switch (message.type) {
-      case MessageType.image:
+      case 'image':
         return _buildImageContent();
-      case MessageType.video:
+      case 'video':
         return _buildVideoContent();
-      case MessageType.file:
+      case 'file':
         return _buildFileContent();
-      case MessageType.text:
-      case MessageType.emoji:
+      case 'voice':
+        return _buildVoiceContent();
+      case 'gif':
+        return _buildGifContent();
+      case 'text':
+      case 'emoji':
+      default:
         return _buildTextContent();
     }
   }
 
   Widget _buildTextContent() {
-    final isEmoji = message.type == MessageType.emoji;
-    return Text(
-      message.text,
-      style: isEmoji
-          ? const TextStyle(fontSize: 32)
-          : AppTextStyles.body.copyWith(
-              color: Colors.white,
-              height: 1.4,
-            ),
+    final isEmoji = message.type == 'emoji';
+    final text = message.text ?? '';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          text,
+          style: isEmoji
+              ? const TextStyle(fontSize: 32)
+              : AppTextStyles.body.copyWith(
+                  color: Colors.white,
+                  height: 1.4,
+                ),
+        ),
+        // Link preview if text contains a URL
+        if (!isEmoji && _containsUrl(text)) ..._buildLinkPreview(text),
+      ],
+    );
+  }
+
+  static final _urlRegex = RegExp(
+    r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)',
+    caseSensitive: false,
+  );
+
+  bool _containsUrl(String text) => _urlRegex.hasMatch(text);
+
+  String? _extractUrl(String text) => _urlRegex.firstMatch(text)?.group(0);
+
+  List<Widget> _buildLinkPreview(String text) {
+    final url = _extractUrl(text);
+    if (url == null) return [];
+    return [
+      const SizedBox(height: 8),
+      ClipRRect(
+        borderRadius: BorderRadius.circular(10),
+        child: AnyLinkPreview(
+          link: url,
+          displayDirection: UIDirection.uiDirectionVertical,
+          showMultimedia: true,
+          bodyMaxLines: 3,
+          titleStyle: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            fontSize: 13,
+          ),
+          bodyStyle: const TextStyle(
+            color: Colors.white60,
+            fontSize: 11,
+          ),
+          backgroundColor: const Color(0xFF1E293B),
+          borderRadius: 10,
+          removeElevation: true,
+          boxShadow: const [],
+          onTap: () => launchUrl(
+            Uri.parse(url),
+            mode: LaunchMode.externalApplication,
+          ),
+          errorBody: '',
+          errorTitle: '',
+          errorWidget: const SizedBox.shrink(),
+        ),
+      ),
+    ];
+  }
+
+  Widget _buildVoiceContent() {
+    // Parse waveform data from message
+    final rawWaveform = message.toMap()['waveformData'];
+    final waveformData = rawWaveform is List
+        ? rawWaveform.map((e) => (e as num).toDouble()).toList()
+        : <double>[];
+    final duration = (message.toMap()['duration'] as int?) ?? 0;
+
+    return VoiceMessageBubble(
+      audioUrl: message.mediaUrl ?? '',
+      durationSeconds: duration,
+      waveformData: waveformData,
+      isMyMessage: isMe,
+    );
+  }
+
+  Widget _buildGifContent() {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: 220,
+          maxHeight: 220,
+        ),
+        child: message.mediaUrl != null
+            ? CachedNetworkImage(
+                imageUrl: message.mediaUrl!,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(
+                  width: 200,
+                  height: 150,
+                  color: AppColors.glassPanel,
+                  child: const Center(
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      valueColor:
+                          AlwaysStoppedAnimation(AppColors.aquaCore),
+                    ),
+                  ),
+                ),
+                errorWidget: (_, __, ___) => Container(
+                  width: 200,
+                  height: 150,
+                  color: AppColors.glassPanel,
+                  child: const Icon(Icons.gif_rounded,
+                      color: AppColors.textMuted, size: 40),
+                ),
+              )
+            : const SizedBox.shrink(),
+      ),
     );
   }
 
@@ -119,8 +422,8 @@ class MessageBubble extends StatelessWidget {
                       child: const Center(
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation(AppColors.aquaCore),
+                          valueColor: AlwaysStoppedAnimation(
+                              AppColors.aquaCore),
                         ),
                       ),
                     ),
@@ -128,20 +431,23 @@ class MessageBubble extends StatelessWidget {
                       width: 200,
                       height: 150,
                       color: AppColors.glassPanel,
-                      child: const Icon(Icons.broken_image_rounded,
-                          color: AppColors.textMuted, size: 40),
+                      child: const Icon(
+                          Icons.broken_image_rounded,
+                          color: AppColors.textMuted,
+                          size: 40),
                     ),
                   )
                 : const SizedBox.shrink(),
           ),
         ),
-        if (message.text.isNotEmpty) ...[
+        if (message.text != null && message.text!.isNotEmpty) ...[
           const SizedBox(height: 6),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 10),
             child: Text(
-              message.text,
-              style: AppTextStyles.body.copyWith(color: Colors.white),
+              message.text!,
+              style: AppTextStyles.body
+                  .copyWith(color: Colors.white),
             ),
           ),
         ],
@@ -150,31 +456,41 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildVideoContent() {
+    // Use thumbnailUrl if available, otherwise show placeholder
+    final thumbnailUrl = message.toMap()['thumbnailUrl'] as String?;
     return ClipRRect(
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: 200,
-        height: 150,
+        width: 220,
+        height: 160,
         color: AppColors.glassPanel,
         child: Stack(
           alignment: Alignment.center,
           children: [
-            if (message.mediaUrl != null)
+            if (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
               CachedNetworkImage(
-                imageUrl: message.mediaUrl!,
+                imageUrl: thumbnailUrl,
                 fit: BoxFit.cover,
-                width: 200,
-                height: 150,
+                width: 220,
+                height: 160,
+              )
+            else if (message.mediaUrl != null)
+              Container(
+                width: 220,
+                height: 160,
+                color: Colors.black45,
+                child: const Icon(Icons.videocam_rounded,
+                    color: Colors.white24, size: 48),
               ),
             Container(
-              width: 48,
-              height: 48,
+              width: 52,
+              height: 52,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: AppColors.abyssBackground.withValues(alpha: 0.6),
+                color: Colors.black.withValues(alpha: 0.5),
               ),
               child: const Icon(Icons.play_arrow_rounded,
-                  color: Colors.white, size: 28),
+                  color: Colors.white, size: 36),
             ),
           ],
         ),
@@ -183,66 +499,169 @@ class MessageBubble extends StatelessWidget {
   }
 
   Widget _buildFileContent() {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: AppColors.aquaCore.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(10),
+    final fileName = message.fileName ??
+        (message.text != null && message.text!.isNotEmpty
+            ? message.text!
+            : 'Document');
+    final ext = fileName.split('.').last.toLowerCase();
+
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: _getFileColor(ext),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(_getFileIcon(ext),
+                color: Colors.white, size: 24),
           ),
-          child: const Icon(Icons.description_rounded,
-              color: AppColors.aquaCore, size: 22),
-        ),
-        const SizedBox(width: 10),
-        Flexible(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                message.text.isNotEmpty ? message.text : 'Document',
-                style: AppTextStyles.label.copyWith(color: Colors.white),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              Text('Tap to open',
-                  style: AppTextStyles.caption.copyWith(fontSize: 10)),
-            ],
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  fileName,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  ext.toUpperCase(),
+                  style: const TextStyle(
+                      color: Colors.white38, fontSize: 11),
+                ),
+              ],
+            ),
           ),
-        ),
-        const SizedBox(width: 8),
-        Icon(Icons.download_rounded,
-            color: AppColors.aquaCore.withValues(alpha: 0.7), size: 20),
-      ],
+          const Icon(Icons.download_rounded,
+              color: AppColors.aquaCore, size: 20),
+        ],
+      ),
     );
+  }
+
+  static Color _getFileColor(String ext) {
+    switch (ext) {
+      case 'pdf': return Colors.red.shade700;
+      case 'doc': case 'docx': return Colors.blue.shade700;
+      case 'xls': case 'xlsx': return Colors.green.shade700;
+      case 'ppt': case 'pptx': return Colors.orange.shade700;
+      case 'zip': case 'rar': return Colors.purple.shade700;
+      default: return Colors.grey.shade700;
+    }
+  }
+
+  static IconData _getFileIcon(String ext) {
+    switch (ext) {
+      case 'pdf': return Icons.picture_as_pdf_rounded;
+      case 'doc': case 'docx': return Icons.description_rounded;
+      case 'xls': case 'xlsx': return Icons.table_chart_rounded;
+      default: return Icons.insert_drive_file_rounded;
+    }
   }
 
   Widget _buildTimestamp() {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
+        // Edited label
+        if (message.isEdited) ...[
+          Text(
+            'Edited',
+            style: TextStyle(
+              color: Colors.white.withOpacity(0.38),
+              fontSize: 9,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+
+        // Timestamp
         Text(
-          Helpers.formatTime(message.timestamp),
+          Helpers.formatTime(message.createdAt),
           style: AppTextStyles.caption.copyWith(
             fontSize: 9,
             color: Colors.white.withValues(alpha: 0.5),
           ),
         ),
+
+        // Seen receipts (for own messages)
         if (isMe) ...[
           const SizedBox(width: 3),
           Icon(
-            message.isRead
-                ? Icons.done_all_rounded
-                : Icons.done_rounded,
+            Icons.done_all_rounded,
             size: 14,
-            color: message.isRead
+            color: message.seenBy
+                    .any((uid) => uid != currentUid)
                 ? AppColors.aquaCyan
                 : Colors.white.withValues(alpha: 0.5),
           ),
         ],
       ],
+    );
+  }
+
+  Widget _buildReactionBadges() {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
+        children: message.reactions.entries.map((entry) {
+          final emoji = entry.key;
+          final uids = entry.value;
+          final iMReacted = uids.contains(currentUid);
+
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: iMReacted
+                  ? AppColors.aquaCore.withOpacity(0.3)
+                  : Colors.white.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: iMReacted
+                    ? AppColors.aquaCore
+                    : Colors.white.withOpacity(0.2),
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(emoji, style: const TextStyle(fontSize: 14)),
+                if (uids.length > 1) ...[
+                  const SizedBox(width: 4),
+                  Text(
+                    '${uids.length}',
+                    style: TextStyle(
+                      color: iMReacted
+                          ? AppColors.aquaCore
+                          : Colors.white,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 }

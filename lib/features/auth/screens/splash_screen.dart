@@ -1,15 +1,17 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/firebase_service.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../providers/auth_provider.dart';
 
 /// Splash Screen — PRD §6.1
 /// Deep ocean background with floating particles, water droplet logo,
-/// gradient app name, auth state listener for auto-redirect
+/// gradient app name. Checks auth + registration state before navigating.
 class SplashScreen extends ConsumerStatefulWidget {
   const SplashScreen({super.key});
 
@@ -45,32 +47,66 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
     _logoController.forward();
 
-    // Auto-navigate after checking auth
-    Future.delayed(const Duration(seconds: 2), _checkAuth);
+    // Auto-navigate after splash animation
+    Future.delayed(const Duration(seconds: 2), _checkAuthAndNavigate);
   }
 
-  void _checkAuth() {
+  /// Single auth check — reads Firestore directly to avoid
+  /// race conditions with stream-based providers.
+  Future<void> _checkAuthAndNavigate() async {
     if (!mounted) return;
-    final authState = ref.read(authStateProvider);
-    authState.when(
-      data: (user) {
-        if (!mounted) return;
-        final nav = GoRouter.of(context);
-        if (user != null) {
-          nav.go('/home');
-        } else {
-          nav.go('/login');
-        }
-      },
-      loading: () {
-        // Auth not ready yet, retry after a short delay
-        Future.delayed(const Duration(milliseconds: 500), _checkAuth);
-      },
-      error: (_, __) {
-        if (!mounted) return;
-        GoRouter.of(context).go('/login');
-      },
-    );
+
+    final user = FirebaseService.auth.currentUser;
+
+    // Not logged in → go to login
+    if (user == null) {
+      if (mounted) context.go('/login');
+      return;
+    }
+
+    // User exists — check Firestore for registration status
+    try {
+      final doc = await FirebaseService.usersCollection
+          .doc(user.uid)
+          .get();
+
+      if (!mounted) return;
+
+      if (!doc.exists) {
+        // No doc at all — go to login (will trigger Google/email flow)
+        context.go('/login');
+        return;
+      }
+
+      final data = doc.data();
+      final hasRegFlag =
+          data?.containsKey('isRegistrationComplete') ?? false;
+
+      bool isComplete;
+      if (hasRegFlag) {
+        isComplete = data!['isRegistrationComplete'] as bool? ?? false;
+      } else {
+        // Legacy user — no flag, check if they have a name (old registration)
+        final name = data?['name'] as String? ?? '';
+        isComplete = name.isNotEmpty;
+      }
+
+      if (isComplete) {
+        context.go('/home');
+      } else {
+        // Registration not complete — go to register with user data
+        context.go(
+          '/register?uid=${user.uid}'
+          '&name=${Uri.encodeComponent(data?['name'] ?? user.displayName ?? '')}'
+          '&email=${Uri.encodeComponent(user.email ?? '')}'
+          '&photoUrl=${Uri.encodeComponent(data?['photoUrl'] ?? user.photoURL ?? '')}'
+          '&isGoogleSignIn=true',
+        );
+      }
+    } catch (e) {
+      // On error, go to login
+      if (mounted) context.go('/login');
+    }
   }
 
   @override
@@ -81,19 +117,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    // Listen for auth changes
-    ref.listen<AsyncValue>(authStateProvider, (_, next) {
-      next.whenData((user) {
-        if (!mounted) return;
-        final nav = GoRouter.of(context);
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (!mounted) return;
-          if (user != null) {
-            nav.go('/home');
-          }
-        });
-      });
-    });
+    // NO ref.listen here — splash screen does NOT listen for auth
+    // changes. It performs a one-time check in _checkAuthAndNavigate.
+    // GoRouter redirect handles all subsequent navigation.
 
     return Scaffold(
       backgroundColor: AppColors.abyssBackground,

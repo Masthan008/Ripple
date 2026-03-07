@@ -9,13 +9,23 @@ import '../../../core/services/presence_service.dart';
 import '../models/user_model.dart';
 
 // ─── Auth State Provider ─────────────────────────────────
-/// Stream of Firebase auth state changes
+/// Stream of Firebase auth state changes — uses .distinct() to prevent
+/// rapid duplicate emissions during Google sign-in
 final authStateProvider = StreamProvider<User?>((ref) {
-  return FirebaseService.auth.authStateChanges();
+  return FirebaseService.auth
+      .authStateChanges()
+      .distinct((prev, next) => prev?.uid == next?.uid);
 });
 
 // ─── Current User Provider ───────────────────────────────
-/// Stream of current user's Firestore document
+/// Stream of current user's Firestore document.
+/// Returns null if:
+///   - No Firebase auth
+///   - No Firestore doc
+///   - isRegistrationComplete != true
+///
+/// This is the SINGLE SOURCE OF TRUTH for whether a user
+/// has completed registration. GoRouter redirect checks this.
 final currentUserProvider = StreamProvider<UserModel?>((ref) {
   final authState = ref.watch(authStateProvider);
   return authState.when(
@@ -24,19 +34,24 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
       return FirebaseService.usersCollection
           .doc(user.uid)
           .snapshots()
-          .asyncMap((doc) async {
-        if (!doc.exists) {
-          // Safety net: auto-create user document if auth user exists
-          // but Firestore doc is missing
-          await AuthService().createUserDocument(user);
-          // Return a temporary model while the stream refreshes
-          return UserModel(
-            uid: user.uid,
-            name: user.displayName ?? user.email?.split('@')[0] ?? 'User',
-            email: user.email ?? '',
-            photoUrl: user.photoURL ?? '',
-          );
+          .map((doc) {
+        if (!doc.exists) return null;
+        final data = doc.data();
+
+        // Check isRegistrationComplete flag — this is the ONLY check
+        // Old users who don't have this field yet are treated as complete
+        // (they were registered before this field was introduced)
+        final hasRegFlag = data?.containsKey('isRegistrationComplete') ?? false;
+        if (hasRegFlag) {
+          final isComplete = data!['isRegistrationComplete'] as bool? ?? false;
+          if (!isComplete) return null; // Registration not finished
+        } else {
+          // Legacy user — no isRegistrationComplete field.
+          // Check if they have a name (all old registered users do)
+          final name = data?['name'] as String? ?? '';
+          if (name.isEmpty) return null;
         }
+
         return UserModel.fromFirestore(doc);
       });
     },
@@ -54,7 +69,7 @@ class AuthService {
   final FirebaseFirestore _firestore = FirebaseService.firestore;
 
   /// Sign in with Google
-  /// Returns (credential, isNewUser) — isNewUser=true means no Firestore doc exists yet
+  /// Returns (credential, isNewUser) — isNewUser=true means registration not complete
   Future<({UserCredential credential, bool isNewUser})?> signInWithGoogle() async {
     try {
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
@@ -71,19 +86,71 @@ class AuthService {
       final userCredential = await _auth.signInWithCredential(credential);
       final uid = userCredential.user!.uid;
 
-      // Check if user doc already exists
+      // Check if user doc already exists with completed registration
       final doc = await _firestore.collection('users').doc(uid).get();
       if (doc.exists) {
-        // Existing user — set online + save FCM
-        await _setOnlineStatus(uid, true);
-        await _saveFcmToken(uid);
-        return (credential: userCredential, isNewUser: false);
-      } else {
-        // Brand new Google user — create basic doc so they appear in Discover
-        // RegisterScreen will update with username/bio
-        await createUserDocument(userCredential.user!);
-        return (credential: userCredential, isNewUser: true);
+        final data = doc.data();
+        final hasRegFlag = data?.containsKey('isRegistrationComplete') ?? false;
+
+        if (hasRegFlag) {
+          final isComplete = data!['isRegistrationComplete'] as bool? ?? false;
+          if (isComplete) {
+            // Fully registered user — set online + save FCM
+            await _setOnlineStatus(uid, true);
+            await _saveFcmToken(uid);
+            return (credential: userCredential, isNewUser: false);
+          }
+          // Has flag but it's false — registration was started but not completed
+          return (credential: userCredential, isNewUser: true);
+        } else {
+          // Legacy user (no isRegistrationComplete field) — check name
+          final name = data?['name'] as String? ?? '';
+          if (name.isNotEmpty) {
+            await _setOnlineStatus(uid, true);
+            await _saveFcmToken(uid);
+            return (credential: userCredential, isNewUser: false);
+          }
+        }
       }
+
+      // New Google user — create skeleton doc with isRegistrationComplete: false
+      // so the currentUserProvider stream returns null (registration incomplete)
+      await _firestore.collection('users').doc(uid).set({
+        'uid': uid,
+        'name': '',
+        'email': userCredential.user!.email ?? '',
+        'photoUrl': userCredential.user!.photoURL ?? '',
+        'bio': '',
+        'username': '',
+        'isRegistrationComplete': false,
+        'isOnline': true,
+        'lastSeen': FieldValue.serverTimestamp(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'fcmToken': '',
+        'oneSignalPlayerId': '',
+        'isTypingTo': '',
+        'friends': [],
+        'blockedUsers': [],
+        'blockedWereFriends': [],
+        'friendRequests': {'sent': [], 'received': []},
+        'notificationSettings': {
+          'messages': true,
+          'groupMessages': true,
+          'friendRequests': true,
+          'calls': true,
+          'sounds': true,
+          'vibration': true,
+        },
+        'privacySettings': {
+          'showOnlineStatus': true,
+          'showLastSeen': true,
+          'readReceipts': true,
+          'allowFriendRequests': true,
+        },
+        'twoFactorEnabled': false,
+      }, SetOptions(merge: true));
+
+      return (credential: userCredential, isNewUser: true);
     } catch (e) {
       rethrow;
     }
@@ -100,7 +167,6 @@ class AuthService {
       final uid = userCredential.user!.uid;
 
       // Safety net: ensure user document exists
-      // (handles edge case where doc was deleted or never created)
       await _ensureUserDocument(userCredential.user!);
 
       await _saveFcmToken(uid);
@@ -112,7 +178,8 @@ class AuthService {
   }
 
   /// Sign up with email, password, and name — returns (credential, isNewUser)
-  /// Creates user doc IMMEDIATELY so all screens have data
+  /// Creates user doc with isRegistrationComplete: false
+  /// RegisterScreen will set it to true after user fills username/bio
   Future<({UserCredential credential, bool isNewUser})> signUpWithEmail({
     required String email,
     required String password,
@@ -125,8 +192,7 @@ class AuthService {
       );
       await userCredential.user!.updateDisplayName(name);
 
-      // Create user document IMMEDIATELY — do not defer to RegisterScreen
-      // RegisterScreen will update with username/bio via .set(merge: true)
+      // Create incomplete doc — RegisterScreen will complete it
       await createUserDocument(userCredential.user!, name: name);
 
       return (credential: userCredential, isNewUser: true);
@@ -153,16 +219,18 @@ class AuthService {
   }
 
   /// Create user document in Firestore with all required fields.
+  /// isRegistrationComplete starts as FALSE — set to true only in RegisterScreen.
   /// Uses .set(merge: true) so it never overwrites existing data.
   Future<void> createUserDocument(User user, {String? name}) async {
     try {
       await _firestore.collection('users').doc(user.uid).set({
         'uid': user.uid,
-        'name': name ?? user.displayName ?? 'User',
+        'name': name ?? user.displayName ?? '',
         'email': user.email ?? '',
         'photoUrl': user.photoURL ?? '',
         'bio': '',
         'username': '',
+        'isRegistrationComplete': false,
         'isOnline': true,
         'lastSeen': FieldValue.serverTimestamp(),
         'createdAt': FieldValue.serverTimestamp(),
@@ -193,8 +261,7 @@ class AuthService {
   }
 
   /// Safety net: ensure user document exists in Firestore.
-  /// If doc is missing (e.g. deleted, signup handler failed), creates it.
-  /// If doc exists, just updates online status.
+  /// If doc is missing, creates it. If doc exists, just updates online status.
   Future<void> _ensureUserDocument(User user) async {
     try {
       final docRef = _firestore.collection('users').doc(user.uid);

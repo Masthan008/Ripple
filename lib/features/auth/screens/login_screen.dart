@@ -82,18 +82,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       }
       if (mounted) {
         if (result.isNewUser) {
-          // New Google user — go to registration
+          // New Google user — go to registration via GoRouter
           final user = result.credential.user!;
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => RegisterScreen(
-                uid: user.uid,
-                name: user.displayName ?? '',
-                email: user.email ?? '',
-                photoUrl: user.photoURL ?? '',
-                isGoogleSignIn: true,
-              ),
-            ),
+          context.go(
+            '/register?uid=${user.uid}'
+            '&name=${Uri.encodeComponent(user.displayName ?? '')}'
+            '&email=${Uri.encodeComponent(user.email ?? '')}'
+            '&photoUrl=${Uri.encodeComponent(user.photoURL ?? '')}'
+            '&isGoogleSignIn=true',
           );
         } else {
           context.go('/home');
@@ -124,14 +120,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           name: _nameController.text,
         );
         if (mounted) {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(
-              builder: (_) => RegisterScreen(
-                uid: result.credential.user!.uid,
-                name: _nameController.text.trim(),
-                email: _emailController.text.trim(),
-              ),
-            ),
+          context.go(
+            '/register?uid=${result.credential.user!.uid}'
+            '&name=${Uri.encodeComponent(_nameController.text.trim())}'
+            '&email=${Uri.encodeComponent(_emailController.text.trim())}',
           );
           return;
         }

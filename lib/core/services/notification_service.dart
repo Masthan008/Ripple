@@ -110,17 +110,41 @@ class NotificationService {
     final type = data['type'];
     switch (type) {
       case 'chat':
-        final chatId = data['chatId'];
-        if (chatId != null) router.push('/chat/$chatId');
+        final chatId = data['chatId'] as String?;
+        final partnerUid = data['partnerUid'] as String?;
+        final partnerName = data['partnerName'] as String? ?? 'Chat';
+        if (chatId != null && chatId.isNotEmpty) {
+          router.push(
+            '/chat?chatId=$chatId'
+            '&partnerUid=${partnerUid ?? ''}'
+            '&partnerName=${Uri.encodeComponent(partnerName)}',
+          );
+        } else {
+          router.go('/home');
+        }
         break;
       case 'group':
-        final groupId = data['groupId'];
-        if (groupId != null) router.push('/group-chat/$groupId');
+        final groupId = data['groupId'] as String?;
+        final groupName = data['groupName'] as String? ?? 'Group';
+        if (groupId != null && groupId.isNotEmpty) {
+          router.push(
+            '/group-chat?groupId=$groupId'
+            '&groupName=${Uri.encodeComponent(groupName)}',
+          );
+        } else {
+          router.go('/home');
+        }
         break;
       case 'friend_request':
-        router.push('/friends');
+        router.push('/requests');
         break;
       case 'call':
+        // For now, just go to home. Incoming call UI is separate.
+        router.go('/home');
+        break;
+      default:
+        // Unknown notification type — go home
+        router.go('/home');
         break;
     }
   }

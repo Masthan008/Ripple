@@ -32,7 +32,7 @@ final groupMessagesProvider =
       .collection('groups')
       .doc(groupId)
       .collection('messages')
-      .orderBy('timestamp', descending: false)
+      .orderBy('createdAt', descending: false)
       .snapshots()
       .map((snapshot) =>
           snapshot.docs.map((d) => MessageModel.fromFirestore(d)).toList());
@@ -99,12 +99,15 @@ class GroupService {
     return groupId;
   }
 
-  /// Send a message to the group
+  /// Send a message to the group (supports replyTo for Phase 1)
   Future<void> sendGroupMessage({
     required String groupId,
     required String text,
-    MessageType type = MessageType.text,
+    String type = 'text',
     String? mediaUrl,
+    String? fileName,
+    ReplyData? replyTo,
+    bool isForwarded = false,
   }) async {
     final messageId = _uuid.v4();
     final message = MessageModel(
@@ -113,7 +116,11 @@ class GroupService {
       text: text,
       type: type,
       mediaUrl: mediaUrl,
-      timestamp: DateTime.now(),
+      fileName: fileName,
+      replyTo: replyTo,
+      isForwarded: isForwarded,
+      seenBy: [_myUid],
+      createdAt: DateTime.now(),
     );
 
     final groupRef = _firestore.collection('groups').doc(groupId);
@@ -125,10 +132,10 @@ class GroupService {
 
     batch.update(groupRef, {
       'lastMessage': {
-        'text': type == MessageType.text ? text : '[${type.name}]',
+        'text': type == 'text' ? text : '[$type]',
         'senderId': _myUid,
         'timestamp': Timestamp.fromDate(DateTime.now()),
-        'type': type.name,
+        'type': type,
       },
     });
 
@@ -153,7 +160,7 @@ class GroupService {
       }
 
       if (playerIds.isNotEmpty) {
-        final notifText = type == MessageType.text ? text : '📎 Attachment';
+        final notifText = type == 'text' ? text : '📎 Attachment';
         await NotificationService.sendGroupMessageNotification(
           recipientPlayerIds: playerIds,
           senderName: myName,

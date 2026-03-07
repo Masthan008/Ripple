@@ -7,23 +7,34 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/cloudinary_service.dart';
+import '../../../core/utils/media_compressor.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../auth/models/user_model.dart';
 import '../../calls/screens/agora_call_screen.dart';
 import '../../chat/models/message_model.dart';
-import '../../chat/widgets/message_bubble.dart';
+import '../../chat/screens/chat_media_gallery_screen.dart';
+import '../../chat/screens/video_player_screen.dart';
+import '../../chat/services/message_actions_service.dart';
+import '../../chat/widgets/forward_message_sheet.dart';
+import '../../chat/widgets/gif_picker_sheet.dart';
 import '../../chat/widgets/glass_input_bar.dart';
+import '../../chat/widgets/message_bubble.dart';
+import '../../chat/widgets/message_context_menu.dart';
+import '../../chat/widgets/pinned_message_banner.dart';
 import '../providers/group_provider.dart';
 import 'group_info_screen.dart';
 
 /// Group Chat Screen — PRD §6.6
-/// Real-time group messages with member names, admin badges
+/// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
+/// star, multi-select, seen receipts
 class GroupChatScreen extends ConsumerStatefulWidget {
   final String groupId;
   final String groupName;
@@ -37,7 +48,8 @@ class GroupChatScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<GroupChatScreen> createState() => _GroupChatScreenState();
+  ConsumerState<GroupChatScreen> createState() =>
+      _GroupChatScreenState();
 }
 
 class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
@@ -45,6 +57,23 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   final _scrollController = ScrollController();
   bool _isSending = false;
   bool _showEmojiPicker = false;
+
+  // Phase 1 state
+  ReplyData? _replyTo;
+  bool _isMultiSelectMode = false;
+  final Set<String> _selectedMessageIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      MessageActionsService.markMessagesAsSeen(
+        chatId: widget.groupId,
+        currentUid: ref.read(groupServiceProvider).myUid,
+        isGroup: true,
+      );
+    });
+  }
 
   @override
   void dispose() {
@@ -74,10 +103,14 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     setState(() => _isSending = true);
     _messageController.clear();
 
+    final replyData = _replyTo;
+    setState(() => _replyTo = null);
+
     try {
       await ref.read(groupServiceProvider).sendGroupMessage(
             groupId: widget.groupId,
             text: text,
+            replyTo: replyData,
           );
       _scrollToBottom();
     } catch (e) {
@@ -93,10 +126,205 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     }
   }
 
+  // ── Phase 1 helpers ────────────────────────────────────
+
+  void _setReplyTo(MessageModel message, String senderName) {
+    setState(() {
+      _replyTo = ReplyData(
+        messageId: message.id,
+        senderName: message.senderId ==
+                ref.read(groupServiceProvider).myUid
+            ? 'You'
+            : senderName,
+        text: message.text ?? '',
+        type: message.type,
+        mediaUrl: message.mediaUrl,
+      );
+    });
+  }
+
+  void _showEditDialog(MessageModel message) {
+    final editController =
+        TextEditingController(text: message.text ?? '');
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+              color: AppColors.aquaCyan.withOpacity(0.2)),
+        ),
+        title: Text('Edit Message',
+            style: AppTextStyles.body
+                .copyWith(fontWeight: FontWeight.w600)),
+        content: TextField(
+          controller: editController,
+          style: AppTextStyles.body.copyWith(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'Edit your message...',
+            hintStyle: AppTextStyles.caption
+                .copyWith(color: AppColors.textMuted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: Colors.white.withOpacity(0.1)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: Colors.white.withOpacity(0.1)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide:
+                  const BorderSide(color: AppColors.aquaCore),
+            ),
+          ),
+          autofocus: true,
+          maxLines: null,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel',
+                style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newText = editController.text.trim();
+              if (newText.isEmpty) return;
+              try {
+                await MessageActionsService.editMessage(
+                  chatId: widget.groupId,
+                  messageId: message.id,
+                  newText: newText,
+                  isGroup: true,
+                );
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('$e'),
+                      backgroundColor: AppColors.errorRed,
+                    ),
+                  );
+                }
+              }
+              if (mounted) Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.aquaCore,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showForwardSheet(MessageModel message) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (_) => ForwardMessageSheet(message: message),
+    );
+  }
+
+  void _exitMultiSelect() {
+    setState(() {
+      _isMultiSelectMode = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  void _toggleSelection(String messageId) {
+    setState(() {
+      if (_selectedMessageIds.contains(messageId)) {
+        _selectedMessageIds.remove(messageId);
+        if (_selectedMessageIds.isEmpty) {
+          _isMultiSelectMode = false;
+        }
+      } else {
+        _selectedMessageIds.add(messageId);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedForMe() async {
+    for (final id in _selectedMessageIds) {
+      await MessageActionsService.deleteForMe(
+        chatId: widget.groupId,
+        messageId: id,
+        isGroup: true,
+      );
+    }
+    _exitMultiSelect();
+  }
+
+  Future<void> _starSelected() async {
+    for (final id in _selectedMessageIds) {
+      await MessageActionsService.toggleStarMessage(
+        chatId: widget.groupId,
+        messageId: id,
+        isGroup: true,
+      );
+    }
+    _exitMultiSelect();
+  }
+
+  void _showContextMenu(
+      MessageModel message, bool isMyMessage, String senderName) {
+    showMessageContextMenu(
+      context: context,
+      message: message,
+      isMyMessage: isMyMessage,
+      chatId: widget.groupId,
+      isGroup: true,
+      currentUid: ref.read(groupServiceProvider).myUid,
+      onReply: () => _setReplyTo(message, senderName),
+      onEdit:
+          isMyMessage ? () => _showEditDialog(message) : null,
+      onDeleteForEveryone: () =>
+          MessageActionsService.deleteForEveryone(
+        chatId: widget.groupId,
+        messageId: message.id,
+        isGroup: true,
+      ),
+      onDeleteForMe: () => MessageActionsService.deleteForMe(
+        chatId: widget.groupId,
+        messageId: message.id,
+        isGroup: true,
+      ),
+      onForward: () => _showForwardSheet(message),
+      onPin: () => MessageActionsService.togglePinMessage(
+        chatId: widget.groupId,
+        messageId: message.id,
+        pin: !message.isPinned,
+        isGroup: true,
+      ),
+      onStar: () => MessageActionsService.toggleStarMessage(
+        chatId: widget.groupId,
+        messageId: message.id,
+        isGroup: true,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final messages = ref.watch(groupMessagesProvider(widget.groupId));
-    final members = ref.watch(groupMembersProvider(widget.groupId));
+    final messages =
+        ref.watch(groupMessagesProvider(widget.groupId));
+    final members =
+        ref.watch(groupMembersProvider(widget.groupId));
     final myUid = ref.read(groupServiceProvider).myUid;
 
     messages.whenData((_) => _scrollToBottom());
@@ -119,13 +347,27 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               // Header
               _buildHeader(members),
 
+              // Pinned message banner
+              PinnedMessageBanner(
+                chatId: widget.groupId,
+                isGroup: true,
+                onTap: () {},
+                onUnpin: () =>
+                    MessageActionsService.togglePinMessage(
+                  chatId: widget.groupId,
+                  messageId: '',
+                  pin: false,
+                  isGroup: true,
+                ),
+              ),
+
               // Messages
               Expanded(
                 child: messages.when(
                   loading: () => const Center(
                     child: CircularProgressIndicator(
-                      valueColor:
-                          AlwaysStoppedAnimation(AppColors.aquaCore),
+                      valueColor: AlwaysStoppedAnimation(
+                          AppColors.aquaCore),
                     ),
                   ),
                   error: (e, _) => Center(
@@ -133,7 +375,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         style: AppTextStyles.caption),
                   ),
                   data: (msgs) {
-                    if (msgs.isEmpty) {
+                    final filtered = msgs
+                        .where(
+                            (m) => !m.deletedFor.contains(myUid))
+                        .toList();
+
+                    if (filtered.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
@@ -155,17 +402,40 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
                     return ListView.builder(
                       controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      itemCount: msgs.length,
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12),
+                      itemCount: filtered.length,
                       itemBuilder: (_, i) {
-                        final msg = msgs[i];
+                        final msg = filtered[i];
                         final isMe = msg.senderId == myUid;
+                        final senderName =
+                            memberNames[msg.senderId] ??
+                                'Unknown';
 
                         return MessageBubble(
                           message: msg,
                           isMe: isMe,
                           showSenderName: !isMe,
-                          senderName: memberNames[msg.senderId],
+                          senderName: senderName,
+                          currentUid: myUid,
+                          chatId: widget.groupId,
+                          isGroup: true,
+                          isSelected: _selectedMessageIds
+                              .contains(msg.id),
+                          isMultiSelectMode:
+                              _isMultiSelectMode,
+                          onLongPress: () {
+                            if (_isMultiSelectMode) {
+                              _toggleSelection(msg.id);
+                            } else {
+                              _showContextMenu(
+                                  msg, isMe, senderName);
+                            }
+                          },
+                          onTap: _isMultiSelectMode
+                              ? () =>
+                                  _toggleSelection(msg.id)
+                              : null,
                         );
                       },
                     );
@@ -173,41 +443,133 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                 ),
               ),
 
-              // Input bar
-              GlassInputBar(
-                controller: _messageController,
-                onSend: _sendMessage,
-                isSending: _isSending,
-                onEmoji: () {
-                  setState(() => _showEmojiPicker = !_showEmojiPicker);
-                  if (_showEmojiPicker) {
-                    FocusScope.of(context).unfocus();
-                  }
-                },
-                onAttach: () => _showAttachmentSheet(context),
-              ),
+              // Multi-select bottom bar
+              if (_isMultiSelectMode)
+                _buildMultiSelectBar(),
 
-              // Emoji picker
-              if (_showEmojiPicker)
-                SizedBox(
-                  height: 250,
-                  child: EmojiPicker(
-                    onEmojiSelected: (category, emoji) {
-                      _messageController.text += emoji.emoji;
-                      _messageController.selection =
-                          TextSelection.fromPosition(
-                        TextPosition(
-                            offset: _messageController.text.length),
-                      );
-                    },
-                    config: const Config(
-                      height: 250,
-                      checkPlatformCompatibility: true,
+              // Input bar
+              if (!_isMultiSelectMode) ...[
+                GlassInputBar(
+                  controller: _messageController,
+                  onSend: _sendMessage,
+                  isSending: _isSending,
+                  replyTo: _replyTo,
+                  onClearReply: () =>
+                      setState(() => _replyTo = null),
+                  onEmoji: () {
+                    setState(() => _showEmojiPicker =
+                        !_showEmojiPicker);
+                    if (_showEmojiPicker) {
+                      FocusScope.of(context).unfocus();
+                    }
+                  },
+                  onAttach: () =>
+                      _showAttachmentSheet(context),
+                  onGif: () => _showGifPicker(),
+                  onVoiceRecorded: _sendVoiceMessage,
+                ),
+
+                // Emoji picker
+                if (_showEmojiPicker)
+                  SizedBox(
+                    height: 250,
+                    child: EmojiPicker(
+                      onEmojiSelected: (category, emoji) {
+                        _messageController.text +=
+                            emoji.emoji;
+                        _messageController.selection =
+                            TextSelection.fromPosition(
+                          TextPosition(
+                              offset: _messageController
+                                  .text.length),
+                        );
+                      },
+                      config: const Config(
+                        height: 250,
+                        checkPlatformCompatibility: true,
+                      ),
                     ),
                   ),
-                ),
+              ],
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMultiSelectBar() {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 12,
+        bottom: MediaQuery.of(context).padding.bottom + 12,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xE6060D1A),
+        border: Border(
+          top: BorderSide(color: Color(0x0FFFFFFF), width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _multiSelectAction(
+            icon: Icons.delete_outline,
+            label: 'Delete',
+            color: AppColors.errorRed,
+            onTap: _deleteSelectedForMe,
+          ),
+          _multiSelectAction(
+            icon: Icons.forward_to_inbox,
+            label: 'Forward',
+            color: Colors.white,
+            onTap: () => _exitMultiSelect(),
+          ),
+          _multiSelectAction(
+            icon: Icons.star_border,
+            label: 'Star',
+            color: Colors.amber,
+            onTap: _starSelected,
+          ),
+          GestureDetector(
+            onTap: _exitMultiSelect,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_selectedMessageIds.length} selected',
+                style: AppTextStyles.caption
+                    .copyWith(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _multiSelectAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 4),
+          Text(label,
+              style: AppTextStyles.caption
+                  .copyWith(fontSize: 10, color: color)),
         ],
       ),
     );
@@ -230,21 +592,24 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
+            icon: const Icon(
+                Icons.arrow_back_ios_rounded, size: 20),
             onPressed: () => Navigator.of(context).pop(),
           ),
-          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+          StreamBuilder<
+              DocumentSnapshot<Map<String, dynamic>>>(
             stream: FirebaseFirestore.instance
                 .collection('groups')
                 .doc(widget.groupId)
                 .snapshots(),
             builder: (context, groupSnap) {
-              final photoUrl =
-                  groupSnap.data?.data()?['photoUrl'] as String?;
+              final photoUrl = groupSnap.data
+                  ?.data()?['photoUrl'] as String?;
               return AquaAvatar(
-                imageUrl: (photoUrl != null && photoUrl.isNotEmpty)
-                    ? photoUrl
-                    : widget.groupPhoto,
+                imageUrl:
+                    (photoUrl != null && photoUrl.isNotEmpty)
+                        ? photoUrl
+                        : widget.groupPhoto,
                 name: widget.groupName,
                 size: 36,
               );
@@ -257,7 +622,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               children: [
                 Text(
                   widget.groupName,
-                  style: AppTextStyles.headingSmall.copyWith(fontSize: 15),
+                  style: AppTextStyles.headingSmall
+                      .copyWith(fontSize: 15),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -265,24 +631,29 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                 members.when(
                   data: (list) => Text(
                     '${list.length} members',
-                    style: AppTextStyles.caption.copyWith(fontSize: 10),
+                    style: AppTextStyles.caption
+                        .copyWith(fontSize: 10),
                   ),
                   loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
+                  error: (_, __) =>
+                      const SizedBox.shrink(),
                 ),
               ],
             ),
           ),
           // Video call button
           GestureDetector(
-            onTap: () => _startGroupCall(isVideo: true),
+            onTap: () =>
+                _startGroupCall(isVideo: true),
             child: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                border: Border.all(
+                    color: AppColors.glassBorder,
+                    width: 0.5),
               ),
               child: const Icon(Icons.videocam_rounded,
                   color: AppColors.lightWave, size: 18),
@@ -291,14 +662,17 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           const SizedBox(width: 6),
           // Audio call button
           GestureDetector(
-            onTap: () => _startGroupCall(isVideo: false),
+            onTap: () =>
+                _startGroupCall(isVideo: false),
             child: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.glassBorder, width: 0.5),
+                border: Border.all(
+                    color: AppColors.glassBorder,
+                    width: 0.5),
               ),
               child: const Icon(Icons.call_rounded,
                   color: AppColors.lightWave, size: 18),
@@ -322,26 +696,73 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
                 borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: AppColors.glassBorder, width: 0.5),
+                border: Border.all(
+                    color: AppColors.glassBorder,
+                    width: 0.5),
               ),
-              child: const Icon(Icons.info_outline_rounded,
-                  color: AppColors.lightWave, size: 18),
+              child: const Icon(
+                  Icons.info_outline_rounded,
+                  color: AppColors.lightWave,
+                  size: 18),
             ),
+          ),
+          const SizedBox(width: 4),
+          // More menu (Media gallery)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded,
+                color: AppColors.lightWave, size: 20),
+            color: const Color(0xFF0C1E3A),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) {
+              if (value == 'media') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatMediaGalleryScreen(
+                      chatId: widget.groupId,
+                      isGroup: true,
+                    ),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'media',
+                child: Row(
+                  children: [
+                    Icon(Icons.photo_library_rounded,
+                        color: AppColors.aquaCore, size: 20),
+                    SizedBox(width: 12),
+                    Text('Media & Files',
+                        style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
 
-  Future<void> _startGroupCall({required bool isVideo}) async {
+  Future<void> _startGroupCall(
+      {required bool isVideo}) async {
     final myUid = ref.read(groupServiceProvider).myUid;
     final callId = const Uuid().v4();
-    final members = ref.read(groupMembersProvider(widget.groupId)).valueOrNull ?? [];
-    final memberIds = members.map((m) => m.uid).toList();
+    final members = ref
+            .read(groupMembersProvider(widget.groupId))
+            .valueOrNull ??
+        [];
+    final memberIds =
+        members.map((m) => m.uid).toList();
 
     try {
-      await FirebaseService.firestore.collection('calls').doc(callId).set({
+      await FirebaseService.firestore
+          .collection('calls')
+          .doc(callId)
+          .set({
         'callerId': myUid,
         'type': isVideo ? 'video' : 'audio',
         'isGroup': true,
@@ -385,7 +806,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       context: ctx,
       backgroundColor: const Color(0xFF0C1E3A),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
@@ -402,7 +824,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             ),
             const SizedBox(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              mainAxisAlignment:
+                  MainAxisAlignment.spaceAround,
               children: [
                 _attachOption(
                   icon: Icons.photo_library_rounded,
@@ -410,9 +833,24 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   color: const Color(0xFF0EA5E9),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final file = await ImagePicker()
-                        .pickImage(source: ImageSource.gallery, imageQuality: 70);
-                    if (file != null) _sendMediaMessage(File(file.path), MessageType.image);
+                    final pickedFiles = await ImagePicker()
+                        .pickMultiImage(
+                      imageQuality: 70,
+                      maxWidth: 1920,
+                      maxHeight: 1920,
+                    );
+                    if (pickedFiles.isEmpty) return;
+                    final files = pickedFiles.take(10).toList();
+                    setState(() => _isSending = true);
+                    try {
+                      for (final xfile in files) {
+                        final compressed = await MediaCompressor
+                            .compressImage(xfile.path);
+                        await _sendMediaMessage(compressed, 'image');
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isSending = false);
+                    }
                   },
                 ),
                 _attachOption(
@@ -421,9 +859,14 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   color: const Color(0xFF22D3EE),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final file = await ImagePicker()
-                        .pickImage(source: ImageSource.camera, imageQuality: 70);
-                    if (file != null) _sendMediaMessage(File(file.path), MessageType.image);
+                    final file = await ImagePicker().pickImage(
+                        source: ImageSource.camera,
+                        imageQuality: 70);
+                    if (file != null) {
+                      final compressed = await MediaCompressor
+                          .compressImage(file.path);
+                      _sendMediaMessage(compressed, 'image');
+                    }
                   },
                 ),
                 _attachOption(
@@ -432,9 +875,13 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   color: const Color(0xFF8B5CF6),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final file = await ImagePicker()
-                        .pickVideo(source: ImageSource.gallery);
-                    if (file != null) _sendMediaMessage(File(file.path), MessageType.video);
+                    final file = await ImagePicker().pickVideo(
+                      source: ImageSource.gallery,
+                      maxDuration: const Duration(seconds: 30),
+                    );
+                    if (file != null) {
+                      _sendVideoMessage(File(file.path));
+                    }
                   },
                 ),
                 _attachOption(
@@ -443,12 +890,15 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   color: const Color(0xFFF59E0B),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final result = await FilePicker.platform.pickFiles(type: FileType.any);
-                    if (result != null && result.files.single.path != null) {
+                    final result = await FilePicker.platform
+                        .pickFiles(type: FileType.any);
+                    if (result != null &&
+                        result.files.single.path != null) {
                       _sendMediaMessage(
                         File(result.files.single.path!),
-                        MessageType.file,
-                        fileName: result.files.single.name,
+                        'file',
+                        fileName:
+                            result.files.single.name,
                       );
                     }
                   },
@@ -484,17 +934,19 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           ),
           const SizedBox(height: 8),
           Text(label,
-              style: AppTextStyles.caption.copyWith(fontSize: 11)),
+              style: AppTextStyles.caption
+                  .copyWith(fontSize: 11)),
         ],
       ),
     );
   }
 
-  Future<void> _sendMediaMessage(File file, MessageType type, {String? fileName}) async {
+  Future<void> _sendMediaMessage(File file, String type,
+      {String? fileName}) async {
     setState(() => _isSending = true);
     try {
       String? url;
-      if (type == MessageType.video) {
+      if (type == 'video') {
         url = await CloudinaryService.uploadVideo(file);
       } else {
         url = await CloudinaryService.uploadImage(file);
@@ -514,10 +966,195 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
       await ref.read(groupServiceProvider).sendGroupMessage(
             groupId: widget.groupId,
-            text: fileName ?? '[${type.name}]',
+            text: fileName ?? '[$type]',
             type: type,
             mediaUrl: url,
+            fileName: fileName,
+            replyTo: _replyTo,
           );
+      setState(() => _replyTo = null);
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  // ── Phase 2: GIF Picker ──────────────────────────────────
+  void _showGifPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => GifPickerSheet(
+        onGifSelected: (gifUrl, previewUrl) async {
+          setState(() => _isSending = true);
+          try {
+            await ref.read(groupServiceProvider).sendGroupMessage(
+              groupId: widget.groupId,
+              text: '',
+              type: 'gif',
+              mediaUrl: gifUrl,
+            );
+            _scrollToBottom();
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to send GIF: $e'),
+                  backgroundColor: AppColors.errorRed,
+                ),
+              );
+            }
+          } finally {
+            if (mounted) setState(() => _isSending = false);
+          }
+        },
+      ),
+    );
+  }
+
+  // ── Phase 2: Voice Message Upload ───────────────────────
+  Future<void> _sendVoiceMessage(
+    String filePath,
+    Duration duration,
+    List<double> waveformData,
+  ) async {
+    setState(() => _isSending = true);
+    try {
+      final file = File(filePath);
+      final url = await CloudinaryService.uploadVideo(file);
+      if (url == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Voice upload failed'),
+              backgroundColor: AppColors.errorRed,
+            ),
+          );
+        }
+        return;
+      }
+
+      final myUid = ref.read(groupServiceProvider).myUid;
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .collection('messages')
+          .add({
+        'senderId': myUid,
+        'type': 'voice',
+        'mediaUrl': url,
+        'duration': duration.inSeconds,
+        'waveformData': waveformData,
+        'text': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isDeleted': false,
+        'isEdited': false,
+        'isPinned': false,
+        'isStarred': false,
+        'isForwarded': false,
+        'reactions': {},
+        'seenBy': [myUid],
+        'deletedFor': [],
+        'starredBy': [],
+      });
+
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .update({
+        'lastMessage': '🎙️ Voice message',
+        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      });
+
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  // ── Phase 2: Video with Thumbnail ───────────────────────
+  Future<void> _sendVideoMessage(File videoFile) async {
+    setState(() => _isSending = true);
+    try {
+      String? thumbUrl;
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final thumbnailPath = await VideoThumbnail.thumbnailFile(
+          video: videoFile.path,
+          thumbnailPath: tempDir.path,
+          imageFormat: ImageFormat.JPEG,
+          maxHeight: 300,
+          quality: 75,
+        );
+        if (thumbnailPath != null) {
+          thumbUrl = await CloudinaryService.uploadImage(
+              File(thumbnailPath));
+        }
+      } catch (_) {}
+
+      final videoUrl = await CloudinaryService.uploadVideo(videoFile);
+      if (videoUrl == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Video upload failed'),
+              backgroundColor: AppColors.errorRed,
+            ),
+          );
+        }
+        return;
+      }
+
+      final myUid = ref.read(groupServiceProvider).myUid;
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .collection('messages')
+          .add({
+        'senderId': myUid,
+        'type': 'video',
+        'mediaUrl': videoUrl,
+        'thumbnailUrl': thumbUrl,
+        'text': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isDeleted': false,
+        'isEdited': false,
+        'isPinned': false,
+        'isStarred': false,
+        'isForwarded': false,
+        'reactions': {},
+        'seenBy': [myUid],
+        'deletedFor': [],
+        'starredBy': [],
+      });
+
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .update({
+        'lastMessage': '🎬 Video',
+        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      });
+
       _scrollToBottom();
     } catch (e) {
       if (mounted) {

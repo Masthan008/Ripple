@@ -5,20 +5,26 @@ import 'package:go_router/go_router.dart';
 import 'core/theme/app_theme.dart';
 import 'features/auth/screens/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
+import 'features/auth/screens/register_screen.dart';
 import 'features/chat/screens/chat_list_screen.dart';
 import 'features/chat/screens/chat_screen.dart';
+import 'features/chat/providers/chat_provider.dart';
 import 'features/friends/screens/users_screen.dart';
 import 'features/friends/screens/requests_screen.dart';
 import 'features/groups/screens/create_group_screen.dart';
 import 'features/groups/screens/group_chat_screen.dart';
 import 'features/groups/screens/group_info_screen.dart';
+import 'features/groups/providers/group_provider.dart';
 import 'features/calls/screens/call_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 
-/// GoRouter provider — reactive to auth state changes
+/// GoRouter provider — created ONCE, uses refreshListenable to re-run redirect
 final routerProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  // DO NOT use ref.watch here — it destroys and recreates the GoRouter
+  // on every state change, resetting to initialLocation: '/splash'.
+  // Instead, use ref.read() inside the redirect closure.
+  // The _GoRouterRefreshStream handles triggering redirect re-evaluation.
 
   return GoRouter(
     initialLocation: '/splash',
@@ -31,6 +37,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login',
         builder: (_, __) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (_, state) {
+          return RegisterScreen(
+            uid: state.uri.queryParameters['uid'] ?? '',
+            name: state.uri.queryParameters['name'] ?? '',
+            email: state.uri.queryParameters['email'] ?? '',
+            photoUrl: state.uri.queryParameters['photoUrl'] ?? '',
+            isGoogleSignIn:
+                state.uri.queryParameters['isGoogleSignIn'] == 'true',
+          );
+        },
       ),
       GoRoute(
         path: '/home',
@@ -96,42 +115,68 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (context, state) {
-      final isLoggedIn = authState.valueOrNull != null;
-      final isLoading = authState.isLoading;
-      final isOnSplash = state.matchedLocation == '/splash';
-      final isOnLogin = state.matchedLocation == '/login';
+      // Read current state on each redirect evaluation (NOT watch)
+      final authState = ref.read(authStateProvider);
+      final currentUser = ref.read(currentUserProvider);
 
-      // Allow splash while loading
-      if (isOnSplash) return null;
+      final isFirebaseAuthed = authState.valueOrNull != null;
+      final isFullyRegistered = currentUser.valueOrNull != null;
+      final isAuthLoading = authState.isLoading;
+      final isUserLoading = currentUser.isLoading;
+      final loc = state.matchedLocation;
 
-      // Still loading auth state, stay where we are
-      if (isLoading) return null;
+      // ── Rule 1: Splash always allowed ─────────────────────
+      if (loc == '/splash') return null;
 
-      // Not logged in → go to login
-      if (!isLoggedIn && !isOnLogin) return '/login';
+      // ── Rule 2: Still loading — don't redirect yet ────────
+      if (isAuthLoading || isUserLoading) return null;
 
-      // Logged in but on login → go home
-      if (isLoggedIn && isOnLogin) return '/home';
+      // ── Rule 3: Not logged in ─────────────────────────────
+      if (!isFirebaseAuthed) {
+        if (loc == '/login') return null;
+        return '/login';
+      }
 
+      // ── Rule 4: Logged in but NOT fully registered ────────
+      if (!isFullyRegistered) {
+        if (loc == '/register') return null;
+        if (loc == '/login') return null;
+        return '/login';
+      }
+
+      // ── Rule 5: Fully registered ──────────────────────────
+      if (loc == '/login' || loc == '/register') return '/home';
+
+      // Already on correct screen — no redirect
       return null;
     },
   );
 });
 
-/// Helper to make GoRouter refresh when auth state changes
+/// Helper to make GoRouter refresh when auth state changes.
+/// Also invalidates all user-dependent providers on account switch.
 class _GoRouterRefreshStream extends ChangeNotifier {
+  String? _previousUid;
+
   _GoRouterRefreshStream(Ref ref) {
+    // Watch auth changes — invalidate providers when UID changes
     ref.listen(authStateProvider, (previous, next) {
       final prevUid = previous?.valueOrNull?.uid;
       final nextUid = next.valueOrNull?.uid;
 
       // When user changes (sign out or switch account),
-      // invalidate ALL data providers so streams re-subscribe
-      // with the new user's credentials
-      if (prevUid != nextUid) {
+      // invalidate ALL data providers so Firestore streams re-subscribe
+      if (_previousUid != null && _previousUid != nextUid) {
         ref.invalidate(currentUserProvider);
+        ref.invalidate(myGroupsProvider);
       }
+      _previousUid = nextUid;
 
+      notifyListeners();
+    });
+
+    // Watch current user changes (for registration completion detection)
+    ref.listen(currentUserProvider, (previous, next) {
       notifyListeners();
     });
   }

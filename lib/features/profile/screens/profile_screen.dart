@@ -21,6 +21,7 @@ import 'storage_usage_screen.dart';
 import 'data_usage_screen.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
+import '../../chat/screens/saved_messages_screen.dart';
 
 /// Profile Screen — PRD §6.8
 /// Full profile view with avatar, name, email, settings, about, and sign out
@@ -241,6 +242,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     iconColor: const Color(0xFFFF9800),
                     onTap: () => Navigator.push(context, MaterialPageRoute(
                         builder: (_) => const AccountSecurityScreen())),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.bookmark_rounded,
+                    title: 'Saved Messages',
+                    subtitle: 'View your starred messages',
+                    iconColor: Colors.amber,
+                    onTap: () => Navigator.push(context, MaterialPageRoute(
+                        builder: (_) => const SavedMessagesScreen())),
                   ),
 
                   const SizedBox(height: 20),

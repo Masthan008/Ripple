@@ -9,6 +9,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../providers/auth_provider.dart';
 
 /// Registration screen for new users (Google sign-in or email sign-up)
 /// Pre-fills with Google data if available
@@ -99,6 +100,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _showError('Username must be at least 3 characters');
       return;
     }
+    if (username.contains(' ')) {
+      _showError('Username cannot contain spaces');
+      return;
+    }
     if (!_usernameAvailable) {
       _showError('Username is already taken');
       return;
@@ -106,6 +111,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     setState(() => _isSaving = true);
     try {
+      // Step 1: Write complete document atomically with isRegistrationComplete = true
       await FirebaseService.usersCollection.doc(widget.uid).set({
         'uid': widget.uid,
         'name': name,
@@ -113,12 +119,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         'email': widget.email,
         'photoUrl': widget.photoUrl,
         'bio': _bioController.text.trim(),
+        'isRegistrationComplete': true, // ← KEY FLAG
         'isOnline': true,
         'lastSeen': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
         'fcmToken': '',
+        'oneSignalPlayerId': '',
         'isTypingTo': '',
         'friends': [],
         'blockedUsers': [],
+        'blockedWereFriends': [],
         'friendRequests': {'sent': [], 'received': []},
         'notificationSettings': {
           'messages': true,
@@ -136,9 +146,29 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         },
         'twoFactorEnabled': false,
         'createdAt': FieldValue.serverTimestamp(),
-      });
+      }, SetOptions(merge: true));
 
+      // Step 2: Wait for Firestore to confirm write by reading back
+      bool isComplete = false;
+      int retries = 0;
+      while (!isComplete && retries < 5) {
+        await Future.delayed(const Duration(milliseconds: 300));
+        final doc = await FirebaseService.usersCollection
+            .doc(widget.uid)
+            .get();
+        isComplete =
+            doc.data()?['isRegistrationComplete'] as bool? ?? false;
+        retries++;
+      }
+
+      if (!isComplete) {
+        throw Exception('Failed to save registration');
+      }
+
+      // Step 3: Invalidate provider so GoRouter re-evaluates
+      // and navigate ONLY after confirmed write
       if (mounted) {
+        ref.invalidate(currentUserProvider);
         context.go('/home');
       }
     } catch (e) {

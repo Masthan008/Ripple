@@ -21,7 +21,7 @@ final chatMessagesProvider =
   return FirebaseService.chatsCollection
       .doc(chatId)
       .collection('messages')
-      .orderBy('timestamp', descending: false)
+      .orderBy('createdAt', descending: false)
       .snapshots()
       .map((snapshot) => snapshot.docs
           .map((doc) => MessageModel.fromFirestore(doc))
@@ -56,12 +56,15 @@ class ChatService {
   /// Generate chat ID from two user UIDs (sorted & joined)
   String getChatId(String otherUid) => Helpers.getChatId(_myUid, otherUid);
 
-  /// Send a text message
+  /// Send a text message (supports replyTo for Phase 1)
   Future<void> sendMessage({
     required String chatId,
     required String text,
-    MessageType type = MessageType.text,
+    String type = 'text',
     String? mediaUrl,
+    String? fileName,
+    ReplyData? replyTo,
+    bool isForwarded = false,
   }) async {
     if (_myUid.isEmpty) return; // Guard during auth transition
 
@@ -75,9 +78,6 @@ class ChatService {
         recipientDoc.data()?['blockedUsers'] as List? ?? []);
 
     if (theirBlockedList.contains(_myUid)) {
-      // Silently skip — recipient blocked me
-      // (message appears sent on my side but never delivered,
-      //  same behavior as WhatsApp/iMessage)
       debugPrint('🚫 Message blocked — recipient has blocked sender');
       return;
     }
@@ -100,9 +100,11 @@ class ChatService {
       text: text,
       type: type,
       mediaUrl: mediaUrl,
-      timestamp: DateTime.now(),
-      isDelivered: true,
-      isRead: false,
+      fileName: fileName,
+      replyTo: replyTo,
+      isForwarded: isForwarded,
+      seenBy: [_myUid],
+      createdAt: DateTime.now(),
     );
 
     final chatRef = _firestore.collection('chats').doc(chatId);
@@ -118,10 +120,10 @@ class ChatService {
       chatRef,
       {
         'lastMessage': {
-          'text': type == MessageType.text ? text : '[${type.name}]',
+          'text': type == 'text' ? text : '[$type]',
           'senderId': _myUid,
           'timestamp': Timestamp.fromDate(DateTime.now()),
-          'type': type.name,
+          'type': type,
         },
         'participants': _getChatParticipants(chatId),
         'updatedAt': FieldValue.serverTimestamp(),
@@ -144,15 +146,14 @@ class ChatService {
     try {
       final otherDoc = await _firestore.collection('users').doc(otherUid).get();
       final playerId = otherDoc.data()?['oneSignalPlayerId'] as String?;
-      final myDoc = await _firestore.collection('users').doc(_myUid).get();
       final myName = myDoc.data()?['name'] as String? ?? 'Someone';
 
       if (playerId != null && playerId.isNotEmpty) {
-        final notifText = type == MessageType.text
+        final notifText = type == 'text'
             ? text
-            : type == MessageType.image
+            : type == 'image'
                 ? '📷 Sent a photo'
-                : type == MessageType.video
+                : type == 'video'
                     ? '🎥 Sent a video'
                     : '📎 Sent a file';
         await NotificationService.sendMessageNotification(
@@ -173,7 +174,7 @@ class ChatService {
       SetOptions(merge: true),
     );
 
-    // Mark individual messages as read
+    // Mark individual messages as read (legacy support)
     final unreadMessages = await _firestore
         .collection('chats')
         .doc(chatId)
@@ -182,11 +183,13 @@ class ChatService {
         .where('isRead', isEqualTo: false)
         .get();
 
-    final batch = _firestore.batch();
-    for (final doc in unreadMessages.docs) {
-      batch.update(doc.reference, {'isRead': true});
+    if (unreadMessages.docs.isNotEmpty) {
+      final batch = _firestore.batch();
+      for (final doc in unreadMessages.docs) {
+        batch.update(doc.reference, {'isRead': true});
+      }
+      await batch.commit();
     }
-    await batch.commit();
   }
 
   /// Create or ensure a chat document exists

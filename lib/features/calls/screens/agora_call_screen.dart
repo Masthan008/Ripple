@@ -5,6 +5,7 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/utils/env.dart';
 
 /// Agora-powered video/audio call screen
@@ -15,6 +16,7 @@ class AgoraCallScreen extends StatefulWidget {
   final String currentUserId;
   final String currentUserName;
   final String otherUserName;
+  final String? otherUserId; // needed to send call notification
   final bool isVideo;
   final bool isGroup;
 
@@ -25,6 +27,7 @@ class AgoraCallScreen extends StatefulWidget {
     required this.currentUserId,
     required this.currentUserName,
     required this.otherUserName,
+    this.otherUserId,
     this.isVideo = true,
     this.isGroup = false,
   });
@@ -43,17 +46,49 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
   bool _isInitialized = false;
   String? _errorMessage;
 
+  // Timer state — only starts counting when remote user joins
+  final Stopwatch _callStopwatch = Stopwatch();
+
   @override
   void initState() {
     super.initState();
     _initAgora();
+    _sendCallNotification();
+  }
+
+  /// Send push notification to the callee so they know about the call
+  Future<void> _sendCallNotification() async {
+    if (widget.otherUserId == null || widget.otherUserId!.isEmpty) return;
+    if (widget.isGroup) return; // Group call notifications handled separately
+
+    try {
+      // Fetch callee's OneSignal player ID
+      final userDoc = await FirebaseService.usersCollection
+          .doc(widget.otherUserId)
+          .get();
+      final playerId =
+          userDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+      if (playerId.isEmpty) return;
+
+      await NotificationService.sendCallNotification(
+        recipientPlayerId: playerId,
+        callerName: widget.currentUserName,
+        callId: widget.callId,
+        callType: widget.isVideo ? 'video' : 'audio',
+        isGroup: widget.isGroup,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Failed to send call notification: $e');
+    }
   }
 
   Future<void> _initAgora() async {
     // Request permissions (skip on web — browser handles it natively)
     try {
       if (widget.isVideo) {
-        await [Permission.camera, Permission.microphone].request();
+        final cameraStatus = await Permission.camera.request();
+        final micStatus = await Permission.microphone.request();
+        debugPrint('📸 Camera: $cameraStatus, 🎤 Mic: $micStatus');
       } else {
         await Permission.microphone.request();
       }
@@ -65,7 +100,8 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
     final appId = Env.agoraAppId;
     if (appId.isEmpty) {
       if (mounted) {
-        setState(() => _errorMessage = 'Agora App ID not configured.\nAdd AGORA_APP_ID to your .env file.\n\nGet a free App ID at console.agora.io');
+        setState(() => _errorMessage =
+            'Agora App ID not configured.\nAdd AGORA_APP_ID to your .env file.\n\nGet a free App ID at console.agora.io');
       }
       return;
     }
@@ -81,14 +117,33 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
       // Set up event handlers
       _engine.registerEventHandler(RtcEngineEventHandler(
         onJoinChannelSuccess: (connection, elapsed) {
+          debugPrint('✅ Joined channel successfully');
           if (mounted) setState(() => _localUserJoined = true);
         },
         onUserJoined: (connection, remoteUid, elapsed) {
-          if (mounted) setState(() => _remoteUid = remoteUid);
+          debugPrint('✅ Remote user joined: $remoteUid');
+          if (mounted) {
+            setState(() => _remoteUid = remoteUid);
+            // Start the call timer ONLY when remote user joins
+            _callStopwatch.start();
+          }
+
+          // Update call status to 'connected'
+          FirebaseService.firestore
+              .collection('calls')
+              .doc(widget.callId)
+              .update({'status': 'connected'}).catchError((_) {});
         },
         onUserOffline: (connection, remoteUid, reason) {
-          if (mounted) setState(() => _remoteUid = null);
+          debugPrint('📴 Remote user left: $remoteUid');
+          if (mounted) {
+            setState(() => _remoteUid = null);
+            _callStopwatch.stop();
+          }
           _endCall();
+        },
+        onError: (err, msg) {
+          debugPrint('❌ Agora error: $err — $msg');
         },
       ));
 
@@ -99,6 +154,8 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
         await _engine.disableVideo();
       }
 
+      await _engine.enableAudio();
+
       if (mounted) setState(() => _isInitialized = true);
 
       // Join channel — token empty for testing mode
@@ -106,10 +163,10 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
         token: '',
         channelId: widget.channelName,
         uid: 0,
-        options: const ChannelMediaOptions(
+        options: ChannelMediaOptions(
           autoSubscribeAudio: true,
-          autoSubscribeVideo: true,
-          publishCameraTrack: true,
+          autoSubscribeVideo: widget.isVideo,
+          publishCameraTrack: widget.isVideo,
           publishMicrophoneTrack: true,
           clientRoleType: ClientRoleType.clientRoleBroadcaster,
         ),
@@ -127,6 +184,8 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
   }
 
   Future<void> _endCall() async {
+    _callStopwatch.stop();
+
     try {
       await _engine.leaveChannel();
       await _engine.release();
@@ -139,6 +198,7 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
           .update({
         'status': 'ended',
         'endedAt': FieldValue.serverTimestamp(),
+        'duration': _callStopwatch.elapsed.inSeconds,
       });
     } catch (_) {}
 
@@ -166,11 +226,18 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
 
   @override
   void dispose() {
+    _callStopwatch.stop();
     try {
       _engine.leaveChannel();
       _engine.release();
     } catch (_) {}
     super.dispose();
+  }
+
+  String _formatDuration(Duration d) {
+    final m = d.inMinutes.toString().padLeft(2, '0');
+    final s = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$m:$s';
   }
 
   @override
@@ -285,12 +352,17 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
               ),
             ),
 
-          // Call timer
+          // Call timer — only shows elapsed time since remote user joined
           Positioned(
             top: 52,
             left: 0,
             right: 0,
-            child: Center(child: _CallTimer()),
+            child: Center(
+              child: _CallTimer(
+                stopwatch: _callStopwatch,
+                isConnected: _remoteUid != null,
+              ),
+            ),
           ),
 
           // Control buttons
@@ -359,16 +431,35 @@ class _AgoraCallScreenState extends State<AgoraCallScreen> {
   }
 }
 
-// ── Timer widget ──
+// ── Timer widget — only counts when call is connected ──
 class _CallTimer extends StatelessWidget {
+  final Stopwatch stopwatch;
+  final bool isConnected;
+
+  const _CallTimer({
+    required this.stopwatch,
+    required this.isConnected,
+  });
+
   @override
   Widget build(BuildContext context) {
+    if (!isConnected) {
+      return const Text(
+        '00:00',
+        style: TextStyle(
+          color: Colors.white54,
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+        ),
+      );
+    }
+
     return StreamBuilder<int>(
       stream: Stream.periodic(const Duration(seconds: 1), (i) => i + 1),
       builder: (context, snap) {
-        final seconds = snap.data ?? 0;
-        final m = (seconds ~/ 60).toString().padLeft(2, '0');
-        final s = (seconds % 60).toString().padLeft(2, '0');
+        final elapsed = stopwatch.elapsed;
+        final m = elapsed.inMinutes.toString().padLeft(2, '0');
+        final s = (elapsed.inSeconds % 60).toString().padLeft(2, '0');
         return Text(
           '$m:$s',
           style: const TextStyle(

@@ -7,24 +7,36 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
+import 'package:video_thumbnail/video_thumbnail.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/cloudinary_service.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/utils/helpers.dart';
+import '../../../core/utils/media_compressor.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../auth/models/user_model.dart';
+import '../../auth/providers/auth_provider.dart';
 import '../../calls/screens/agora_call_screen.dart';
 import '../models/message_model.dart';
 import '../providers/chat_provider.dart';
-import '../widgets/message_bubble.dart';
-import '../widgets/typing_indicator.dart';
+import '../services/message_actions_service.dart';
+import '../widgets/forward_message_sheet.dart';
+import '../widgets/gif_picker_sheet.dart';
 import '../widgets/glass_input_bar.dart';
+import '../widgets/message_bubble.dart';
+import '../widgets/message_context_menu.dart';
+import '../widgets/pinned_message_banner.dart';
+import '../widgets/typing_indicator.dart';
+import 'chat_media_gallery_screen.dart';
+import 'video_player_screen.dart';
 
 /// 1-to-1 Chat Screen — PRD §6.3
-/// Real-time messages, typing indicator, read receipts, glass input bar
+/// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
+/// star, multi-select, seen receipts
 class ChatScreen extends ConsumerStatefulWidget {
   final String chatId;
   final String partnerUid;
@@ -49,12 +61,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isSending = false;
   bool _showEmojiPicker = false;
 
+  // Phase 1 state
+  ReplyData? _replyTo;
+  bool _isMultiSelectMode = false;
+  final Set<String> _selectedMessageIds = {};
+
   @override
   void initState() {
     super.initState();
     // Mark messages as read when opening chat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatServiceProvider).markAsRead(widget.chatId);
+      // Also mark with Phase 1 seenBy
+      MessageActionsService.markMessagesAsSeen(
+        chatId: widget.chatId,
+        currentUid: ref.read(chatServiceProvider).myUid,
+        isGroup: false,
+      );
     });
   }
 
@@ -62,9 +85,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    // Note: Cannot use ref.read() here — ref is already disposed
-    // Typing status will be cleared automatically by Firestore TTL
-    // or when the user navigates back and reopens a chat
     super.dispose();
   }
 
@@ -89,11 +109,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _isSending = true);
     _messageController.clear();
 
+    // Capture reply before clearing
+    final replyData = _replyTo;
+    setState(() => _replyTo = null);
+
     try {
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
         chatId: widget.chatId,
         text: text,
+        replyTo: replyData,
       );
       await chatService.clearTyping();
       _scrollToBottom();
@@ -120,12 +145,201 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  // ── Phase 1 helpers ────────────────────────────────────
+
+  void _setReplyTo(MessageModel message) {
+    setState(() {
+      _replyTo = ReplyData(
+        messageId: message.id,
+        senderName: message.senderId ==
+                ref.read(chatServiceProvider).myUid
+            ? 'You'
+            : widget.partnerName,
+        text: message.text ?? '',
+        type: message.type,
+        mediaUrl: message.mediaUrl,
+      );
+    });
+  }
+
+  void _showEditDialog(MessageModel message) {
+    final editController =
+        TextEditingController(text: message.text ?? '');
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: AppColors.aquaCyan.withOpacity(0.2)),
+        ),
+        title: Text('Edit Message',
+            style: AppTextStyles.body
+                .copyWith(fontWeight: FontWeight.w600)),
+        content: TextField(
+          controller: editController,
+          style: AppTextStyles.body.copyWith(fontSize: 14),
+          decoration: InputDecoration(
+            hintText: 'Edit your message...',
+            hintStyle:
+                AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: Colors.white.withOpacity(0.1)),
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: BorderSide(
+                  color: Colors.white.withOpacity(0.1)),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(12),
+              borderSide: const BorderSide(color: AppColors.aquaCore),
+            ),
+          ),
+          autofocus: true,
+          maxLines: null,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel',
+                style: TextStyle(color: AppColors.textMuted)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final newText = editController.text.trim();
+              if (newText.isEmpty) return;
+              try {
+                await MessageActionsService.editMessage(
+                  chatId: widget.chatId,
+                  messageId: message.id,
+                  newText: newText,
+                  isGroup: false,
+                );
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('$e'),
+                      backgroundColor: AppColors.errorRed,
+                    ),
+                  );
+                }
+              }
+              if (mounted) Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.aquaCore,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+              ),
+            ),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showForwardSheet(MessageModel message) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      isScrollControlled: true,
+      builder: (_) => ForwardMessageSheet(message: message),
+    );
+  }
+
+  void _exitMultiSelect() {
+    setState(() {
+      _isMultiSelectMode = false;
+      _selectedMessageIds.clear();
+    });
+  }
+
+  void _toggleSelection(String messageId) {
+    setState(() {
+      if (_selectedMessageIds.contains(messageId)) {
+        _selectedMessageIds.remove(messageId);
+        if (_selectedMessageIds.isEmpty) {
+          _isMultiSelectMode = false;
+        }
+      } else {
+        _selectedMessageIds.add(messageId);
+      }
+    });
+  }
+
+  Future<void> _deleteSelectedForMe() async {
+    for (final id in _selectedMessageIds) {
+      await MessageActionsService.deleteForMe(
+        chatId: widget.chatId,
+        messageId: id,
+        isGroup: false,
+      );
+    }
+    _exitMultiSelect();
+  }
+
+  Future<void> _starSelected() async {
+    for (final id in _selectedMessageIds) {
+      await MessageActionsService.toggleStarMessage(
+        chatId: widget.chatId,
+        messageId: id,
+        isGroup: false,
+      );
+    }
+    _exitMultiSelect();
+  }
+
+  void _showContextMenu(MessageModel message, bool isMyMessage) {
+    showMessageContextMenu(
+      context: context,
+      message: message,
+      isMyMessage: isMyMessage,
+      chatId: widget.chatId,
+      isGroup: false,
+      currentUid: ref.read(chatServiceProvider).myUid,
+      onReply: () => _setReplyTo(message),
+      onEdit: isMyMessage ? () => _showEditDialog(message) : null,
+      onDeleteForEveryone: () =>
+          MessageActionsService.deleteForEveryone(
+        chatId: widget.chatId,
+        messageId: message.id,
+        isGroup: false,
+      ),
+      onDeleteForMe: () => MessageActionsService.deleteForMe(
+        chatId: widget.chatId,
+        messageId: message.id,
+        isGroup: false,
+      ),
+      onForward: () => _showForwardSheet(message),
+      onPin: () => MessageActionsService.togglePinMessage(
+        chatId: widget.chatId,
+        messageId: message.id,
+        pin: !message.isPinned,
+        isGroup: false,
+      ),
+      onStar: () => MessageActionsService.toggleStarMessage(
+        chatId: widget.chatId,
+        messageId: message.id,
+        isGroup: false,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final partner = ref.watch(chatPartnerProvider(widget.partnerUid));
     final messages = ref.watch(chatMessagesProvider(widget.chatId));
-    final currentUser =
-        ref.read(chatServiceProvider).myUid;
+    final currentUser = ref.read(chatServiceProvider).myUid;
 
     // Auto-scroll on new messages
     messages.whenData((_) => _scrollToBottom());
@@ -142,6 +356,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               // Header
               _buildHeader(partner),
 
+              // Pinned message banner
+              PinnedMessageBanner(
+                chatId: widget.chatId,
+                isGroup: false,
+                onTap: () {
+                  // Could scroll to pinned message
+                },
+                onUnpin: () =>
+                    MessageActionsService.togglePinMessage(
+                  chatId: widget.chatId,
+                  messageId: '',
+                  pin: false,
+                  isGroup: false,
+                ),
+              ),
+
               // Messages
               Expanded(
                 child: messages.when(
@@ -156,12 +386,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         style: AppTextStyles.caption),
                   ),
                   data: (msgs) {
-                    if (msgs.isEmpty) {
+                    // Filter out messages deleted for current user
+                    final filtered = msgs
+                        .where((m) =>
+                            !m.deletedFor.contains(currentUser))
+                        .toList();
+
+                    if (filtered.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.chat_bubble_outline_rounded,
+                            Icon(
+                                Icons.chat_bubble_outline_rounded,
                                 color: AppColors.aquaCore
                                     .withValues(alpha: 0.2),
                                 size: 64),
@@ -175,16 +412,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
                     return ListView.builder(
                       controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      itemCount: msgs.length +
-                          (partner.valueOrNull?.isTypingTo == currentUser
+                      padding: const EdgeInsets.symmetric(
+                          vertical: 12),
+                      itemCount: filtered.length +
+                          (partner.valueOrNull?.isTypingTo ==
+                                  currentUser
                               ? 1
                               : 0),
                       itemBuilder: (_, i) {
                         // Show typing indicator at the end
-                        if (i == msgs.length) {
+                        if (i == filtered.length) {
                           return const Padding(
-                            padding: EdgeInsets.only(left: 12, bottom: 8),
+                            padding: EdgeInsets.only(
+                                left: 12, bottom: 8),
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: TypingIndicator(),
@@ -192,12 +432,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           );
                         }
 
-                        final msg = msgs[i];
-                        final isMe = msg.senderId == currentUser;
+                        final msg = filtered[i];
+                        final isMe =
+                            msg.senderId == currentUser;
 
                         return MessageBubble(
                           message: msg,
                           isMe: isMe,
+                          currentUid: currentUser,
+                          chatId: widget.chatId,
+                          isGroup: false,
+                          isSelected: _selectedMessageIds
+                              .contains(msg.id),
+                          isMultiSelectMode: _isMultiSelectMode,
+                          onLongPress: () {
+                            if (_isMultiSelectMode) {
+                              _toggleSelection(msg.id);
+                            } else {
+                              _showContextMenu(msg, isMe);
+                            }
+                          },
+                          onTap: _isMultiSelectMode
+                              ? () =>
+                                  _toggleSelection(msg.id)
+                              : null,
                         );
                       },
                     );
@@ -205,42 +463,138 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ),
 
-              // Input bar
-              GlassInputBar(
-                controller: _messageController,
-                onSend: _sendMessage,
-                onChanged: _onTextChanged,
-                isSending: _isSending,
-                onEmoji: () {
-                  setState(() => _showEmojiPicker = !_showEmojiPicker);
-                  if (_showEmojiPicker) {
-                    FocusScope.of(context).unfocus();
-                  }
-                },
-                onAttach: () => _showAttachmentSheet(context),
-              ),
+              // Multi-select bottom bar
+              if (_isMultiSelectMode)
+                _buildMultiSelectBar(),
 
-              // Emoji picker
-              if (_showEmojiPicker)
-                SizedBox(
-                  height: 250,
-                  child: EmojiPicker(
-                    onEmojiSelected: (category, emoji) {
-                      _messageController.text += emoji.emoji;
-                      _messageController.selection =
-                          TextSelection.fromPosition(
-                        TextPosition(
-                            offset: _messageController.text.length),
-                      );
-                    },
-                    config: const Config(
-                      height: 250,
-                      checkPlatformCompatibility: true,
+              // Input bar (hidden during multi-select)
+              if (!_isMultiSelectMode) ...[
+                GlassInputBar(
+                  controller: _messageController,
+                  onSend: _sendMessage,
+                  onChanged: _onTextChanged,
+                  isSending: _isSending,
+                  replyTo: _replyTo,
+                  onClearReply: () =>
+                      setState(() => _replyTo = null),
+                  onEmoji: () {
+                    setState(() => _showEmojiPicker =
+                        !_showEmojiPicker);
+                    if (_showEmojiPicker) {
+                      FocusScope.of(context).unfocus();
+                    }
+                  },
+                  onAttach: () =>
+                      _showAttachmentSheet(context),
+                  onGif: () => _showGifPicker(),
+                  onVoiceRecorded: _sendVoiceMessage,
+                ),
+
+                // Emoji picker
+                if (_showEmojiPicker)
+                  SizedBox(
+                    height: 250,
+                    child: EmojiPicker(
+                      onEmojiSelected: (category, emoji) {
+                        _messageController.text +=
+                            emoji.emoji;
+                        _messageController.selection =
+                            TextSelection.fromPosition(
+                          TextPosition(
+                              offset: _messageController
+                                  .text.length),
+                        );
+                      },
+                      config: const Config(
+                        height: 250,
+                        checkPlatformCompatibility: true,
+                      ),
                     ),
                   ),
-                ),
+              ],
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMultiSelectBar() {
+    return Container(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        top: 12,
+        bottom: MediaQuery.of(context).padding.bottom + 12,
+      ),
+      decoration: const BoxDecoration(
+        color: Color(0xE6060D1A),
+        border: Border(
+          top: BorderSide(color: Color(0x0FFFFFFF), width: 1),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _multiSelectAction(
+            icon: Icons.delete_outline,
+            label: 'Delete',
+            color: AppColors.errorRed,
+            onTap: _deleteSelectedForMe,
+          ),
+          _multiSelectAction(
+            icon: Icons.forward_to_inbox,
+            label: 'Forward',
+            color: Colors.white,
+            onTap: () {
+              // Forward first selected message
+              // (could be improved to batch)
+              _exitMultiSelect();
+            },
+          ),
+          _multiSelectAction(
+            icon: Icons.star_border,
+            label: 'Star',
+            color: Colors.amber,
+            onTap: _starSelected,
+          ),
+          GestureDetector(
+            onTap: _exitMultiSelect,
+            child: Container(
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                '${_selectedMessageIds.length} selected',
+                style: AppTextStyles.caption
+                    .copyWith(color: Colors.white, fontSize: 12),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _multiSelectAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, color: color, size: 22),
+          const SizedBox(height: 4),
+          Text(label,
+              style: AppTextStyles.caption
+                  .copyWith(fontSize: 10, color: color)),
         ],
       ),
     );
@@ -264,7 +618,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         children: [
           // Back button
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
+            icon: const Icon(
+                Icons.arrow_back_ios_rounded, size: 20),
             onPressed: () => Navigator.of(context).pop(),
           ),
 
@@ -274,7 +629,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             name: widget.partnerName,
             size: 36,
             showOnlineDot: true,
-            isOnline: partner.valueOrNull?.isOnline ?? false,
+            isOnline:
+                partner.valueOrNull?.isOnline ?? false,
           ),
 
           const SizedBox(width: 12),
@@ -286,14 +642,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 Text(
                   widget.partnerName,
-                  style: AppTextStyles.headingSmall.copyWith(fontSize: 15),
+                  style: AppTextStyles.headingSmall
+                      .copyWith(fontSize: 15),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 1),
                 partner.when(
                   data: (p) {
-                    if (p == null) return const SizedBox.shrink();
+                    if (p == null) {
+                      return const SizedBox.shrink();
+                    }
                     if (p.isOnline) {
                       return Row(
                         children: [
@@ -308,7 +667,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           const SizedBox(width: 4),
                           Text(
                             'Online',
-                            style: AppTextStyles.caption.copyWith(
+                            style:
+                                AppTextStyles.caption.copyWith(
                               color: AppColors.onlineGreen,
                               fontSize: 10,
                             ),
@@ -319,13 +679,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     if (p.lastSeen != null) {
                       return Text(
                         Helpers.formatLastSeen(p.lastSeen!),
-                        style: AppTextStyles.caption.copyWith(fontSize: 10),
+                        style: AppTextStyles.caption
+                            .copyWith(fontSize: 10),
                       );
                     }
                     return const SizedBox.shrink();
                   },
                   loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
+                  error: (_, __) =>
+                      const SizedBox.shrink(),
                 ),
               ],
             ),
@@ -366,6 +728,44 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   color: AppColors.lightWave, size: 18),
             ),
           ),
+
+          const SizedBox(width: 4),
+
+          // More menu (Media gallery)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert_rounded,
+                color: AppColors.lightWave, size: 20),
+            color: const Color(0xFF0C1E3A),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12)),
+            onSelected: (value) {
+              if (value == 'media') {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => ChatMediaGalleryScreen(
+                      chatId: widget.chatId,
+                      isGroup: false,
+                    ),
+                  ),
+                );
+              }
+            },
+            itemBuilder: (_) => [
+              const PopupMenuItem(
+                value: 'media',
+                child: Row(
+                  children: [
+                    Icon(Icons.photo_library_rounded,
+                        color: AppColors.aquaCore, size: 20),
+                    SizedBox(width: 12),
+                    Text('Media & Files',
+                        style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ],
       ),
     );
@@ -377,7 +777,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     try {
       // Create call document in Firestore
-      await FirebaseService.firestore.collection('calls').doc(callId).set({
+      await FirebaseService.firestore
+          .collection('calls')
+          .doc(callId)
+          .set({
         'callerId': myUid,
         'calleeId': widget.partnerUid,
         'type': isVideo ? 'video' : 'audio',
@@ -393,8 +796,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               callId: callId,
               channelName: widget.chatId,
               currentUserId: myUid,
-              currentUserName: 'Me',
+              currentUserName: ref.read(currentUserProvider).valueOrNull?.name ?? 'Me',
               otherUserName: widget.partnerName,
+              otherUserId: widget.partnerUid,
               isVideo: isVideo,
               isGroup: false,
             ),
@@ -419,7 +823,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context: ctx,
       backgroundColor: const Color(0xFF0C1E3A),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius:
+            BorderRadius.vertical(top: Radius.circular(24)),
       ),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(24),
@@ -444,9 +849,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   color: const Color(0xFF0EA5E9),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final file = await ImagePicker()
-                        .pickImage(source: ImageSource.gallery, imageQuality: 70);
-                    if (file != null) _sendMediaMessage(File(file.path), MessageType.image);
+                    // Multi-image picker (up to 10)
+                    final pickedFiles = await ImagePicker()
+                        .pickMultiImage(
+                      imageQuality: 70,
+                      maxWidth: 1920,
+                      maxHeight: 1920,
+                    );
+                    if (pickedFiles.isEmpty) return;
+                    final files = pickedFiles.take(10).toList();
+                    setState(() => _isSending = true);
+                    try {
+                      for (final xfile in files) {
+                        final compressed = await MediaCompressor
+                            .compressImage(xfile.path);
+                        await _sendMediaMessage(compressed, 'image');
+                      }
+                    } finally {
+                      if (mounted) setState(() => _isSending = false);
+                    }
                   },
                 ),
                 _attachOption(
@@ -455,9 +876,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   color: const Color(0xFF22D3EE),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final file = await ImagePicker()
-                        .pickImage(source: ImageSource.camera, imageQuality: 70);
-                    if (file != null) _sendMediaMessage(File(file.path), MessageType.image);
+                    final file = await ImagePicker().pickImage(
+                        source: ImageSource.camera,
+                        imageQuality: 70);
+                    if (file != null) {
+                      final compressed = await MediaCompressor
+                          .compressImage(file.path);
+                      _sendMediaMessage(compressed, 'image');
+                    }
                   },
                 ),
                 _attachOption(
@@ -466,9 +892,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   color: const Color(0xFF8B5CF6),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final file = await ImagePicker()
-                        .pickVideo(source: ImageSource.gallery);
-                    if (file != null) _sendMediaMessage(File(file.path), MessageType.video);
+                    final file = await ImagePicker().pickVideo(
+                      source: ImageSource.gallery,
+                      maxDuration: const Duration(seconds: 30),
+                    );
+                    if (file != null) {
+                      _sendVideoMessage(File(file.path));
+                    }
                   },
                 ),
                 _attachOption(
@@ -477,11 +907,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   color: const Color(0xFFF59E0B),
                   onTap: () async {
                     Navigator.pop(ctx);
-                    final result = await FilePicker.platform.pickFiles(type: FileType.any);
-                    if (result != null && result.files.single.path != null) {
+                    final result = await FilePicker.platform
+                        .pickFiles(type: FileType.any);
+                    if (result != null &&
+                        result.files.single.path != null) {
                       _sendMediaMessage(
                         File(result.files.single.path!),
-                        MessageType.file,
+                        'file',
                         fileName: result.files.single.name,
                       );
                     }
@@ -518,17 +950,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           const SizedBox(height: 8),
           Text(label,
-              style: AppTextStyles.caption.copyWith(fontSize: 11)),
+              style:
+                  AppTextStyles.caption.copyWith(fontSize: 11)),
         ],
       ),
     );
   }
 
-  Future<void> _sendMediaMessage(File file, MessageType type, {String? fileName}) async {
+  Future<void> _sendMediaMessage(File file, String type,
+      {String? fileName}) async {
     setState(() => _isSending = true);
     try {
       String? url;
-      if (type == MessageType.video) {
+      if (type == 'video') {
         url = await CloudinaryService.uploadVideo(file);
       } else {
         url = await CloudinaryService.uploadImage(file);
@@ -549,10 +983,199 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
         chatId: widget.chatId,
-        text: fileName ?? '[${type.name}]',
+        text: fileName ?? '[$type]',
         type: type,
         mediaUrl: url,
+        fileName: fileName,
+        replyTo: _replyTo,
       );
+      setState(() => _replyTo = null);
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  // ── Phase 2: GIF Picker ──────────────────────────────────
+  void _showGifPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => GifPickerSheet(
+        onGifSelected: (gifUrl, previewUrl) async {
+          setState(() => _isSending = true);
+          try {
+            final chatService = ref.read(chatServiceProvider);
+            await chatService.sendMessage(
+              chatId: widget.chatId,
+              text: '',
+              type: 'gif',
+              mediaUrl: gifUrl,
+            );
+            _scrollToBottom();
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to send GIF: $e'),
+                  backgroundColor: AppColors.errorRed,
+                ),
+              );
+            }
+          } finally {
+            if (mounted) setState(() => _isSending = false);
+          }
+        },
+      ),
+    );
+  }
+
+  // ── Phase 2: Voice Message Upload ───────────────────────
+  Future<void> _sendVoiceMessage(
+    String filePath,
+    Duration duration,
+    List<double> waveformData,
+  ) async {
+    setState(() => _isSending = true);
+    try {
+      final file = File(filePath);
+      // Upload to Cloudinary as raw/auto
+      final url = await CloudinaryService.uploadVideo(file);
+      if (url == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Voice upload failed'),
+              backgroundColor: AppColors.errorRed,
+            ),
+          );
+        }
+        return;
+      }
+
+      final chatService = ref.read(chatServiceProvider);
+      // Send as voice message with extra metadata fields
+      await FirebaseService.chatsCollection
+          .doc(widget.chatId)
+          .collection('messages')
+          .add({
+        'senderId': chatService.myUid,
+        'type': 'voice',
+        'mediaUrl': url,
+        'duration': duration.inSeconds,
+        'waveformData': waveformData,
+        'text': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isDeleted': false,
+        'isEdited': false,
+        'isPinned': false,
+        'isStarred': false,
+        'isForwarded': false,
+        'reactions': {},
+        'seenBy': [chatService.myUid],
+        'deletedFor': [],
+        'starredBy': [],
+      });
+
+      // Update last message preview
+      await FirebaseService.chatsCollection
+          .doc(widget.chatId)
+          .update({
+        'lastMessage': '🎙️ Voice message',
+        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      });
+
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  // ── Phase 2: Video with Thumbnail ───────────────────────
+  Future<void> _sendVideoMessage(File videoFile) async {
+    setState(() => _isSending = true);
+    try {
+      // Generate thumbnail
+      String? thumbUrl;
+      try {
+        final tempDir = await getTemporaryDirectory();
+        final thumbnailPath = await VideoThumbnail.thumbnailFile(
+          video: videoFile.path,
+          thumbnailPath: tempDir.path,
+          imageFormat: ImageFormat.JPEG,
+          maxHeight: 300,
+          quality: 75,
+        );
+        if (thumbnailPath != null) {
+          thumbUrl = await CloudinaryService.uploadImage(
+              File(thumbnailPath));
+        }
+      } catch (_) {
+        // Thumbnail generation failed — continue without
+      }
+
+      // Upload video
+      final videoUrl = await CloudinaryService.uploadVideo(videoFile);
+      if (videoUrl == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Video upload failed'),
+              backgroundColor: AppColors.errorRed,
+            ),
+          );
+        }
+        return;
+      }
+
+      final chatService = ref.read(chatServiceProvider);
+      await FirebaseService.chatsCollection
+          .doc(widget.chatId)
+          .collection('messages')
+          .add({
+        'senderId': chatService.myUid,
+        'type': 'video',
+        'mediaUrl': videoUrl,
+        'thumbnailUrl': thumbUrl,
+        'text': null,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isDeleted': false,
+        'isEdited': false,
+        'isPinned': false,
+        'isStarred': false,
+        'isForwarded': false,
+        'reactions': {},
+        'seenBy': [chatService.myUid],
+        'deletedFor': [],
+        'starredBy': [],
+      });
+
+      await FirebaseService.chatsCollection
+          .doc(widget.chatId)
+          .update({
+        'lastMessage': '🎬 Video',
+        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+      });
+
       _scrollToBottom();
     } catch (e) {
       if (mounted) {
