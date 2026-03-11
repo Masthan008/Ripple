@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../models/message_model.dart';
 import '../services/message_actions_service.dart';
+import '../services/chat_organisation_service.dart';
 
 /// Glass morphism context menu shown on long-press of a message
 class MessageContextMenu extends StatefulWidget {
@@ -22,6 +23,9 @@ class MessageContextMenu extends StatefulWidget {
   final VoidCallback onPin;
   final VoidCallback onStar;
   final VoidCallback onCopy;
+  final VoidCallback? onSaveToBookmarks;
+  final VoidCallback? onTranslate;
+  final VoidCallback? onExplain;
   final String currentUid;
 
   const MessageContextMenu({
@@ -38,6 +42,9 @@ class MessageContextMenu extends StatefulWidget {
     required this.onPin,
     required this.onStar,
     required this.onCopy,
+    this.onSaveToBookmarks,
+    this.onTranslate,
+    this.onExplain,
     required this.currentUid,
   });
 
@@ -258,6 +265,54 @@ class _MessageContextMenuState extends State<MessageContextMenu>
       },
     ));
 
+    // Bookmark (save to savedMessages collection)
+    if (widget.onSaveToBookmarks != null) {
+      options.add(_menuItem(
+        icon: Icons.bookmark_add_rounded,
+        label: 'Bookmark',
+        iconColor: AppColors.aquaCore,
+        onTap: () {
+          _close();
+          widget.onSaveToBookmarks!();
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Message saved to Bookmarks 🔖'),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        },
+      ));
+    }
+
+    // AI: Translate (for text messages)
+    if (widget.onTranslate != null &&
+        widget.message.text != null &&
+        widget.message.text!.isNotEmpty) {
+      options.add(_menuItem(
+        icon: Icons.translate_rounded,
+        label: 'Translate',
+        iconColor: AppColors.aquaCore,
+        onTap: () {
+          _close(() => widget.onTranslate!());
+        },
+      ));
+    }
+
+    // AI: Explain (only for other's messages)
+    if (widget.onExplain != null &&
+        !widget.isMyMessage &&
+        widget.message.text != null &&
+        widget.message.text!.isNotEmpty) {
+      options.add(_menuItem(
+        icon: Icons.lightbulb_rounded,
+        label: 'Explain Message',
+        iconColor: AppColors.aquaCore,
+        onTap: () {
+          _close(() => widget.onExplain!());
+        },
+      ));
+    }
+
     options.add(_divider());
 
     // Delete for everyone — own messages only
@@ -335,6 +390,9 @@ void showMessageContextMenu({
   required VoidCallback onForward,
   required VoidCallback onPin,
   required VoidCallback onStar,
+  VoidCallback? onSaveToBookmarks,
+  VoidCallback? onTranslate,
+  VoidCallback? onExplain,
 }) {
   showGeneralDialog(
     context: context,
@@ -356,6 +414,9 @@ void showMessageContextMenu({
         onForward: onForward,
         onPin: onPin,
         onStar: onStar,
+        onSaveToBookmarks: onSaveToBookmarks,
+        onTranslate: onTranslate,
+        onExplain: onExplain,
         onCopy: () {
           Clipboard.setData(
               ClipboardData(text: message.text ?? ''));

@@ -22,6 +22,8 @@ class GlassInputBar extends StatefulWidget {
   final VoidCallback? onClearReply;
   final Function(String filePath, Duration duration, List<double> waveformData)?
       onVoiceRecorded;
+  final VoidCallback? onAiCompose;
+  final VoidCallback? onToneFix;
 
   const GlassInputBar({
     super.key,
@@ -35,6 +37,8 @@ class GlassInputBar extends StatefulWidget {
     this.replyTo,
     this.onClearReply,
     this.onVoiceRecorded,
+    this.onAiCompose,
+    this.onToneFix,
   });
 
   @override
@@ -160,6 +164,26 @@ class _GlassInputBarState extends State<GlassInputBar> {
 
           const SizedBox(width: 6),
 
+          // AI Compose button
+          if (widget.onAiCompose != null && !hasText)
+            _IconBtn(
+              icon: Icons.smart_toy_rounded,
+              color: AppColors.aquaCore,
+              size: 20,
+              onTap: widget.onAiCompose,
+            ),
+
+          // Tone fixer button (only when typing)
+          if (widget.onToneFix != null && hasText)
+            _IconBtn(
+              icon: Icons.auto_fix_high_rounded,
+              color: AppColors.aquaCore,
+              size: 20,
+              onTap: widget.onToneFix,
+            ),
+
+          const SizedBox(width: 4),
+
           // Send button or Mic button
           if (hasText || widget.isSending)
             WaterRippleEffect(
@@ -191,8 +215,14 @@ class _GlassInputBarState extends State<GlassInputBar> {
               ),
             )
           else
-            // Mic button — hold to record
+            // Mic button — tap or hold to record
             GestureDetector(
+              onTap: () {
+                setState(() {
+                  _isRecording = true;
+                  _dragOffset = 0;
+                });
+              },
               onLongPressStart: (_) {
                 setState(() {
                   _isRecording = true;
@@ -276,8 +306,10 @@ class _GlassInputBarState extends State<GlassInputBar> {
 class _IconBtn extends StatelessWidget {
   final IconData icon;
   final VoidCallback? onTap;
+  final Color? color;
+  final double? size;
 
-  const _IconBtn({required this.icon, this.onTap});
+  const _IconBtn({required this.icon, this.onTap, this.color, this.size});
 
   @override
   Widget build(BuildContext context) {
@@ -285,7 +317,7 @@ class _IconBtn extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Icon(icon, color: AppColors.textMuted, size: 22),
+        child: Icon(icon, color: color ?? AppColors.textMuted, size: size ?? 22),
       ),
     );
   }

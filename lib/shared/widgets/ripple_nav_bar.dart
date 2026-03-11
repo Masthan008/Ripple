@@ -17,7 +17,7 @@ class RippleNavBar extends StatefulWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
-    this.unreadCounts = const [0, 0, 0, 0],
+    this.unreadCounts = const [0, 0, 0, 0, 0],
     this.userPhotoUrl,
   });
 
@@ -30,17 +30,19 @@ class _RippleNavBarState extends State<RippleNavBar>
   late AnimationController _pillController;
   late Animation<double> _pillScale;
 
-  static const _labels = ['Chats', 'Groups', 'Calls', 'Profile'];
+  static const _labels = ['Chats', 'Status', 'Groups', 'Calls', 'Profile'];
 
   static const _activeIcons = [
     Icons.chat_bubble_rounded,
+    Icons.circle_notifications_rounded,
     Icons.group_rounded,
     Icons.call_rounded,
-    Icons.person_rounded, // placeholder — profile uses avatar
+    Icons.person_rounded,
   ];
 
   static const _inactiveIcons = [
     Icons.chat_bubble_outline_rounded,
+    Icons.circle_notifications_outlined,
     Icons.group_outlined,
     Icons.call_outlined,
     Icons.person_outline_rounded,
@@ -53,8 +55,8 @@ class _RippleNavBarState extends State<RippleNavBar>
       vsync: this,
       duration: const Duration(milliseconds: 250),
     );
-    _pillScale = Tween<double>(begin: 0.8, end: 1.0).animate(
-      CurvedAnimation(parent: _pillController, curve: Curves.easeOutBack),
+    _pillScale = Tween<double>(begin: 0.85, end: 1.0).animate(
+      CurvedAnimation(parent: _pillController, curve: Curves.easeOut),
     );
     _pillController.forward();
   }
@@ -88,8 +90,9 @@ class _RippleNavBarState extends State<RippleNavBar>
 
   Widget _buildBarContent(double bottomPad) {
     final content = Container(
-      height: 64 + bottomPad,
+      height: 72 + bottomPad,
       padding: EdgeInsets.only(bottom: bottomPad),
+      clipBehavior: Clip.hardEdge,
       decoration: const BoxDecoration(
         color: Color(0xFF0A1628),
         border: Border(
@@ -101,7 +104,7 @@ class _RippleNavBarState extends State<RippleNavBar>
         ),
       ),
       child: Row(
-        children: List.generate(4, (i) => Expanded(child: _buildTab(i))),
+        children: List.generate(5, (i) => Expanded(child: _buildTab(i))),
       ),
     );
 
@@ -122,22 +125,25 @@ class _RippleNavBarState extends State<RippleNavBar>
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => widget.onTap(index),
-      child: Center(
-        child: isActive
-            ? ScaleTransition(
-                scale: _pillScale,
-                child: _buildActivePill(index, unread),
-              )
-            : _buildInactiveItem(index, unread),
+      child: ClipRect(
+        child: SizedBox(
+          height: 72,
+          child: Center(
+            child: isActive
+                ? ScaleTransition(
+                    scale: _pillScale,
+                    child: _buildActivePill(index, unread),
+                  )
+                : _buildInactiveItem(index, unread),
+          ),
+        ),
       ),
     );
   }
 
   Widget _buildActivePill(int index, int unread) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeInOut,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
         color: const Color(0x330EA5E9),
         borderRadius: BorderRadius.circular(20),
@@ -149,14 +155,18 @@ class _RippleNavBarState extends State<RippleNavBar>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildIconStack(index, true, unread),
-          const SizedBox(width: 4),
-          Text(
-            _labels[index],
-            style: GoogleFonts.dmSans(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF0EA5E9),
+          _buildIcon(index, true, unread),
+          const SizedBox(width: 3),
+          Flexible(
+            child: Text(
+              _labels[index],
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+              style: GoogleFonts.dmSans(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF0EA5E9),
+              ),
             ),
           ),
         ],
@@ -168,12 +178,12 @@ class _RippleNavBarState extends State<RippleNavBar>
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildIconStack(index, false, unread),
+        _buildIcon(index, false, unread),
         const SizedBox(height: 4),
         Text(
           _labels[index],
           style: GoogleFonts.dmSans(
-            fontSize: 11,
+            fontSize: 10,
             fontWeight: FontWeight.w400,
             color: const Color(0x66FFFFFF),
           ),
@@ -182,85 +192,80 @@ class _RippleNavBarState extends State<RippleNavBar>
     );
   }
 
-  Widget _buildIconStack(int index, bool isActive, int unread) {
+  Widget _buildIcon(int index, bool isActive, int unread) {
+    Widget icon;
+    if (index == 4 && isActive && widget.userPhotoUrl != null && widget.userPhotoUrl!.isNotEmpty) {
+      icon = Container(
+        width: 22,
+        height: 22,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: const Color(0xFF0EA5E9),
+            width: 1.5,
+          ),
+        ),
+        child: ClipOval(
+          child: CachedNetworkImage(
+            imageUrl: widget.userPhotoUrl!,
+            width: 19,
+            height: 19,
+            fit: BoxFit.cover,
+            errorWidget: (_, __, ___) => Icon(
+              _activeIcons[index],
+              color: const Color(0xFF0EA5E9),
+              size: 18,
+            ),
+          ),
+        ),
+      );
+    } else {
+      icon = Icon(
+        isActive ? _activeIcons[index] : _inactiveIcons[index],
+        color: isActive
+            ? const Color(0xFF0EA5E9)
+            : const Color(0x66FFFFFF),
+        size: 20,
+      );
+    }
+
+    if (unread <= 0) return icon;
+
+    // Badge
     return Stack(
       clipBehavior: Clip.none,
       children: [
-        // Icon or avatar
-        if (index == 3 && isActive && widget.userPhotoUrl != null && widget.userPhotoUrl!.isNotEmpty)
-          Container(
-            width: 26,
-            height: 26,
+        icon,
+        Positioned(
+          right: -8,
+          top: -4,
+          child: Container(
+            padding: EdgeInsets.symmetric(
+              horizontal: unread > 9 ? 4 : 0,
+            ),
+            constraints: const BoxConstraints(
+              minWidth: 14,
+              minHeight: 14,
+            ),
             decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: const Color(0xFF0EA5E9),
-                width: 2,
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0EA5E9), Color(0xFF22D3EE)],
               ),
+              borderRadius: BorderRadius.circular(7),
             ),
-            child: ClipOval(
-              child: CachedNetworkImage(
-                imageUrl: widget.userPhotoUrl!,
-                width: 22,
-                height: 22,
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => Icon(
-                  _activeIcons[index],
-                  color: const Color(0xFF0EA5E9),
-                  size: 22,
-                ),
-              ),
-            ),
-          )
-        else
-          Icon(
-            isActive ? _activeIcons[index] : _inactiveIcons[index],
-            color: isActive
-                ? const Color(0xFF0EA5E9)
-                : const Color(0x66FFFFFF),
-            size: 22,
-          ),
-
-        // Unread badge
-        if (unread > 0)
-          Positioned(
-            right: -10,
-            top: -6,
-            child: Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: unread > 9 ? 5 : 0,
-                vertical: 0,
-              ),
-              constraints: const BoxConstraints(
-                minWidth: 16,
-                minHeight: 16,
-              ),
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0EA5E9), Color(0xFF22D3EE)],
-                ),
-                borderRadius: BorderRadius.circular(unread > 9 ? 10 : 8),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x660EA5E9),
-                    blurRadius: 8,
-                    offset: Offset(0, 2),
-                  ),
-                ],
-              ),
-              child: Center(
-                child: Text(
-                  unread > 99 ? '99+' : '$unread',
-                  style: GoogleFonts.dmSans(
-                    fontSize: 9,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                    height: 1.2,
-                  ),
+            child: Center(
+              child: Text(
+                unread > 99 ? '99+' : '$unread',
+                style: GoogleFonts.dmSans(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                  height: 1.2,
                 ),
               ),
             ),
           ),
+        ),
       ],
     );
   }

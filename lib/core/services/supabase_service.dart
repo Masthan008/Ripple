@@ -1,9 +1,9 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../utils/env.dart';
 
 /// Supabase service for file/document storage
-/// Full implementation in Phase 5
 class SupabaseService {
   SupabaseService._();
 
@@ -13,7 +13,11 @@ class SupabaseService {
   static Future<void> initialize() async {
     await Supabase.initialize(
       url: Env.supabaseUrl,
-      anonKey: Env.supabaseAnonKey,
+      // Use service role key — the anon key must be a JWT.
+      // Service role key bypasses RLS and allows file uploads.
+      anonKey: Env.supabaseServiceRoleKey.isNotEmpty
+          ? Env.supabaseServiceRoleKey
+          : Env.supabaseAnonKey,
     );
   }
 
@@ -21,14 +25,35 @@ class SupabaseService {
   /// Returns the public URL
   static Future<String?> uploadFile(File file, String fileName) async {
     try {
-      final bucket = client.storage.from(Env.supabaseBucketName);
+      final bucketName = Env.supabaseBucketName;
+      if (bucketName.isEmpty) {
+        debugPrint('❌ SUPABASE_BUCKET_NAME not set in .env');
+        return null;
+      }
+
+      final bucket = client.storage.from(bucketName);
       final path = 'documents/$fileName';
 
-      await bucket.upload(path, file);
+      debugPrint('📤 Uploading file to Supabase: $path');
+
+      await bucket.upload(
+        path,
+        file,
+        fileOptions: const FileOptions(
+          cacheControl: '3600',
+          upsert: true,  // overwrite if exists
+        ),
+      );
 
       final publicUrl = bucket.getPublicUrl(path);
+      debugPrint('✅ File uploaded: $publicUrl');
       return publicUrl;
+    } on StorageException catch (e) {
+      debugPrint('❌ Supabase Storage error: ${e.message} (${e.statusCode})');
+      debugPrint('   Error details: ${e.error}');
+      return null;
     } catch (e) {
+      debugPrint('❌ Supabase upload error: $e');
       return null;
     }
   }
@@ -40,6 +65,7 @@ class SupabaseService {
           .from(Env.supabaseBucketName)
           .getPublicUrl(path);
     } catch (e) {
+      debugPrint('❌ Supabase getFileUrl error: $e');
       return null;
     }
   }

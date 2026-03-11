@@ -213,12 +213,49 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
 
           const SizedBox(width: 8),
 
-          // Slide to cancel hint
-          const Text(
-            '< Slide to cancel',
-            style: TextStyle(
-              color: Colors.white38,
-              fontSize: 12,
+          // Cancel button
+          GestureDetector(
+            onTap: cancelRecording,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+                size: 20,
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // Send button
+          GestureDetector(
+            onTap: stopAndSend,
+            child: Container(
+              width: 40,
+              height: 40,
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF0EA5E9), Color(0xFF22D3EE)],
+                ),
+                shape: BoxShape.circle,
+                boxShadow: [
+                  BoxShadow(
+                    color: Color(0x550EA5E9),
+                    blurRadius: 10,
+                  ),
+                ],
+              ),
+              child: const Icon(
+                Icons.send_rounded,
+                color: Colors.white,
+                size: 18,
+              ),
             ),
           ),
         ],

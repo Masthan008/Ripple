@@ -1,324 +1,200 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_text_styles.dart';
-import '../../../shared/widgets/glass_card.dart';
+import '../services/chat_organisation_service.dart';
 
-/// Saved Messages Screen — accessible from Profile
-/// Shows messages starred/saved by the current user
+/// Screen showing all saved/bookmarked messages.
 class SavedMessagesScreen extends StatelessWidget {
   const SavedMessagesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-
     return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
-      body: Column(
-        children: [
-          // Header
-          Container(
-            padding: EdgeInsets.only(
-              top: MediaQuery.of(context).padding.top + 8,
-              left: 8,
-              right: 16,
-              bottom: 12,
-            ),
-            decoration: const BoxDecoration(
-              color: Color(0xE6060D1A),
-              border: Border(
-                bottom: BorderSide(
-                    color: Color(0x0FFFFFFF), width: 1),
+      backgroundColor: const Color(0xFF060D1A),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFF0A1628),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Row(
+          children: [
+            Text('🔖', style: TextStyle(fontSize: 20)),
+            SizedBox(width: 8),
+            Text('Saved Messages',
+                style: TextStyle(color: Colors.white, fontSize: 18)),
+          ],
+        ),
+      ),
+      body: StreamBuilder<List<Map<String, dynamic>>>(
+        stream: ChatOrganisationService.getSavedMessages(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(
+                child: CircularProgressIndicator(color: AppColors.aquaCore));
+          }
+
+          final messages = snapshot.data ?? [];
+
+          if (messages.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('🔖', style: TextStyle(fontSize: 64)),
+                  const SizedBox(height: 16),
+                  const Text('No saved messages',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Long press any message\nand tap Save',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4)),
+                  ),
+                ],
               ),
-            ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(
-                      Icons.arrow_back_ios_rounded, size: 20),
-                  onPressed: () =>
-                      Navigator.of(context).pop(),
-                ),
-                const SizedBox(width: 8),
-                Icon(Icons.bookmark_rounded,
-                    color: AppColors.aquaCore, size: 24),
-                const SizedBox(width: 10),
-                Text('Saved Messages',
-                    style: AppTextStyles.headingSmall
-                        .copyWith(fontSize: 18)),
-              ],
-            ),
-          ),
+            );
+          }
 
-          // Saved messages list
-          Expanded(
-            child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-              stream: FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .collection('savedMessages')
-                  .orderBy('savedAt', descending: true)
-                  .snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState ==
-                    ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation(
-                          AppColors.aquaCore),
-                    ),
-                  );
-                }
-
-                final docs = snapshot.data?.docs ?? [];
-
-                if (docs.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.bookmark_border_rounded,
-                            color: AppColors.aquaCore
-                                .withOpacity(0.2),
-                            size: 64),
-                        const SizedBox(height: 12),
-                        Text('No saved messages',
-                            style: AppTextStyles.bodySmall),
-                        const SizedBox(height: 4),
-                        Text(
-                            'Star messages to save them here',
-                            style: AppTextStyles.caption),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 12),
-                  itemCount: docs.length,
-                  itemBuilder: (_, i) {
-                    final data = docs[i].data();
-                    final messageId = docs[i].id;
-                    final text =
-                        data['text'] as String? ?? '';
-                    final type =
-                        data['type'] as String? ?? 'text';
-                    final savedAt =
-                        data['savedAt'] as Timestamp?;
-                    final chatId =
-                        data['chatId'] as String? ?? '';
-                    final isGroup =
-                        data['isGroup'] as bool? ?? false;
-                    final senderId =
-                        data['senderId'] as String? ?? '';
-
-                    return Padding(
-                      padding:
-                          const EdgeInsets.only(bottom: 8),
-                      child: GestureDetector(
-                        onLongPress: () {
-                          _showUnsaveDialog(
-                              context, uid, messageId);
-                        },
-                        child: GlassCard(
-                          borderRadius: 14,
-                          padding: const EdgeInsets.all(14),
-                          child: Column(
-                            crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                            children: [
-                              // Source info
-                              Row(
-                                children: [
-                                  Icon(
-                                    isGroup
-                                        ? Icons.group_rounded
-                                        : Icons.chat_rounded,
-                                    color: AppColors.aquaCore
-                                        .withOpacity(0.6),
-                                    size: 14,
-                                  ),
-                                  const SizedBox(width: 6),
-                                  Expanded(
-                                    child: FutureBuilder<
-                                        DocumentSnapshot>(
-                                      future: _getChatName(
-                                          chatId, isGroup),
-                                      builder: (context,
-                                          snap) {
-                                        final name = snap
-                                                .data
-                                                ?.get(
-                                                    'name') as String? ??
-                                            chatId;
-                                        return Text(
-                                          isGroup
-                                              ? name
-                                              : 'Direct Chat',
-                                          style: AppTextStyles
-                                              .caption
-                                              .copyWith(
-                                            fontSize: 10,
-                                            color: AppColors
-                                                .aquaCore
-                                                .withOpacity(
-                                                    0.7),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ),
-                                  if (savedAt != null)
-                                    Text(
-                                      _formatDate(
-                                          savedAt.toDate()),
-                                      style: AppTextStyles
-                                          .caption
-                                          .copyWith(
-                                              fontSize: 10),
-                                    ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-
-                              // Message content
-                              if (type == 'text' ||
-                                  type == 'emoji')
-                                Text(
-                                  text,
-                                  style: AppTextStyles.body
-                                      .copyWith(
-                                          fontSize: 14),
-                                  maxLines: 4,
-                                  overflow:
-                                      TextOverflow.ellipsis,
-                                )
-                              else
-                                Row(
-                                  children: [
-                                    Icon(
-                                      type == 'image'
-                                          ? Icons
-                                              .image_rounded
-                                          : type == 'video'
-                                              ? Icons
-                                                  .videocam_rounded
-                                              : Icons
-                                                  .insert_drive_file_rounded,
-                                      color: AppColors
-                                          .textMuted,
-                                      size: 18,
-                                    ),
-                                    const SizedBox(
-                                        width: 6),
-                                    Text(
-                                      text.isNotEmpty
-                                          ? text
-                                          : '[$type]',
-                                      style: AppTextStyles
-                                          .caption,
-                                    ),
-                                  ],
-                                ),
-
-                              // Star icon
-                              Align(
-                                alignment:
-                                    Alignment.centerRight,
-                                child: Icon(
-                                    Icons.star_rounded,
-                                    color: Colors.amber
-                                        .withOpacity(0.5),
-                                    size: 16),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
-          ),
-        ],
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: messages.length,
+            itemBuilder: (_, i) {
+              final msg = messages[i];
+              return _SavedMessageTile(
+                message: msg,
+                onUnsave: () => ChatOrganisationService.unsaveMessage(
+                    msg['id'] as String),
+              );
+            },
+          );
+        },
       ),
     );
   }
+}
 
-  Future<DocumentSnapshot> _getChatName(
-      String chatId, bool isGroup) {
-    if (isGroup) {
-      return FirebaseFirestore.instance
-          .collection('groups')
-          .doc(chatId)
-          .get();
-    }
-    // For 1-to-1 chats, return the chat doc itself
-    return FirebaseFirestore.instance
-        .collection('chats')
-        .doc(chatId)
-        .get();
-  }
+class _SavedMessageTile extends StatelessWidget {
+  final Map<String, dynamic> message;
+  final VoidCallback onUnsave;
 
-  String _formatDate(DateTime date) {
-    final now = DateTime.now();
-    final diff = now.difference(date);
-    if (diff.inDays == 0) {
-      return '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    } else if (diff.inDays == 1) {
-      return 'Yesterday';
-    } else if (diff.inDays < 7) {
-      const days = [
-        'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'
-      ];
-      return days[date.weekday - 1];
-    }
-    return '${date.day}/${date.month}/${date.year}';
-  }
+  const _SavedMessageTile({
+    required this.message,
+    required this.onUnsave,
+  });
 
-  void _showUnsaveDialog(
-      BuildContext context, String uid, String messageId) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1628),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+  @override
+  Widget build(BuildContext context) {
+    final type = message['type'] as String? ?? 'text';
+    final text = message['text'] as String? ?? '';
+    final senderName = message['senderName'] as String? ?? 'Unknown';
+    final savedAt = message['savedAt'] as Timestamp?;
+
+    return Dismissible(
+      key: Key(message['id'] as String? ?? ''),
+      direction: DismissDirection.endToStart,
+      background: Container(
+        color: Colors.red.shade900,
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        child: const Icon(Icons.delete_outline, color: Colors.white),
+      ),
+      onDismissed: (_) => onUnsave(),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.04),
+          borderRadius: BorderRadius.circular(12),
+          border:
+              Border.all(color: Colors.white.withValues(alpha: 0.06)),
         ),
-        title: Text('Remove from Saved?',
-            style: AppTextStyles.body
-                .copyWith(fontWeight: FontWeight.w600)),
-        content: Text(
-          'This message will be removed from your saved messages.',
-          style: AppTextStyles.caption,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header — sender + time
+            Row(
+              children: [
+                CircleAvatar(
+                  radius: 14,
+                  backgroundColor: const Color(0xFF1A2A40),
+                  child: Text(
+                    senderName[0].toUpperCase(),
+                    style:
+                        const TextStyle(color: Colors.white, fontSize: 12),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(senderName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 13)),
+                const Spacer(),
+                if (savedAt != null)
+                  Text(
+                    DateFormat('MMM d, h:mm a').format(savedAt.toDate()),
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 11),
+                  ),
+                const SizedBox(width: 8),
+                GestureDetector(
+                  onTap: onUnsave,
+                  child: const Icon(Icons.bookmark_remove_rounded,
+                      color: AppColors.aquaCore, size: 18),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Content
+            if (type == 'text')
+              Text(text,
+                  style: const TextStyle(color: Colors.white70, fontSize: 14))
+            else if (type == 'image')
+              const Row(children: [
+                Icon(Icons.image_rounded,
+                    color: AppColors.aquaCore, size: 16),
+                SizedBox(width: 4),
+                Text('Photo',
+                    style: TextStyle(color: Colors.white54, fontSize: 13)),
+              ])
+            else if (type == 'voice')
+              const Row(children: [
+                Icon(Icons.mic_rounded,
+                    color: AppColors.aquaCore, size: 16),
+                SizedBox(width: 4),
+                Text('Voice message',
+                    style: TextStyle(color: Colors.white54, fontSize: 13)),
+              ])
+            else if (type == 'gif')
+              const Row(children: [
+                Text('GIF',
+                    style: TextStyle(
+                        color: AppColors.aquaCore,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12)),
+                SizedBox(width: 4),
+                Text('Animation',
+                    style: TextStyle(color: Colors.white54, fontSize: 13)),
+              ])
+            else
+              Row(children: [
+                const Icon(Icons.attach_file_rounded,
+                    color: AppColors.aquaCore, size: 16),
+                const SizedBox(width: 4),
+                Text(type,
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 13)),
+              ]),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
-                style:
-                    TextStyle(color: AppColors.textMuted)),
-          ),
-          TextButton(
-            onPressed: () async {
-              await FirebaseFirestore.instance
-                  .collection('users')
-                  .doc(uid)
-                  .collection('savedMessages')
-                  .doc(messageId)
-                  .delete();
-              if (context.mounted) Navigator.pop(context);
-            },
-            child: Text('Remove',
-                style: TextStyle(
-                    color: AppColors.errorRed)),
-          ),
-        ],
       ),
     );
   }

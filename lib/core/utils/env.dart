@@ -23,8 +23,9 @@ class Env {
   static String get firebaseDatabaseUrl =>
       dotenv.env['FIREBASE_DATABASE_URL'] ?? '';
 
-  // ─── Agora (Video & Audio Calls) ────────────────────
-  static String get agoraAppId => dotenv.env['AGORA_APP_ID'] ?? '';
+  // ─── Daily.co (Video & Audio Calls) ──────────────────
+  static String get dailyApiKey => dotenv.env['DAILY_API_KEY'] ?? '';
+  static String get dailyDomain => dotenv.env['DAILY_DOMAIN'] ?? '';
 
   // ─── Supabase ────────────────────────────────────────
   static String get supabaseUrl => dotenv.env['SUPABASE_URL'] ?? '';
@@ -59,6 +60,12 @@ class Env {
       dotenv.env['ONESIGNAL_APP_ID'] ?? '';
   static String get oneSignalRestApiKey =>
       dotenv.env['ONESIGNAL_REST_API_KEY'] ?? '';
+
+  // ─── Giphy ────────────────────────────────────────────
+  static String get giphyApiKey => dotenv.env['GIPHY_API_KEY'] ?? '';
+
+  // ─── Anthropic (Claude AI) ───────────────────────────
+  static String get anthropicApiKey => dotenv.env['ANTHROPIC_API_KEY'] ?? '';
 
   // ─── App Config ──────────────────────────────────────
   static String get appName => dotenv.env['APP_NAME'] ?? 'Ripple';

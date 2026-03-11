@@ -1,6 +1,11 @@
+import 'dart:io';
+
 import 'package:any_link_preview/any_link_preview.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -302,46 +307,60 @@ class MessageBubble extends StatelessWidget {
   }
 
   static final _urlRegex = RegExp(
-    r'https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)',
+    r'(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)',
     caseSensitive: false,
   );
 
   bool _containsUrl(String text) => _urlRegex.hasMatch(text);
 
-  String? _extractUrl(String text) => _urlRegex.firstMatch(text)?.group(0);
+  String? _extractUrl(String text) {
+    final match = _urlRegex.firstMatch(text)?.group(0);
+    if (match == null) return null;
+    // Ensure URL has a scheme
+    if (!match.startsWith('http://') && !match.startsWith('https://')) {
+      return 'https://$match';
+    }
+    return match;
+  }
 
   List<Widget> _buildLinkPreview(String text) {
     final url = _extractUrl(text);
     if (url == null) return [];
+    // Validate the link before rendering
+    if (!AnyLinkPreview.isValidLink(url)) return [];
     return [
       const SizedBox(height: 8),
-      ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: AnyLinkPreview(
-          link: url,
-          displayDirection: UIDirection.uiDirectionVertical,
-          showMultimedia: true,
-          bodyMaxLines: 3,
-          titleStyle: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 13,
+      SizedBox(
+        width: double.infinity,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: AnyLinkPreview(
+            link: url,
+            displayDirection: UIDirection.uiDirectionVertical,
+            showMultimedia: true,
+            bodyMaxLines: 3,
+            cache: const Duration(days: 7),
+            titleStyle: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.bold,
+              fontSize: 13,
+            ),
+            bodyStyle: const TextStyle(
+              color: Colors.white60,
+              fontSize: 11,
+            ),
+            backgroundColor: const Color(0xFF1E293B),
+            borderRadius: 10,
+            removeElevation: true,
+            boxShadow: const [],
+            onTap: () => launchUrl(
+              Uri.parse(url),
+              mode: LaunchMode.externalApplication,
+            ),
+            errorBody: '',
+            errorTitle: '',
+            errorWidget: const SizedBox.shrink(),
           ),
-          bodyStyle: const TextStyle(
-            color: Colors.white60,
-            fontSize: 11,
-          ),
-          backgroundColor: const Color(0xFF1E293B),
-          borderRadius: 10,
-          removeElevation: true,
-          boxShadow: const [],
-          onTap: () => launchUrl(
-            Uri.parse(url),
-            mode: LaunchMode.externalApplication,
-          ),
-          errorBody: '',
-          errorTitle: '',
-          errorWidget: const SizedBox.shrink(),
         ),
       ),
     ];
@@ -458,41 +477,49 @@ class MessageBubble extends StatelessWidget {
   Widget _buildVideoContent() {
     // Use thumbnailUrl if available, otherwise show placeholder
     final thumbnailUrl = message.toMap()['thumbnailUrl'] as String?;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: Container(
-        width: 220,
-        height: 160,
-        color: AppColors.glassPanel,
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            if (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: thumbnailUrl,
-                fit: BoxFit.cover,
-                width: 220,
-                height: 160,
-              )
-            else if (message.mediaUrl != null)
+    return GestureDetector(
+      onTap: () {
+        if (message.mediaUrl != null) {
+          launchUrl(Uri.parse(message.mediaUrl!),
+              mode: LaunchMode.externalApplication);
+        }
+      },
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 220,
+          height: 160,
+          color: AppColors.glassPanel,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              if (thumbnailUrl != null && thumbnailUrl.isNotEmpty)
+                CachedNetworkImage(
+                  imageUrl: thumbnailUrl,
+                  fit: BoxFit.cover,
+                  width: 220,
+                  height: 160,
+                )
+              else if (message.mediaUrl != null)
+                Container(
+                  width: 220,
+                  height: 160,
+                  color: Colors.black45,
+                  child: const Icon(Icons.videocam_rounded,
+                      color: Colors.white24, size: 48),
+                ),
               Container(
-                width: 220,
-                height: 160,
-                color: Colors.black45,
-                child: const Icon(Icons.videocam_rounded,
-                    color: Colors.white24, size: 48),
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: Colors.black.withValues(alpha: 0.5),
+                ),
+                child: const Icon(Icons.play_arrow_rounded,
+                    color: Colors.white, size: 36),
               ),
-            Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.black.withValues(alpha: 0.5),
-              ),
-              child: const Icon(Icons.play_arrow_rounded,
-                  color: Colors.white, size: 36),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -505,51 +532,115 @@ class MessageBubble extends StatelessWidget {
             : 'Document');
     final ext = fileName.split('.').last.toLowerCase();
 
-    return Container(
-      width: 220,
-      padding: const EdgeInsets.all(12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: _getFileColor(ext),
-              borderRadius: BorderRadius.circular(8),
+    return Builder(
+      builder: (context) => GestureDetector(
+      onTap: () => _downloadAndOpenFile(context, fileName),
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: _getFileColor(ext),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Icon(_getFileIcon(ext),
+                  color: Colors.white, size: 24),
             ),
-            child: Icon(_getFileIcon(ext),
-                color: Colors.white, size: 24),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  fileName,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    fileName,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  ext.toUpperCase(),
-                  style: const TextStyle(
-                      color: Colors.white38, fontSize: 11),
-                ),
-              ],
+                  const SizedBox(height: 2),
+                  Text(
+                    ext.toUpperCase(),
+                    style: const TextStyle(
+                        color: Colors.white38, fontSize: 11),
+                  ),
+                ],
+              ),
             ),
-          ),
-          const Icon(Icons.download_rounded,
-              color: AppColors.aquaCore, size: 20),
-        ],
+            const Icon(Icons.download_rounded,
+                color: AppColors.aquaCore, size: 20),
+          ],
+        ),
+      ),
+    ));
+  }
+
+  Future<void> _downloadAndOpenFile(BuildContext context, String fileName) async {
+    final url = message.mediaUrl;
+    if (url == null || url.isEmpty) return;
+
+    // Show downloading snackbar
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 18, height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text('Downloading $fileName...',
+                  overflow: TextOverflow.ellipsis),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 10),
+        backgroundColor: const Color(0xFF1E293B),
       ),
     );
+
+    try {
+      final dir = await getTemporaryDirectory();
+      // Clean filename for filesystem
+      final safeName = fileName.replaceAll(RegExp(r'[^\w\.\-]'), '_');
+      final savePath = '${dir.path}/$safeName';
+
+      await Dio().download(url, savePath);
+
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      // Open the file with system viewer
+      final result = await OpenFilex.open(savePath);
+      if (result.type != ResultType.done) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloaded $fileName ✓  No app to open this file type.'),
+            backgroundColor: const Color(0xFF1E293B),
+          ),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Download failed: $e'),
+          backgroundColor: Colors.red.shade800,
+        ),
+      );
+    }
   }
 
   static Color _getFileColor(String ext) {

@@ -13,12 +13,13 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/cloudinary_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/media_compressor.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../auth/models/user_model.dart';
-import '../../calls/screens/agora_call_screen.dart';
+import '../../calls/screens/daily_call_screen.dart';
 import '../../chat/models/message_model.dart';
 import '../../chat/screens/chat_media_gallery_screen.dart';
 import '../../chat/screens/video_player_screen.dart';
@@ -764,6 +765,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           .doc(callId)
           .set({
         'callerId': myUid,
+        'callerName': 'Me',
+        'channelName': widget.groupId,
         'type': isVideo ? 'video' : 'audio',
         'isGroup': true,
         'groupId': widget.groupId,
@@ -776,7 +779,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       if (mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => AgoraCallScreen(
+            builder: (_) => DailyCallScreen(
               callId: callId,
               channelName: widget.groupId,
               currentUserId: myUid,
@@ -946,7 +949,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     setState(() => _isSending = true);
     try {
       String? url;
-      if (type == 'video') {
+      if (type == 'file') {
+        // Files (PDFs, docs) → Supabase Storage
+        final uniqueName =
+            '${DateTime.now().millisecondsSinceEpoch}_${fileName ?? file.path.split('/').last}';
+        url = await SupabaseService.uploadFile(file, uniqueName);
+      } else if (type == 'video') {
         url = await CloudinaryService.uploadVideo(file);
       } else {
         url = await CloudinaryService.uploadImage(file);

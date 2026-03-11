@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/services/notification_service.dart';
 import 'features/auth/screens/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
@@ -18,6 +19,10 @@ import 'features/groups/providers/group_provider.dart';
 import 'features/calls/screens/call_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
+import 'features/search/screens/global_search_screen.dart';
+import 'features/chat/screens/saved_messages_screen.dart';
+import 'features/chat/screens/archived_chats_screen.dart';
+import 'features/ai/screens/ai_settings_screen.dart';
 
 /// GoRouter provider — created ONCE, uses refreshListenable to re-run redirect
 final routerProvider = Provider<GoRouter>((ref) {
@@ -27,6 +32,7 @@ final routerProvider = Provider<GoRouter>((ref) {
   // The _GoRouterRefreshStream handles triggering redirect re-evaluation.
 
   return GoRouter(
+    navigatorKey: navigatorKey,
     initialLocation: '/splash',
     refreshListenable: _GoRouterRefreshStream(ref),
     routes: [
@@ -112,6 +118,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile',
         builder: (_, __) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/search',
+        builder: (_, __) => const GlobalSearchScreen(),
+      ),
+      GoRoute(
+        path: '/saved-messages',
+        builder: (_, __) => const SavedMessagesScreen(),
+      ),
+      GoRoute(
+        path: '/archived-chats',
+        builder: (_, __) => const ArchivedChatsScreen(),
+      ),
+      GoRoute(
+        path: '/ai-settings',
+        builder: (_, __) => const AiSettingsScreen(),
       ),
     ],
     redirect: (context, state) {

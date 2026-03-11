@@ -103,5 +103,40 @@ service cloud.firestore {
       allow delete: if isSignedIn()
         && request.auth.uid == resource.data.callerId;
     }
+
+    // ═══════════════════════════════════════════════════════
+    // STATUSES COLLECTION
+    // ═══════════════════════════════════════════════════════
+    match /statuses/{statusId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.uid;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SAVED MESSAGES (per-user subcollection)
+    // ═══════════════════════════════════════════════════════
+    match /users/{userId}/savedMessages/{msgId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // FOLDERS (per-user subcollection)
+    // ═══════════════════════════════════════════════════════
+    match /users/{userId}/folders/{folderId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SCHEDULED MESSAGES
+    // ═══════════════════════════════════════════════════════
+    match /scheduledMessages/{msgId} {
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.senderId;
+      allow read, update, delete: if isSignedIn()
+        && request.auth.uid == resource.data.senderId;
+    }
   }
 }

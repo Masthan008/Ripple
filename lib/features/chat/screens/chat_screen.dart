@@ -4,6 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -13,6 +16,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/cloudinary_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/utils/helpers.dart';
 import '../../../core/utils/media_compressor.dart';
@@ -20,7 +24,7 @@ import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../auth/models/user_model.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../calls/screens/agora_call_screen.dart';
+import '../../calls/screens/daily_call_screen.dart';
 import '../models/message_model.dart';
 import '../providers/chat_provider.dart';
 import '../services/message_actions_service.dart';
@@ -30,6 +34,8 @@ import '../widgets/glass_input_bar.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_context_menu.dart';
 import '../widgets/pinned_message_banner.dart';
+import '../services/chat_organisation_service.dart';
+import '../../../core/services/ai_service.dart';
 import '../widgets/typing_indicator.dart';
 import 'chat_media_gallery_screen.dart';
 import 'video_player_screen.dart';
@@ -65,6 +71,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   ReplyData? _replyTo;
   bool _isMultiSelectMode = false;
   final Set<String> _selectedMessageIds = {};
+
+  // Phase 5 — AI state
+  List<String> _smartReplies = [];
+  bool _loadingSmartReplies = false;
+  String? _lastSmartReplyMsgId;
+  SpamResult? _spamWarning;
 
   @override
   void initState() {
@@ -332,6 +344,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         messageId: message.id,
         isGroup: false,
       ),
+      onSaveToBookmarks: () => ChatOrganisationService.saveMessage(
+        originalChatId: widget.chatId,
+        originalMessageId: message.id,
+        messageData: message.toMap(),
+        senderName: message.senderId,
+        senderPhoto: '',
+      ),
+      onTranslate: () => _showTranslator(message),
+      onExplain: !isMyMessage ? () => _showExplainer(message) : null,
     );
   }
 
@@ -469,6 +490,120 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
               // Input bar (hidden during multi-select)
               if (!_isMultiSelectMode) ...[
+
+                // Smart replies chips
+                if (_loadingSmartReplies)
+                  Container(
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Row(
+                      children: List.generate(
+                        3,
+                        (_) => Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: Shimmer.fromColors(
+                            baseColor: Colors.white12,
+                            highlightColor: Colors.white24,
+                            child: Container(
+                              width: 80,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                color: Colors.white12,
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  )
+                else if (_smartReplies.isNotEmpty)
+                  Container(
+                    height: 44,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _smartReplies.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (_, i) {
+                        final reply = _smartReplies[i];
+                        return GestureDetector(
+                          onTap: () {
+                            _messageController.text = reply;
+                            _messageController.selection =
+                                TextSelection.fromPosition(
+                                    TextPosition(offset: reply.length));
+                            setState(() => _smartReplies = []);
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 14, vertical: 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(
+                                  color: AppColors.aquaCore.withValues(alpha: 0.5)),
+                              color: AppColors.aquaCore.withValues(alpha: 0.08),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text('✨',
+                                    style: TextStyle(fontSize: 12)),
+                                const SizedBox(width: 4),
+                                Text(reply,
+                                    style: TextStyle(
+                                        color: AppColors.aquaCore,
+                                        fontSize: 13)),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                // Spam warning banner
+                if (_spamWarning != null)
+                  Container(
+                    margin: const EdgeInsets.all(8),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: Colors.orange.withValues(alpha: 0.5)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Text('⚠️',
+                            style: TextStyle(fontSize: 20)),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Possible Spam Detected',
+                                  style: TextStyle(
+                                      color: Colors.orange,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 14)),
+                              Text(_spamWarning!.reason,
+                                  style: TextStyle(
+                                      color: Colors.orange.shade200,
+                                      fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close,
+                              color: Colors.orange, size: 18),
+                          onPressed: () =>
+                              setState(() => _spamWarning = null),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 GlassInputBar(
                   controller: _messageController,
                   onSend: _sendMessage,
@@ -488,6 +623,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       _showAttachmentSheet(context),
                   onGif: () => _showGifPicker(),
                   onVoiceRecorded: _sendVoiceMessage,
+                  onAiCompose: () => _showAiComposer(context),
+                  onToneFix: () => _showToneFixer(context),
                 ),
 
                 // Emoji picker
@@ -749,6 +886,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
                 );
+              } else if (value == 'summary') {
+                _showChatSummary();
               }
             },
             itemBuilder: (_) => [
@@ -760,6 +899,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         color: AppColors.aquaCore, size: 20),
                     SizedBox(width: 12),
                     Text('Media & Files',
+                        style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'summary',
+                child: Row(
+                  children: [
+                    Icon(Icons.summarize_rounded,
+                        color: AppColors.aquaCore, size: 20),
+                    SizedBox(width: 12),
+                    Text('Summarise Chat',
                         style: TextStyle(color: Colors.white)),
                   ],
                 ),
@@ -776,6 +927,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final callId = const Uuid().v4();
 
     try {
+      final callerName = ref.read(currentUserProvider).valueOrNull?.name ?? 'Me';
+
       // Create call document in Firestore
       await FirebaseService.firestore
           .collection('calls')
@@ -783,6 +936,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           .set({
         'callerId': myUid,
         'calleeId': widget.partnerUid,
+        'callerName': callerName,
+        'channelName': widget.chatId,
         'type': isVideo ? 'video' : 'audio',
         'isGroup': false,
         'status': 'ringing',
@@ -792,7 +947,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => AgoraCallScreen(
+            builder: (_) => DailyCallScreen(
               callId: callId,
               channelName: widget.chatId,
               currentUserId: myUid,
@@ -962,7 +1117,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _isSending = true);
     try {
       String? url;
-      if (type == 'video') {
+      if (type == 'file') {
+        // Files (PDFs, docs) → Supabase Storage
+        final uniqueName =
+            '${DateTime.now().millisecondsSinceEpoch}_${fileName ?? file.path.split('/').last}';
+        url = await SupabaseService.uploadFile(file, uniqueName);
+      } else if (type == 'video') {
         url = await CloudinaryService.uploadVideo(file);
       } else {
         url = await CloudinaryService.uploadImage(file);
@@ -1188,6 +1348,824 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // PHASE 5 — AI FEATURES
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  Future<bool> _isAiFeatureEnabled(String key) async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(key) ?? true;
+  }
+
+  void _checkAndLoadSmartReplies(List<MessageModel> messages) {
+    if (messages.isEmpty) return;
+    final last = messages.first;
+    final currentUid = ref.read(chatServiceProvider).myUid;
+    if (last.senderId == currentUid) {
+      setState(() => _smartReplies = []);
+      return;
+    }
+    if (last.id == _lastSmartReplyMsgId) return;
+    _lastSmartReplyMsgId = last.id;
+    _fetchSmartReplies(messages);
+  }
+
+  Future<void> _fetchSmartReplies(List<MessageModel> messages) async {
+    final enabled = await _isAiFeatureEnabled('ai_smart_replies');
+    if (!enabled) return;
+
+    setState(() {
+      _loadingSmartReplies = true;
+      _smartReplies = [];
+    });
+
+    try {
+      final currentUid = ref.read(chatServiceProvider).myUid;
+      final myName = ref.read(currentUserProvider).valueOrNull?.name ?? 'Me';
+
+      final history = messages
+          .take(8)
+          .toList()
+          .reversed
+          .map((m) => <String, String>{
+                'role': m.senderId == currentUid ? 'user' : 'other',
+                'text': m.text ?? '',
+              })
+          .where((m) => m['text']!.isNotEmpty)
+          .toList();
+
+      final replies = await AiService.smartReplies(
+        chatHistory: history,
+        myName: myName,
+        otherName: widget.partnerName,
+      );
+
+      if (mounted) {
+        setState(() {
+          _smartReplies = replies;
+          _loadingSmartReplies = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _loadingSmartReplies = false);
+    }
+  }
+
+  Future<void> _showChatSummary() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        backgroundColor: const Color(0xFF0A1628),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.aquaCore),
+              SizedBox(height: 16),
+              Text('Summarising chat...', style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final currentUid = ref.read(chatServiceProvider).myUid;
+      final myName = ref.read(currentUserProvider).valueOrNull?.name ?? 'Me';
+
+      final snap = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(50)
+          .get();
+
+      final messages = snap.docs.reversed
+          .map((d) => <String, String>{
+                'sender': d.data()['senderId'] == currentUid
+                    ? myName
+                    : widget.partnerName,
+                'text': d.data()['text'] as String? ?? '',
+              })
+          .where((m) => m['text']!.isNotEmpty)
+          .toList();
+
+      final summary = await AiService.summariseChat(
+        messages: messages,
+        chatName: widget.partnerName,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => Dialog(
+            backgroundColor: const Color(0xFF0A1628),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Text('📋', style: TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    const Text('Chat Summary',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white54),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ]),
+                  const Divider(color: Colors.white12),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.4),
+                    child: SingleChildScrollView(
+                      child: Text(summary,
+                          style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              height: 1.5)),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextButton(
+                    onPressed: () {
+                      Clipboard.setData(ClipboardData(text: summary));
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Summary copied!')));
+                    },
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      Icon(Icons.copy, size: 14, color: AppColors.aquaCore),
+                      const SizedBox(width: 6),
+                      Text('Copy Summary',
+                          style: TextStyle(color: AppColors.aquaCore)),
+                    ]),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Summary failed: $e')));
+      }
+    }
+  }
+
+  void _showTranslator(MessageModel message) {
+    String? translation;
+    bool isLoading = false;
+    String selectedLang = 'English';
+
+    final languages = [
+      'English', 'Hindi', 'Telugu', 'Tamil', 'Spanish', 'French',
+      'German', 'Japanese', 'Korean', 'Arabic', 'Portuguese', 'Italian',
+      'Russian', 'Chinese', 'Turkish',
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (ctx, setModal) {
+          Future<void> translate(String lang) async {
+            setModal(() {
+              isLoading = true;
+              selectedLang = lang;
+            });
+            try {
+              final result = await AiService.translateMessage(
+                text: message.text ?? '',
+                targetLanguage: lang,
+              );
+              setModal(() {
+                translation = result;
+                isLoading = false;
+              });
+            } catch (e) {
+              setModal(() => isLoading = false);
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Row(children: [
+                  Text('🌍', style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 8),
+                  Text('Translate',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 16),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(message.text ?? '',
+                      style: const TextStyle(
+                          color: Colors.white60, fontSize: 14)),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: languages
+                      .map((lang) => GestureDetector(
+                            onTap: () => translate(lang),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: selectedLang == lang
+                                    ? AppColors.aquaCore.withValues(alpha: 0.15)
+                                    : Colors.white.withValues(alpha: 0.05),
+                                border: Border.all(
+                                    color: selectedLang == lang
+                                        ? AppColors.aquaCore
+                                        : Colors.white24),
+                              ),
+                              child: Text(lang,
+                                  style: TextStyle(
+                                      color: selectedLang == lang
+                                          ? AppColors.aquaCore
+                                          : Colors.white60,
+                                      fontSize: 13)),
+                            ),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 16),
+                if (isLoading)
+                  Shimmer.fromColors(
+                    baseColor: Colors.white12,
+                    highlightColor: Colors.white24,
+                    child: Container(
+                      height: 60,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                          color: Colors.white12,
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  )
+                else if (translation != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.aquaCore.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: AppColors.aquaCore.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('🌍 $selectedLang',
+                            style: TextStyle(
+                                color: AppColors.aquaCore,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        Text(translation!,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 15)),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  void _showToneFixer(BuildContext ctx) {
+    final originalText = _messageController.text.trim();
+    if (originalText.isEmpty) return;
+
+    String rewrittenText = '';
+    bool isLoading = false;
+    String? selectedTone;
+
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (bCtx, setModal) {
+          Future<void> applyTone(String tone) async {
+            setModal(() {
+              isLoading = true;
+              selectedTone = tone;
+            });
+            try {
+              final result =
+                  await AiService.fixTone(text: originalText, tone: tone);
+              setModal(() {
+                rewrittenText = result;
+                isLoading = false;
+              });
+            } catch (e) {
+              setModal(() => isLoading = false);
+              if (mounted) {
+                ScaffoldMessenger.of(context)
+                    .showSnackBar(SnackBar(content: Text(e.toString())));
+              }
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Row(children: [
+                  Text('✨', style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 8),
+                  Text('AI Tone Fixer',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.white12),
+                  ),
+                  child: Text(originalText,
+                      style: const TextStyle(
+                          color: Colors.white60, fontSize: 14),
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis),
+                ),
+                const SizedBox(height: 16),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _toneChip('💼', 'Formal', 'formal', selectedTone, isLoading,
+                        () => applyTone('formal')),
+                    _toneChip('😊', 'Friendly', 'friendly', selectedTone,
+                        isLoading, () => applyTone('friendly')),
+                    _toneChip('😂', 'Funny', 'funny', selectedTone, isLoading,
+                        () => applyTone('funny')),
+                    _toneChip('✂️', 'Shorter', 'shorter', selectedTone,
+                        isLoading, () => applyTone('shorter')),
+                    _toneChip('📝', 'Longer', 'longer', selectedTone, isLoading,
+                        () => applyTone('longer')),
+                    _toneChip('✅', 'Fix Grammar', 'grammar', selectedTone,
+                        isLoading, () => applyTone('grammar')),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                if (isLoading && rewrittenText.isEmpty)
+                  Shimmer.fromColors(
+                    baseColor: Colors.white12,
+                    highlightColor: Colors.white24,
+                    child: Container(
+                      height: 60,
+                      decoration: BoxDecoration(
+                          color: Colors.white12,
+                          borderRadius: BorderRadius.circular(10)),
+                    ),
+                  )
+                else if (rewrittenText.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.aquaCore.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                          color: AppColors.aquaCore.withValues(alpha: 0.3)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('✨ Rewritten',
+                            style: TextStyle(
+                                color: AppColors.aquaCore,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 6),
+                        Text(rewrittenText,
+                            style: const TextStyle(
+                                color: Colors.white, fontSize: 14)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      _messageController.text = rewrittenText;
+                      _messageController.selection =
+                          TextSelection.fromPosition(
+                              TextPosition(offset: rewrittenText.length));
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.aquaCore,
+                        minimumSize: const Size(double.infinity, 48)),
+                    child: const Text('Use This Message'),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _toneChip(String emoji, String label, String tone,
+      String? selectedTone, bool isLoading, VoidCallback onTap) {
+    final isSelected = selectedTone == tone;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: isSelected
+              ? AppColors.aquaCore.withValues(alpha: 0.15)
+              : Colors.white.withValues(alpha: 0.05),
+          border: Border.all(
+              color: isSelected ? AppColors.aquaCore : Colors.white24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            (isLoading && isSelected)
+                ? SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2, color: AppColors.aquaCore))
+                : Text(emoji, style: const TextStyle(fontSize: 14)),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    color: isSelected ? AppColors.aquaCore : Colors.white70,
+                    fontSize: 13,
+                    fontWeight:
+                        isSelected ? FontWeight.bold : FontWeight.normal)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showAiComposer(BuildContext ctx) {
+    final instructionController = TextEditingController();
+    bool isLoading = false;
+    String? composed;
+
+    final suggestions = [
+      'Accept the invitation',
+      'Politely decline',
+      'Ask for more details',
+      'Apologise for the delay',
+      'Confirm the meeting time',
+      'Congratulate them',
+      'Ask to reschedule',
+      'Express excitement',
+    ];
+
+    showModalBottomSheet(
+      context: ctx,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (_) => StatefulBuilder(
+        builder: (bCtx, setModal) {
+          Future<void> compose(String instruction) async {
+            setModal(() => isLoading = true);
+            try {
+              final currentUid = ref.read(chatServiceProvider).myUid;
+              final myName =
+                  ref.read(currentUserProvider).valueOrNull?.name ?? 'Me';
+
+              final snap = await FirebaseFirestore.instance
+                  .collection('chats')
+                  .doc(widget.chatId)
+                  .collection('messages')
+                  .orderBy('createdAt', descending: true)
+                  .limit(10)
+                  .get();
+
+              final history = snap.docs.reversed
+                  .map((d) => {
+                        'role': d.data()['senderId'] == currentUid
+                            ? 'user'
+                            : 'other',
+                        'text': d.data()['text'] as String? ?? '',
+                      })
+                  .where((m) => (m['text'] as String).isNotEmpty)
+                  .toList();
+
+              final result = await AiService.composeReply(
+                instruction: instruction,
+                chatHistory: history,
+                myName: myName,
+                otherName: widget.partnerName,
+              );
+
+              setModal(() {
+                composed = result;
+                isLoading = false;
+              });
+            } catch (e) {
+              setModal(() => isLoading = false);
+            }
+          }
+
+          return Padding(
+            padding: EdgeInsets.fromLTRB(
+                20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40, height: 4,
+                    decoration: BoxDecoration(
+                        color: Colors.white24,
+                        borderRadius: BorderRadius.circular(2)),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                const Row(children: [
+                  Text('🤖', style: TextStyle(fontSize: 20)),
+                  SizedBox(width: 8),
+                  Text('AI Compose',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold)),
+                ]),
+                const SizedBox(height: 8),
+                const Text('Describe what you want to say',
+                    style: TextStyle(color: Colors.white54, fontSize: 13)),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: suggestions
+                      .map((s) => GestureDetector(
+                            onTap: () {
+                              instructionController.text = s;
+                              compose(s);
+                            },
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(20),
+                                color: Colors.white.withValues(alpha: 0.05),
+                                border: Border.all(color: Colors.white24),
+                              ),
+                              child: Text(s,
+                                  style: const TextStyle(
+                                      color: Colors.white70, fontSize: 12)),
+                            ),
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: 12),
+                Row(children: [
+                  Expanded(
+                    child: TextField(
+                      controller: instructionController,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: InputDecoration(
+                        hintText: 'Or type your own...',
+                        hintStyle: const TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: Colors.white10,
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide.none),
+                        contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  GestureDetector(
+                    onTap: () {
+                      final instruction = instructionController.text.trim();
+                      if (instruction.isNotEmpty) compose(instruction);
+                    },
+                    child: Container(
+                      width: 44, height: 44,
+                      decoration: BoxDecoration(
+                          color: AppColors.aquaCore, shape: BoxShape.circle),
+                      child: isLoading
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: CircularProgressIndicator(
+                                  color: Colors.white, strokeWidth: 2))
+                          : const Icon(Icons.send_rounded,
+                              color: Colors.white, size: 18),
+                    ),
+                  ),
+                ]),
+                const SizedBox(height: 12),
+                if (composed != null) ...[
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: AppColors.aquaCore.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                          color: AppColors.aquaCore.withValues(alpha: 0.3)),
+                    ),
+                    child: Text(composed!,
+                        style: const TextStyle(
+                            color: Colors.white, fontSize: 15, height: 1.4)),
+                  ),
+                  const SizedBox(height: 12),
+                  ElevatedButton(
+                    onPressed: () {
+                      _messageController.text = composed!;
+                      _messageController.selection =
+                          TextSelection.fromPosition(
+                              TextPosition(offset: composed!.length));
+                      Navigator.pop(context);
+                    },
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.aquaCore,
+                        minimumSize: const Size(double.infinity, 48)),
+                    child: const Text('Use Message'),
+                  ),
+                ],
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _showExplainer(MessageModel message) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Dialog(
+        backgroundColor: const Color(0xFF0A1628),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: const Padding(
+          padding: EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CircularProgressIndicator(color: AppColors.aquaCore),
+              SizedBox(height: 16),
+              Text('Analysing message...',
+                  style: TextStyle(color: Colors.white)),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    try {
+      final explanation = await AiService.explainMessage(
+        text: message.text ?? '',
+        senderName: widget.partnerName,
+      );
+
+      if (mounted) Navigator.pop(context);
+
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => Dialog(
+            backgroundColor: const Color(0xFF0A1628),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    const Text('💡', style: TextStyle(fontSize: 20)),
+                    const SizedBox(width: 8),
+                    const Text('Message Explained',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    IconButton(
+                      icon: const Icon(Icons.close, color: Colors.white54),
+                      onPressed: () => Navigator.pop(context),
+                    ),
+                  ]),
+                  const Divider(color: Colors.white12),
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text('"${message.text}"',
+                        style: const TextStyle(
+                            color: Colors.white60,
+                            fontStyle: FontStyle.italic,
+                            fontSize: 13)),
+                  ),
+                  const SizedBox(height: 12),
+                  ConstrainedBox(
+                    constraints: BoxConstraints(
+                        maxHeight: MediaQuery.of(context).size.height * 0.35),
+                    child: SingleChildScrollView(
+                      child: Text(explanation,
+                          style: const TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                              height: 1.5)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Could not explain: $e')));
+      }
     }
   }
 }

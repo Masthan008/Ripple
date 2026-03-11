@@ -3,12 +3,12 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/utils/env.dart';
 
-/// GIF picker bottom sheet using Tenor API v2
-/// Shows trending GIFs and allows search with debounce
+/// GIF picker bottom sheet using Giphy API v1
+/// Shows trending GIFs on open, allows search with debounce + infinite scroll
 class GifPickerSheet extends StatefulWidget {
   final Function(String gifUrl, String previewUrl) onGifSelected;
 
@@ -20,8 +20,12 @@ class GifPickerSheet extends StatefulWidget {
 
 class _GifPickerSheetState extends State<GifPickerSheet> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   List<Map<String, String>> _gifs = [];
   bool _isLoading = false;
+  bool _isLoadingMore = false;
+  int _offset = 0;
+  String _lastQuery = '';
   Timer? _debounce;
   String? _errorMsg;
 
@@ -29,37 +33,42 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
   void initState() {
     super.initState();
     _loadTrending();
+    _scrollController.addListener(_onScroll);
+  }
+
+  /// Infinite scroll — load more when near bottom
+  void _onScroll() {
+    if (_scrollController.position.pixels >=
+        _scrollController.position.maxScrollExtent - 200) {
+      if (!_isLoadingMore) _loadMore();
+    }
   }
 
   Future<void> _loadTrending() async {
     setState(() {
       _isLoading = true;
       _errorMsg = null;
+      _offset = 0;
+      _lastQuery = '';
+      _gifs = [];
     });
     try {
-      final apiKey = dotenv.env['TENOR_API_KEY'] ?? '';
-      if (apiKey.isEmpty) {
+      final results = await _fetchGiphy(endpoint: 'trending', offset: 0);
+      if (mounted) {
         setState(() {
-          _errorMsg = 'TENOR_API_KEY not set in .env';
+          _gifs = results;
           _isLoading = false;
         });
-        return;
       }
-
-      final response = await Dio().get(
-        'https://tenor.googleapis.com/v2/featured',
-        queryParameters: {
-          'key': apiKey,
-          'limit': 30,
-          'media_filter': 'gif,tinygif',
-        },
-      );
-      _parseGifs(response.data);
     } catch (e) {
-      debugPrint('Tenor error: $e');
-      setState(() => _errorMsg = 'Failed to load GIFs');
+      debugPrint('Giphy trending error: $e');
+      if (mounted) {
+        setState(() {
+          _errorMsg = 'Failed to load GIFs';
+          _isLoading = false;
+        });
+      }
     }
-    if (mounted) setState(() => _isLoading = false);
   }
 
   Future<void> _searchGifs(String query) async {
@@ -70,48 +79,92 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
     setState(() {
       _isLoading = true;
       _errorMsg = null;
+      _offset = 0;
+      _lastQuery = query;
+      _gifs = [];
     });
     try {
-      final apiKey = dotenv.env['TENOR_API_KEY'] ?? '';
-      if (apiKey.isEmpty) return;
-
-      final response = await Dio().get(
-        'https://tenor.googleapis.com/v2/search',
-        queryParameters: {
-          'key': apiKey,
-          'q': query,
-          'limit': 30,
-          'media_filter': 'gif,tinygif',
-        },
-      );
-      _parseGifs(response.data);
+      final results =
+          await _fetchGiphy(endpoint: 'search', query: query, offset: 0);
+      if (mounted) {
+        setState(() {
+          _gifs = results;
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      debugPrint('Tenor search error: $e');
+      debugPrint('Giphy search error: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
-    if (mounted) setState(() => _isLoading = false);
   }
 
-  void _parseGifs(Map<String, dynamic> data) {
-    final results = data['results'] as List? ?? [];
-    setState(() {
-      _gifs = results
-          .map((item) {
-            final media = item['media_formats'] as Map<String, dynamic>? ?? {};
-            return <String, String>{
-              'url': (media['gif'] as Map?)?['url'] as String? ?? '',
-              'preview': (media['tinygif'] as Map?)?['url'] as String? ?? '',
-              'id': item['id'] as String? ?? '',
-            };
-          })
-          .where((g) => g['url']!.isNotEmpty)
-          .toList();
-    });
+  Future<void> _loadMore() async {
+    if (_isLoadingMore) return;
+    setState(() => _isLoadingMore = true);
+
+    _offset += 30;
+    try {
+      final more = await _fetchGiphy(
+        endpoint: _lastQuery.isEmpty ? 'trending' : 'search',
+        query: _lastQuery.isEmpty ? null : _lastQuery,
+        offset: _offset,
+      );
+      if (mounted) {
+        setState(() {
+          _gifs.addAll(more);
+          _isLoadingMore = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isLoadingMore = false);
+    }
+  }
+
+  /// Core Giphy API call — handles both trending + search endpoints
+  Future<List<Map<String, String>>> _fetchGiphy({
+    required String endpoint,
+    String? query,
+    int offset = 0,
+  }) async {
+    final apiKey = Env.giphyApiKey;
+    if (apiKey.isEmpty) {
+      throw Exception('GIPHY_API_KEY not set in .env');
+    }
+
+    final params = <String, String>{
+      'api_key': apiKey,
+      'limit': '30',
+      'offset': offset.toString(),
+      'rating': 'pg-13',
+      'lang': 'en',
+      if (query != null && query.isNotEmpty) 'q': query,
+    };
+
+    final uri = Uri.https('api.giphy.com', '/v1/gifs/$endpoint', params);
+    final response = await Dio().getUri(uri);
+    final data = response.data as Map<String, dynamic>;
+    final results = data['data'] as List? ?? [];
+
+    return results.map<Map<String, String>>((item) {
+      final images = item['images'] as Map<String, dynamic>? ?? {};
+      final original = images['original'] as Map<String, dynamic>? ?? {};
+      final display = images['fixed_height'] as Map<String, dynamic>? ?? {};
+      final small = images['fixed_height_small'] as Map<String, dynamic>? ?? {};
+
+      return {
+        'id': item['id'] as String? ?? '',
+        'title': item['title'] as String? ?? '',
+        'url': original['url'] as String? ?? '',
+        'displayUrl': display['url'] as String? ?? '',
+        'previewUrl': small['url'] as String? ?? '',
+      };
+    }).where((g) => g['url']!.isNotEmpty).toList();
   }
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: MediaQuery.of(context).size.height * 0.6,
+      height: MediaQuery.of(context).size.height * 0.65,
       decoration: const BoxDecoration(
         color: Color(0xFF0A1628),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -128,7 +181,42 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
               borderRadius: BorderRadius.circular(2),
             ),
           ),
-          const SizedBox(height: 12),
+
+          // Header with Giphy attribution
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                const Text(
+                  'GIFs',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const Spacer(),
+                // Giphy attribution (required by Terms of Service)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.08),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    'Powered by GIPHY',
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.5),
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
 
           // Search bar
           Padding(
@@ -137,10 +225,20 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Search GIFs...',
+                hintText: 'Search GIPHY...',
                 hintStyle: const TextStyle(color: Colors.white38),
                 prefixIcon:
                     const Icon(Icons.search, color: AppColors.aquaCore),
+                suffixIcon: _searchController.text.isNotEmpty
+                    ? IconButton(
+                        icon:
+                            const Icon(Icons.clear, color: Colors.white38),
+                        onPressed: () {
+                          _searchController.clear();
+                          _loadTrending();
+                        },
+                      )
+                    : null,
                 filled: true,
                 fillColor: Colors.white10,
                 border: OutlineInputBorder(
@@ -150,6 +248,7 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
                 contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
               onChanged: (query) {
+                setState(() {}); // Update clear button visibility
                 _debounce?.cancel();
                 _debounce = Timer(
                   const Duration(milliseconds: 500),
@@ -158,64 +257,111 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
               },
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 8),
 
           // Error or loading or grid
           Expanded(
             child: _errorMsg != null
                 ? Center(
-                    child: Text(_errorMsg!,
-                        style: const TextStyle(color: Colors.white54)),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('😕', style: TextStyle(fontSize: 48)),
+                        const SizedBox(height: 12),
+                        Text(
+                          _errorMsg!,
+                          style: const TextStyle(color: Colors.white54),
+                        ),
+                      ],
+                    ),
                   )
                 : _isLoading
                     ? const Center(
                         child: CircularProgressIndicator(
-                            color: AppColors.aquaCore),
-                      )
-                    : GridView.builder(
-                        padding: const EdgeInsets.symmetric(horizontal: 8),
-                        gridDelegate:
-                            const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 4,
-                          mainAxisSpacing: 4,
+                          color: AppColors.aquaCore,
+                          strokeWidth: 2,
                         ),
-                        itemCount: _gifs.length,
-                        itemBuilder: (_, i) {
-                          final gif = _gifs[i];
-                          return GestureDetector(
-                            onTap: () {
-                              widget.onGifSelected(
-                                  gif['url']!, gif['preview']!);
-                              Navigator.pop(context);
-                            },
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: CachedNetworkImage(
-                                imageUrl: gif['preview']!,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) =>
-                                    Container(color: Colors.white10),
-                                errorWidget: (_, __, ___) => Container(
-                                  color: Colors.white10,
-                                  child: const Icon(Icons.broken_image,
-                                      color: Colors.white24),
+                      )
+                    : _gifs.isEmpty
+                        ? Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                const Text('😕',
+                                    style: TextStyle(fontSize: 48)),
+                                const SizedBox(height: 12),
+                                Text(
+                                  _searchController.text.isEmpty
+                                      ? 'Could not load GIFs'
+                                      : 'No GIFs found for "${_searchController.text}"',
+                                  style: const TextStyle(
+                                      color: Colors.white38),
                                 ),
-                              ),
+                              ],
                             ),
-                          );
-                        },
-                      ),
-          ),
+                          )
+                        : GridView.builder(
+                            controller: _scrollController,
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 8),
+                            gridDelegate:
+                                const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 3,
+                              crossAxisSpacing: 4,
+                              mainAxisSpacing: 4,
+                              childAspectRatio: 1,
+                            ),
+                            itemCount: _gifs.length + 1,
+                            itemBuilder: (_, i) {
+                              // Loading more indicator at end
+                              if (i == _gifs.length) {
+                                return _isLoadingMore
+                                    ? const Center(
+                                        child: CircularProgressIndicator(
+                                          color: AppColors.aquaCore,
+                                          strokeWidth: 2,
+                                        ),
+                                      )
+                                    : const SizedBox();
+                              }
 
-          // Tenor attribution
-          Padding(
-            padding: const EdgeInsets.all(8),
-            child: Text(
-              'Powered by Tenor',
-              style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.3), fontSize: 10),
-            ),
+                              final gif = _gifs[i];
+                              return GestureDetector(
+                                onTap: () {
+                                  // Send original URL for full quality,
+                                  // displayUrl for preview in chat
+                                  widget.onGifSelected(
+                                    gif['url']!,
+                                    gif['displayUrl']!,
+                                  );
+                                  Navigator.pop(context);
+                                },
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: CachedNetworkImage(
+                                    imageUrl: gif['displayUrl']!,
+                                    fit: BoxFit.cover,
+                                    placeholder: (_, __) => Container(
+                                      color: Colors.white10,
+                                      child: const Center(
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 1,
+                                          color: AppColors.aquaCore,
+                                        ),
+                                      ),
+                                    ),
+                                    errorWidget: (_, __, ___) => Container(
+                                      color: Colors.white10,
+                                      child: const Icon(
+                                        Icons.gif_rounded,
+                                        color: Colors.white24,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
           ),
         ],
       ),
@@ -226,6 +372,7 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
   void dispose() {
     _debounce?.cancel();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 }

@@ -27,8 +27,10 @@ dependencies:
   # Navigation
   go_router: ^14.8.1
 
-  # Calls — Agora Video & Audio (replaces ZegoCloud due to build errors)
-  agora_rtc_engine: ^6.3.2
+  # Calls — Daily.co via WebView (replaced Agora)
+  webview_flutter: ^4.7.0
+  webview_flutter_android: ^3.16.0
+  webview_flutter_wkwebview: ^3.13.0
   permission_handler: ^11.3.1
 
   # Storage
@@ -55,6 +57,8 @@ dependencies:
   # Animations
   flutter_staggered_animations: ^1.1.1
   animations: ^2.0.11
+  visibility_detector: ^0.4.0+2
+  flutter_animate: ^4.5.0
 
   # Notifications
 

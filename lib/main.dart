@@ -6,6 +6,8 @@ import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'core/utils/env.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
+import 'core/services/supabase_service.dart';
+import 'features/chat/services/schedule_service.dart';
 import 'app.dart';
 
 void main() async {
@@ -34,6 +36,9 @@ void main() async {
     // Initialize Firebase
     await FirebaseService.initialize();
 
+    // Initialize Supabase (for file storage)
+    await SupabaseService.initialize();
+
     // ── OneSignal MUST be initialized before runApp() ──
     final oneSignalId = Env.oneSignalAppId;
     if (oneSignalId.isEmpty) {
@@ -53,6 +58,9 @@ void main() async {
 
     // Initialize local notification channels
     await NotificationService.initialize();
+
+    // Start scheduled message checker (every 30s)
+    ScheduleService.startScheduleChecker();
   } catch (e, stack) {
     debugPrint('⚠️ Initialization error: $e');
     debugPrint('$stack');

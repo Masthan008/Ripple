@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,6 +20,10 @@ import '../../../shared/widgets/ripple_nav_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../groups/providers/group_provider.dart';
 import '../../profile/screens/profile_screen.dart';
+import '../../status/screens/status_list_screen.dart';
+import '../../status/services/status_service.dart';
+import '../../calls/screens/incoming_call_screen.dart';
+import '../services/chat_organisation_service.dart';
 
 /// Home screen with Telegram-style RippleNavBar — glass design per PRD §4.3
 class HomeScreen extends ConsumerStatefulWidget {
@@ -30,9 +36,11 @@ class HomeScreen extends ConsumerStatefulWidget {
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   int _currentIndex = 0;
   AppLifecycleObserver? _lifecycleObserver;
+  StreamSubscription? _incomingCallSub;
 
   final _tabs = const [
     _ChatsTab(),
+    StatusListScreen(),
     _GroupsTab(),
     _CallsTab(),
     _ProfileTab(),
@@ -63,6 +71,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Register lifecycle observer for foreground/background status
         _lifecycleObserver = AppLifecycleObserver(uid);
         WidgetsBinding.instance.addObserver(_lifecycleObserver!);
+
+        // Cleanup expired statuses & moods in background
+        StatusService.cleanupExpired();
+        StatusService.clearExpiredMood();
+
+        // Listen for incoming calls (foreground detection)
+        _listenForIncomingCalls(uid);
       }
     });
   }
@@ -72,7 +87,61 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (_lifecycleObserver != null) {
       WidgetsBinding.instance.removeObserver(_lifecycleObserver!);
     }
+    _incomingCallSub?.cancel();
     super.dispose();
+  }
+
+  /// Listen for incoming call documents in Firestore.
+  /// When a call doc has calleeId == myUid and status == 'ringing',
+  /// push the IncomingCallScreen.
+  void _listenForIncomingCalls(String myUid) {
+    bool isFirstSnapshot = true;
+    _incomingCallSub = FirebaseService.firestore
+        .collection('calls')
+        .where('calleeId', isEqualTo: myUid)
+        .where('status', isEqualTo: 'ringing')
+        .snapshots()
+        .listen((snapshot) {
+      // Skip the initial snapshot to avoid showing old/stale calls
+      if (isFirstSnapshot) {
+        isFirstSnapshot = false;
+        return;
+      }
+
+      for (final change in snapshot.docChanges) {
+        if (change.type == DocumentChangeType.added) {
+          final data = change.doc.data();
+          if (data == null) continue;
+
+          // Only show calls created in the last 30 seconds
+          final createdAt = data['createdAt'] as Timestamp?;
+          if (createdAt != null) {
+            final age = DateTime.now().difference(createdAt.toDate());
+            if (age.inSeconds > 30) continue;
+          }
+
+          final callId = change.doc.id;
+          final callerName = data['callerName'] as String? ?? 'Unknown';
+          final callerUserId = data['callerId'] as String? ?? '';
+          final callType = data['type'] as String? ?? 'audio';
+          // Channel name is the chatId used when initiating the call
+          final channelName = data['channelName'] as String? ?? callId;
+
+          // Push incoming call screen
+          if (mounted) {
+            Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => IncomingCallScreen(
+                callId: callId,
+                channelName: channelName,
+                callerName: callerName,
+                callerUserId: callerUserId,
+                isVideo: callType == 'video',
+              ),
+            ));
+          }
+        }
+      }
+    });
   }
 
   @override
@@ -105,7 +174,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         int totalChatUnread = 0;
         if (chatSnap.hasData) {
           for (final doc in chatSnap.data!.docs) {
-            final unread = doc.data()['unreadCount'] as Map<String, dynamic>?;
+            final unreadRaw = doc.data()['unreadCount'];
+            final unread = unreadRaw is Map<String, dynamic> ? unreadRaw : null;
             totalChatUnread += (unread?[myUid] as int?) ?? 0;
           }
         }
@@ -120,8 +190,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             int totalGroupUnread = 0;
             if (groupSnap.hasData) {
               for (final doc in groupSnap.data!.docs) {
+                final unreadRaw = doc.data()['unreadCount'];
                 final unread =
-                    doc.data()['unreadCount'] as Map<String, dynamic>?;
+                    unreadRaw is Map<String, dynamic> ? unreadRaw : null;
                 totalGroupUnread += (unread?[myUid] as int?) ?? 0;
               }
             }
@@ -129,7 +200,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             return RippleNavBar(
               currentIndex: _currentIndex,
               onTap: (i) => setState(() => _currentIndex = i),
-              unreadCounts: [totalChatUnread, totalGroupUnread, 0, 0],
+              unreadCounts: [totalChatUnread, 0, totalGroupUnread, 0, 0],
               userPhotoUrl: photoUrl,
             );
           },
@@ -141,11 +212,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
 // ─── Tab Stubs (Phase 2+) ────────────────────────────────
 
-class _ChatsTab extends ConsumerWidget {
+class _ChatsTab extends ConsumerStatefulWidget {
   const _ChatsTab();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ChatsTab> createState() => _ChatsTabState();
+}
+
+class _ChatsTabState extends ConsumerState<_ChatsTab> {
+  String _filter = 'all'; // all | unread | groups
+
+  @override
+  Widget build(BuildContext context) {
     final currentUser = ref.watch(authStateProvider).valueOrNull;
 
     return SafeArea(
@@ -159,120 +237,202 @@ class _ChatsTab extends ConsumerWidget {
               children: [
                 Text(AppStrings.messages, style: AppTextStyles.heading),
                 const Spacer(),
-                // Friend requests button with badge
+                _GlassIconButton(
+                  icon: Icons.search_rounded,
+                  onTap: () => GoRouter.of(context).push('/search'),
+                ),
+                const SizedBox(width: 8),
                 _GlassIconButton(
                   icon: Icons.person_add_rounded,
                   onTap: () => GoRouter.of(context).push('/requests'),
                 ),
                 const SizedBox(width: 8),
-                // Discover people button
                 _GlassIconButton(
                   icon: Icons.explore_rounded,
                   onTap: () => GoRouter.of(context).push('/users'),
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Your conversations',
-              style: AppTextStyles.subtitle,
+            const SizedBox(height: 12),
+
+            // Filter chips
+            Row(
+              children: [
+                _FilterChip(
+                    label: 'All',
+                    selected: _filter == 'all',
+                    onTap: () => setState(() => _filter = 'all')),
+                const SizedBox(width: 8),
+                _FilterChip(
+                    label: 'Unread',
+                    selected: _filter == 'unread',
+                    onTap: () => setState(() => _filter = 'unread')),
+                const SizedBox(width: 8),
+                _FilterChip(
+                    label: 'Groups',
+                    selected: _filter == 'groups',
+                    onTap: () => setState(() => _filter = 'groups')),
+              ],
             ),
-            const SizedBox(height: 16),
-            // Search bar
-            _ChatSearchBar(
-              chatsStream: currentUser == null
-                  ? null
-                  : FirebaseService.chatsCollection
-                      .where('participants',
-                          arrayContains: currentUser.uid)
-                      .snapshots()
-                      .handleError((_) {}),
-              currentUid: currentUser?.uid ?? '',
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
+
             // Chat list
             Expanded(
               child: currentUser == null
                   ? const SizedBox.shrink()
-                  : StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                      stream: FirebaseService.chatsCollection
-                          .where('participants',
-                              arrayContains: currentUser.uid)
-                          .snapshots()
-                          .handleError((_) {}),
-                      builder: (ctx, snapshot) {
-                        if (snapshot.connectionState ==
-                            ConnectionState.waiting) {
-                          return const Center(
-                            child: CircularProgressIndicator(
-                              valueColor: AlwaysStoppedAnimation(
-                                  AppColors.aquaCore),
-                            ),
-                          );
-                        }
+                  : StreamBuilder<DocumentSnapshot>(
+                      stream: FirebaseService.firestore
+                          .collection('users')
+                          .doc(currentUser.uid)
+                          .snapshots(),
+                      builder: (ctx, userSnap) {
+                        final userData = userSnap.data?.data()
+                                is Map<String, dynamic>
+                            ? userSnap.data!.data() as Map<String, dynamic>
+                            : <String, dynamic>{};
+                        final pinnedIds = List<String>.from(
+                            userData['pinnedChats'] as List? ?? []);
+                        final archivedIds = List<String>.from(
+                            userData['archivedChats'] as List? ?? []);
+                        final mutedIds = List<String>.from(
+                            userData['mutedChats'] as List? ?? []);
 
-                        if (snapshot.hasError) {
-                          return Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.error_outline,
-                                    color: AppColors.errorRed, size: 48),
-                                const SizedBox(height: 12),
-                                Text('Cannot load chats',
-                                    style: AppTextStyles.body),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Deploy Firestore rules first:\nFirebase Console → Firestore → Rules → Publish',
-                                  style: AppTextStyles.caption,
-                                  textAlign: TextAlign.center,
+                        return StreamBuilder<
+                            QuerySnapshot<Map<String, dynamic>>>(
+                          stream: FirebaseService.chatsCollection
+                              .where('participants',
+                                  arrayContains: currentUser.uid)
+                              .snapshots()
+                              .handleError((_) {}),
+                          builder: (ctx, snapshot) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
+                              return const Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation(
+                                      AppColors.aquaCore),
                                 ),
-                              ],
-                            ),
-                          );
-                        }
-
-                        final chats = snapshot.data?.docs ?? [];
-
-                        if (chats.isEmpty) {
-                          return Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(Icons.water_drop_outlined,
-                                    color: AppColors.aquaCore
-                                        .withValues(alpha: 0.3),
-                                    size: 64),
-                                const SizedBox(height: 12),
-                                Text('No conversations yet',
-                                    style: AppTextStyles.bodySmall),
-                                const SizedBox(height: 4),
-                                Text('Start chatting with friends!',
-                                    style: AppTextStyles.caption),
-                              ],
-                            ),
-                          );
-                        }
-
-                        return ListView.builder(
-                          itemCount: chats.length,
-                          itemBuilder: (ctx, i) {
-                            final data = chats[i].data();
-                            final participants = List<String>.from(
-                                data['participants'] ?? []);
-                            final otherUid = participants.firstWhere(
-                              (id) => id != currentUser.uid,
-                              orElse: () => '',
-                            );
-                            if (otherUid.isEmpty) {
-                              return const SizedBox.shrink();
+                              );
                             }
 
-                            return _ChatTile(
-                              chatId: chats[i].id,
-                              otherUid: otherUid,
-                              lastMessage: data['lastMessage']
-                                  as Map<String, dynamic>?,
+                            if (snapshot.hasError) {
+                              return Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.error_outline,
+                                        color: AppColors.errorRed, size: 48),
+                                    const SizedBox(height: 12),
+                                    Text('Cannot load chats',
+                                        style: AppTextStyles.body),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            var chats = snapshot.data?.docs ?? [];
+
+                            // Filter out archived
+                            chats = chats
+                                .where((d) => !archivedIds.contains(d.id))
+                                .toList();
+
+                            // Apply filter
+                            if (_filter == 'unread') {
+                              chats = chats.where((d) {
+                                final data = d.data();
+                                final seenBy = List<String>.from(
+                                    data['seenBy'] as List? ?? []);
+                                return !seenBy.contains(currentUser.uid) &&
+                                    data['lastMessage'] != null;
+                              }).toList();
+                            }
+
+                            // Sort: pinned first
+                            chats.sort((a, b) {
+                              final aPin = pinnedIds.contains(a.id) ? 0 : 1;
+                              final bPin = pinnedIds.contains(b.id) ? 0 : 1;
+                              return aPin.compareTo(bPin);
+                            });
+
+                            return ListView.builder(
+                              itemCount: chats.length +
+                                  1 + // Saved Messages row
+                                  (archivedIds.isNotEmpty ? 1 : 0),
+                              itemBuilder: (ctx, i) {
+                                // First item: Saved Messages
+                                if (i == 0) {
+                                  return _savedMessagesTile(context);
+                                }
+
+                                // Last item: Archived row
+                                if (archivedIds.isNotEmpty &&
+                                    i == chats.length + 1) {
+                                  return _archivedRow(
+                                      context, archivedIds.length);
+                                }
+
+                                final chatIndex = i - 1;
+                                if (chatIndex >= chats.length) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                final doc = chats[chatIndex];
+                                final data = doc.data();
+                                final chatId = doc.id;
+                                final isPinned = pinnedIds.contains(chatId);
+                                final isMuted = mutedIds.contains(chatId);
+                                final participants = List<String>.from(
+                                    data['participants'] ?? []);
+                                final otherUid = participants.firstWhere(
+                                  (id) => id != currentUser.uid,
+                                  orElse: () => '',
+                                );
+                                if (otherUid.isEmpty) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                return GestureDetector(
+                                  onLongPress: () => _showChatContextMenu(
+                                    context: context,
+                                    chatId: chatId,
+                                    isPinned: isPinned,
+                                    isMuted: isMuted,
+                                  ),
+                                  child: Stack(
+                                    children: [
+                                      _ChatTile(
+                                        chatId: chatId,
+                                        otherUid: otherUid,
+                                        lastMessage: data['lastMessage'] is Map<String, dynamic>
+                                            ? data['lastMessage'] as Map<String, dynamic>
+                                            : null,
+                                      ),
+                                      if (isPinned)
+                                        Positioned(
+                                          top: 12,
+                                          right: 8,
+                                          child: Icon(
+                                            Icons.push_pin_rounded,
+                                            size: 14,
+                                            color: AppColors.aquaCore,
+                                          ),
+                                        ),
+                                      if (isMuted)
+                                        Positioned(
+                                          bottom: 12,
+                                          right: 8,
+                                          child: Icon(
+                                            Icons.notifications_off_rounded,
+                                            size: 12,
+                                            color: Colors.white
+                                                .withValues(alpha: 0.3),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                );
+                              },
                             );
                           },
                         );
@@ -280,6 +440,203 @@ class _ChatsTab extends ConsumerWidget {
                     ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _savedMessagesTile(BuildContext context) {
+    return GestureDetector(
+      onTap: () => GoRouter.of(context).push('/saved-messages'),
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(colors: [
+                  AppColors.aquaCore,
+                  Color(0xFF6366F1),
+                ]),
+              ),
+              child: const Icon(Icons.bookmark_rounded,
+                  color: Colors.white, size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Saved Messages',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15)),
+                Text('Tap to view',
+                    style: TextStyle(color: Colors.white54, fontSize: 13)),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _archivedRow(BuildContext context, int count) {
+    return GestureDetector(
+      onTap: () => GoRouter.of(context).push('/archived-chats'),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 12),
+        child: Row(
+          children: [
+            Container(
+              width: 52,
+              height: 52,
+              decoration: const BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white10,
+              ),
+              child: Icon(Icons.archive_rounded,
+                  color: AppColors.aquaCore, size: 22),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Archived',
+                    style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15)),
+                Text('$count chat${count > 1 ? "s" : ""}',
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 13)),
+              ],
+            ),
+            const Spacer(),
+            const Icon(Icons.chevron_right, color: Colors.white38),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showChatContextMenu({
+    required BuildContext context,
+    required String chatId,
+    required bool isPinned,
+    required bool isMuted,
+  }) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          ListTile(
+            leading: Icon(
+              isPinned ? Icons.push_pin_outlined : Icons.push_pin_rounded,
+              color: AppColors.aquaCore,
+            ),
+            title: Text(isPinned ? 'Unpin' : 'Pin',
+                style: const TextStyle(color: Colors.white)),
+            onTap: () async {
+              if (isPinned) {
+                await ChatOrganisationService.unpinChat(chatId);
+              } else {
+                final error =
+                    await ChatOrganisationService.pinChat(chatId);
+                if (error != null && context.mounted) {
+                  ScaffoldMessenger.of(context)
+                      .showSnackBar(SnackBar(content: Text(error)));
+                }
+              }
+              if (context.mounted) Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: Icon(Icons.archive_rounded, color: AppColors.aquaCore),
+            title: const Text('Archive',
+                style: TextStyle(color: Colors.white)),
+            onTap: () async {
+              await ChatOrganisationService.archiveChat(chatId);
+              if (context.mounted) Navigator.pop(context);
+            },
+          ),
+          ListTile(
+            leading: Icon(
+              isMuted
+                  ? Icons.notifications_rounded
+                  : Icons.notifications_off_rounded,
+              color: AppColors.aquaCore,
+            ),
+            title: Text(isMuted ? 'Unmute' : 'Mute',
+                style: const TextStyle(color: Colors.white)),
+            onTap: () async {
+              if (isMuted) {
+                await ChatOrganisationService.unmuteChat(chatId);
+              } else {
+                await ChatOrganisationService.muteChat(chatId);
+              }
+              if (context.mounted) Navigator.pop(context);
+            },
+          ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+        ],
+      ),
+    );
+  }
+}
+
+/// Filter chip widget
+class _FilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _FilterChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          color: selected
+              ? AppColors.aquaCore.withValues(alpha: 0.2)
+              : Colors.white.withValues(alpha: 0.06),
+          border: Border.all(
+            color: selected ? AppColors.aquaCore : Colors.transparent,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? AppColors.aquaCore : Colors.white54,
+            fontSize: 13,
+            fontWeight: selected ? FontWeight.bold : FontWeight.normal,
+          ),
         ),
       ),
     );

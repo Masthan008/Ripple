@@ -4,8 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 
+import '../../features/calls/screens/incoming_call_screen.dart';
 import '../utils/env.dart';
 import 'firebase_service.dart';
+
+/// Global navigator key — used to push screens from notification handlers
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
 /// Notification service — OneSignal push notifications
 ///
@@ -139,8 +143,25 @@ class NotificationService {
         router.push('/requests');
         break;
       case 'call':
-        // For now, just go to home. Incoming call UI is separate.
-        router.go('/home');
+        final callId = data['callId'] as String? ?? '';
+        final channelName = data['channelName'] as String? ?? '';
+        final callerName = data['callerName'] as String? ?? 'Unknown';
+        final callerUserId = data['callerUserId'] as String? ?? '';
+        final callType = data['callType'] as String? ?? 'audio';
+        if (callId.isNotEmpty && channelName.isNotEmpty) {
+          // Navigate using a global navigator key to push the incoming call screen
+          navigatorKey.currentState?.push(MaterialPageRoute(
+            builder: (_) => IncomingCallScreen(
+              callId: callId,
+              channelName: channelName,
+              callerName: callerName,
+              callerUserId: callerUserId,
+              isVideo: callType == 'video',
+            ),
+          ));
+        } else {
+          router.go('/home');
+        }
         break;
       default:
         // Unknown notification type — go home
@@ -200,7 +221,9 @@ class NotificationService {
   static Future<void> sendCallNotification({
     required String recipientPlayerId,
     required String callerName,
+    required String callerUserId,
     required String callId,
+    required String channelName,
     required String callType,
     required bool isGroup,
   }) async {
@@ -214,6 +237,9 @@ class NotificationService {
       data: {
         'type': 'call',
         'callId': callId,
+        'channelName': channelName,
+        'callerName': callerName,
+        'callerUserId': callerUserId,
         'callType': callType,
         'isGroup': isGroup.toString(),
       },
