@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/message_model.dart';
+import '../../../core/services/privacy_service.dart';
 
 /// Service for all Phase 1 message actions
 /// (reactions, edit, delete, forward, pin, star, seen receipts)
@@ -314,6 +315,7 @@ class MessageActionsService {
     required String chatId,
     required String currentUid,
     required bool isGroup,
+    int selfDestructSeconds = 0,
   }) async {
     final collection = isGroup ? 'groups' : 'chats';
 
@@ -328,6 +330,8 @@ class MessageActionsService {
 
     final batch = _fs.batch();
     bool hasUpdates = false;
+    final List<DocumentSnapshot> newlySeen = [];
+    
     for (final doc in unread.docs) {
       final seenBy =
           List<String>.from(doc.data()['seenBy'] as List? ?? []);
@@ -336,10 +340,27 @@ class MessageActionsService {
           'seenBy': FieldValue.arrayUnion([currentUid]),
         });
         hasUpdates = true;
+        newlySeen.add(doc);
       }
     }
     if (hasUpdates) {
       await batch.commit();
+      
+      // Schedule self destruct immediately after commit
+      if (selfDestructSeconds > 0) {
+        for (final doc in newlySeen) {
+          final docData = doc.data() as Map<String, dynamic>?;
+          final senderId = docData?['senderId'] as String?;
+          if (senderId != currentUid) {
+            await PrivacyService.scheduleMessageDelete(
+              chatId: chatId,
+              messageId: doc.id,
+              isGroup: isGroup,
+              seconds: selfDestructSeconds,
+            );
+          }
+        }
+      }
     }
   }
 }

@@ -94,6 +94,26 @@ class _StatusListScreenState extends State<StatusListScreen> {
     return StreamBuilder<List<StatusModel>>(
       stream: StatusService.getMyStatuses(),
       builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          debugPrint('❌ My status stream error: ${snapshot.error}');
+          return Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            child: Row(
+              children: [
+                Icon(Icons.error_outline,
+                    color: Colors.white.withValues(alpha: 0.3), size: 28),
+                const SizedBox(width: 12),
+                Text(
+                  'Failed to load status',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.4),
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
         final myStatuses = snapshot.data ?? [];
 
         return StreamBuilder<DocumentSnapshot>(
@@ -232,6 +252,27 @@ class _StatusListScreenState extends State<StatusListScreen> {
         return StreamBuilder<List<StatusModel>>(
           stream: StatusService.getFriendsStatuses(friends),
           builder: (context, statusSnap) {
+            if (statusSnap.hasError) {
+              debugPrint('\u274c Friend status stream error: ${statusSnap.error}');
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline,
+                        color: Colors.white.withValues(alpha: 0.3),
+                        size: 48),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Failed to load statuses',
+                      style: TextStyle(
+                        color: Colors.white.withValues(alpha: 0.4),
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              );
+            }
             if (!statusSnap.hasData) {
               return const Center(
                 child: CircularProgressIndicator(

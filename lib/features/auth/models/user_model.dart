@@ -17,6 +17,7 @@ class UserModel {
   final Map<String, bool> notificationSettings;
   final Map<String, bool> privacySettings;
   final bool twoFactorEnabled;
+  final int rippleScore;
 
   const UserModel({
     required this.uid,
@@ -46,6 +47,7 @@ class UserModel {
       'allowFriendRequests': true,
     },
     this.twoFactorEnabled = false,
+    this.rippleScore = 0,
   });
 
   /// Create from Firestore document
@@ -70,6 +72,7 @@ class UserModel {
       notificationSettings: Map<String, bool>.from(data['notificationSettings'] ?? {}),
       privacySettings: Map<String, bool>.from(data['privacySettings'] ?? {}),
       twoFactorEnabled: data['twoFactorEnabled'] ?? false,
+      rippleScore: data['rippleScore'] as int? ?? 0,
     );
   }
 
@@ -94,6 +97,7 @@ class UserModel {
       notificationSettings: Map<String, bool>.from(data['notificationSettings'] ?? {}),
       privacySettings: Map<String, bool>.from(data['privacySettings'] ?? {}),
       twoFactorEnabled: data['twoFactorEnabled'] ?? false,
+      rippleScore: data['rippleScore'] as int? ?? 0,
     );
   }
 
@@ -115,6 +119,7 @@ class UserModel {
       'notificationSettings': notificationSettings,
       'privacySettings': privacySettings,
       'twoFactorEnabled': twoFactorEnabled,
+      'rippleScore': rippleScore,
     };
   }
 
@@ -135,6 +140,7 @@ class UserModel {
     Map<String, bool>? notificationSettings,
     Map<String, bool>? privacySettings,
     bool? twoFactorEnabled,
+    int? rippleScore,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -152,6 +158,7 @@ class UserModel {
       notificationSettings: notificationSettings ?? this.notificationSettings,
       privacySettings: privacySettings ?? this.privacySettings,
       twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
+      rippleScore: rippleScore ?? this.rippleScore,
     );
   }
 }

@@ -7,6 +7,7 @@ import '../../../core/services/notification_service.dart';
 import '../../auth/models/user_model.dart';
 import '../../chat/models/message_model.dart';
 import '../models/group_model.dart';
+import '../../social/services/social_service.dart';
 
 const _uuid = Uuid();
 
@@ -96,6 +97,19 @@ class GroupService {
     );
 
     await _firestore.collection('groups').doc(groupId).set(group.toMap());
+
+    // Achievement triggers
+    await SocialService.checkAndUnlock(
+      uid: _myUid,
+      trigger: 'group_created',
+    );
+    for (final uid in allMembers) {
+      await SocialService.checkAndUnlock(
+        uid: uid,
+        trigger: 'group_joined',
+      );
+    }
+
     return groupId;
   }
 
@@ -178,6 +192,13 @@ class GroupService {
       'members': FieldValue.arrayUnion(uids),
       'memberIds': FieldValue.arrayUnion(uids),
     });
+
+    for (final uid in uids) {
+      await SocialService.checkAndUnlock(
+        uid: uid,
+        trigger: 'group_joined',
+      );
+    }
   }
 
   /// Remove a member from the group (admin only)

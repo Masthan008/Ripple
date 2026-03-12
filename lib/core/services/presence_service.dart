@@ -92,6 +92,13 @@ class PresenceService {
   static Future<void> setOnline(String uid) async {
     if (uid.isEmpty) return;
     try {
+      // Check stealth mode — never go online if active
+      final doc = await FirebaseService.firestore
+          .collection('users').doc(uid).get();
+      final stealth = (doc.data()?['privacy'] as Map?)
+          ?['stealthMode'] as bool? ?? false;
+      if (stealth) return;
+
       await _rtdb.ref('status/$uid').set({
         'state': 'online',
         'lastSeen': ServerValue.timestamp,

@@ -9,8 +9,8 @@ import '../utils/env.dart';
 /// translation, tone fixing, spam detection, AI compose, and message explain.
 class AiService {
   static const _baseUrl = 'https://api.anthropic.com/v1/messages';
-  static const _haiku = 'claude-haiku-4-5-20251001';
-  static const _sonnet = 'claude-sonnet-4-6';
+  static const _haiku = 'claude-3-5-haiku-20241022';
+  static const _sonnet = 'claude-3-5-sonnet-20241022';
 
   // ── CORE API CALL ─────────────────────────────────────
   static Future<String> _call({
@@ -47,8 +47,14 @@ class AiService {
           .map((c) => c['text'] as String)
           .join('');
     } on DioException catch (e) {
-      debugPrint('AI Service error: ${e.response?.data}');
+      debugPrint('❌ AI Service error [${e.response?.statusCode}]: '
+          '${e.response?.data}');
+      debugPrint('   API key present: ${Env.anthropicApiKey.isNotEmpty}');
+      debugPrint('   Model: $model');
       throw AiException(_parseError(e));
+    } catch (e) {
+      debugPrint('❌ AI Service unexpected error: $e');
+      throw AiException('AI request failed: $e');
     }
   }
 

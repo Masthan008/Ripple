@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../auth/models/user_model.dart';
+import '../../social/services/social_service.dart';
 
 // ─── All Users Provider (excluding self & blocked) ───────
 /// Stream of all users for discovery — excludes current user and blocked
@@ -179,6 +180,16 @@ class FriendsService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
     }
+
+    // Trigger friend added achievements
+    await SocialService.checkAndUnlock(
+      uid: _myUid,
+      trigger: 'friend_added',
+    );
+    await SocialService.checkAndUnlock(
+      uid: fromUid,
+      trigger: 'friend_added',
+    );
   }
 
   /// Reject / decline a friend request

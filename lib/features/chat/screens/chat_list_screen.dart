@@ -24,6 +24,8 @@ import '../../status/screens/status_list_screen.dart';
 import '../../status/services/status_service.dart';
 import '../../calls/screens/incoming_call_screen.dart';
 import '../services/chat_organisation_service.dart';
+import '../../../core/services/privacy_service.dart';
+import '../../../core/services/chat_lock_service.dart';
 
 /// Home screen with Telegram-style RippleNavBar — glass design per PRD §4.3
 class HomeScreen extends ConsumerStatefulWidget {
@@ -407,6 +409,8 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                         lastMessage: data['lastMessage'] is Map<String, dynamic>
                                             ? data['lastMessage'] as Map<String, dynamic>
                                             : null,
+                                        streak: data['streak'] as int? ?? 0,
+                                        lastStreakDate: data['lastStreakDate'] as Timestamp?,
                                       ),
                                       if (isPinned)
                                         Positioned(
@@ -869,19 +873,33 @@ class _GlassIconButton extends StatelessWidget {
 }
 
 /// Chat tile that fetches partner info and displays last message
-class _ChatTile extends StatelessWidget {
+class _ChatTile extends ConsumerWidget {
   final String chatId;
   final String otherUid;
   final Map<String, dynamic>? lastMessage;
+  final int streak;
+  final Timestamp? lastStreakDate;
 
   const _ChatTile({
     required this.chatId,
     required this.otherUid,
     this.lastMessage,
+    this.streak = 0,
+    this.lastStreakDate,
   });
 
+  bool _isStreakActive() {
+    if (lastStreakDate == null) return false;
+    final lastDate = lastStreakDate!.toDate();
+    final today = DateTime.now();
+    final lastDateOnly = DateTime(lastDate.year, lastDate.month, lastDate.day);
+    final todayOnly = DateTime(today.year, today.month, today.day);
+    final diff = todayOnly.difference(lastDateOnly).inDays;
+    return diff <= 1;
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       future: FirebaseService.usersCollection.doc(otherUid).get(),
       builder: (ctx, snap) {
@@ -892,7 +910,18 @@ class _ChatTile extends StatelessWidget {
         final userData = snap.data!.data()!;
         final name = userData['name'] ?? 'User';
         final photoUrl = userData['photoUrl'] ?? '';
-        final isOnline = userData['isOnline'] ?? false;
+        final isOnlineRaw = userData['isOnline'] ?? false;
+
+        // Privacy: check if we can see online status
+        final currentUser = ref.read(currentUserProvider).valueOrNull;
+        final myUid = currentUser?.uid ?? '';
+        final myFriends = List<String>.from(currentUser?.friends ?? []);
+        
+        final isOnline = isOnlineRaw && PrivacyService.canSeeOnlineStatus(
+          targetUser: userData,
+          viewerUid: myUid,
+          viewerFriends: myFriends,
+        );
 
         // Determine preview text
         String preview;
@@ -913,10 +942,40 @@ class _ChatTile extends StatelessWidget {
             borderRadius: 14,
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: InkWell(
-              onTap: () {
-                GoRouter.of(context).push(
-                  '/chat?chatId=$chatId&partnerUid=$otherUid&partnerName=${Uri.encodeComponent(name)}&partnerPhoto=${Uri.encodeComponent(photoUrl)}',
-                );
+              onLongPress: () async {
+                final isLocked = await PrivacyService.isChatLocked(chatId);
+                if (isLocked) {
+                  final auth = await ChatLockService.authenticate(
+                      reason: 'Unlock this chat');
+                  if (auth) {
+                    await PrivacyService.unlockChatLock(chatId);
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('🔓 Chat unlocked')));
+                    }
+                  }
+                } else {
+                  await PrivacyService.lockChat(chatId);
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('🔒 Chat locked')));
+                  }
+                }
+                // The parent will rebuild on next stream tick
+              },
+              onTap: () async {
+                final isLocked = await PrivacyService.isChatLocked(chatId);
+                if (isLocked) {
+                  final auth = await ChatLockService.authenticate(
+                      reason: 'Unlock $name');
+                  if (!auth) return;
+                }
+
+                if (context.mounted) {
+                  GoRouter.of(context).push(
+                    '/chat?chatId=$chatId&partnerUid=$otherUid&partnerName=${Uri.encodeComponent(name)}&partnerPhoto=${Uri.encodeComponent(photoUrl)}',
+                  );
+                }
               },
               child: Row(
                 children: [
@@ -948,13 +1007,51 @@ class _ChatTile extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(width: 12),
+                  // Chat title, typing, last message
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(name,
-                            style: AppTextStyles.body
-                                .copyWith(fontSize: 14)),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                            // Lock Icon
+                            FutureBuilder<bool>(
+                              future: PrivacyService.isChatLocked(chatId),
+                              builder: (ctx, lockSnap) {
+                                if (lockSnap.data == true) {
+                                  return const Padding(
+                                    padding: EdgeInsets.only(left: 4),
+                                    child: Icon(Icons.lock_rounded, 
+                                      size: 14, color: AppColors.aquaCore),
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              },
+                            ),
+                            if (timeStr.isNotEmpty) ...[
+                              const SizedBox(width: 8),
+                              Text(
+                                timeStr,
+                                style: const TextStyle(
+                                  color: Colors.white38,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           preview,
@@ -973,10 +1070,37 @@ class _ChatTile extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (timeStr.isNotEmpty)
-                    Text(timeStr,
-                        style: AppTextStyles.caption
-                            .copyWith(fontSize: 10)),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      if (timeStr.isNotEmpty)
+                        Text(timeStr,
+                            style: AppTextStyles.caption
+                                .copyWith(fontSize: 10)),
+                      if (streak > 0 && _isStreakActive()) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Text('🔥', style: TextStyle(fontSize: 10)),
+                              const SizedBox(width: 2),
+                              Text(streak.toString(), 
+                                style: const TextStyle(color: Colors.orange, fontSize: 10, fontWeight: FontWeight.bold)
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
                 ],
               ),
             ),

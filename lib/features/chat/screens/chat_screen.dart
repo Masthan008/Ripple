@@ -36,9 +36,11 @@ import '../widgets/message_context_menu.dart';
 import '../widgets/pinned_message_banner.dart';
 import '../services/chat_organisation_service.dart';
 import '../../../core/services/ai_service.dart';
+import '../../../core/services/privacy_service.dart';
 import '../widgets/typing_indicator.dart';
 import 'chat_media_gallery_screen.dart';
 import 'video_player_screen.dart';
+import '../../social/services/social_service.dart';
 
 /// 1-to-1 Chat Screen — PRD §6.3
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -78,6 +80,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _lastSmartReplyMsgId;
   SpamResult? _spamWarning;
 
+  // Phase 6 — Privacy state
+  bool _incognitoKeyboard = false;
+  int _selfDestructSeconds = 0;
+  bool _canShowTyping = true;
+
   @override
   void initState() {
     super.initState();
@@ -89,7 +96,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         chatId: widget.chatId,
         currentUid: ref.read(chatServiceProvider).myUid,
         isGroup: false,
+        selfDestructSeconds: _selfDestructSeconds,
       );
+
+      // Load privacy settings
+      _loadPrivacySettings();
     });
   }
 
@@ -132,6 +143,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         text: text,
         replyTo: replyData,
       );
+
+      final myUid = ref.read(chatServiceProvider).myUid;
+      final newStreak = await SocialService.updateStreak(
+        chatId: widget.chatId,
+        senderId: myUid,
+        recipientId: widget.partnerUid,
+      );
+      
+      if (newStreak == 7 || newStreak == 30 || newStreak == 100) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('🔥 Streak extended to $newStreak days!'),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ));
+        }
+      }
+
+      await SocialService.checkAndUnlock(
+        uid: myUid,
+        trigger: 'message_sent',
+      );
+
       await chatService.clearTyping();
       _scrollToBottom();
     } catch (e) {
@@ -150,11 +184,106 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _onTextChanged(String text) {
     final chatService = ref.read(chatServiceProvider);
-    if (text.isNotEmpty) {
+    if (text.isNotEmpty && _canShowTyping) {
       chatService.setTypingTo(widget.partnerUid);
     } else {
       chatService.clearTyping();
     }
+  }
+
+  // ── Phase 6 — Privacy helpers ──────────────────────────
+
+  Future<void> _loadPrivacySettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final privacy = await PrivacyService.getPrivacySettings();
+
+      // Load self-destruct timer for this chat
+      final chatDoc = await FirebaseFirestore.instance
+          .collection('chats').doc(widget.chatId).get();
+      final timer = chatDoc.data()?['selfDestructTimer'] as int? ?? 0;
+
+      if (mounted) {
+        setState(() {
+          _incognitoKeyboard = prefs.getBool('incognito_keyboard') ?? false;
+          _selfDestructSeconds = timer;
+          final stealth = privacy['stealthMode'] as bool? ?? false;
+          final typing = privacy['typingIndicator'] as bool? ?? true;
+          _canShowTyping = !stealth && typing;
+        });
+      }
+    } catch (e) {
+      debugPrint('Privacy settings load error: $e');
+    }
+  }
+
+  void _showSelfDestructPicker() {
+    final options = [
+      {'label': 'Off', 'value': 0},
+      {'label': '5 seconds', 'value': 5},
+      {'label': '10 seconds', 'value': 10},
+      {'label': '30 seconds', 'value': 30},
+      {'label': '1 minute', 'value': 60},
+      {'label': '5 minutes', 'value': 300},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('💣 Self-Destruct Timer',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
+          ),
+          ...options.map((o) => ListTile(
+                leading: Icon(
+                  o['value'] == 0
+                      ? Icons.timer_off_rounded
+                      : Icons.timer_rounded,
+                  color: AppColors.aquaCore,
+                ),
+                title: Text(o['label'] as String,
+                    style: const TextStyle(color: Colors.white)),
+                trailing: _selfDestructSeconds == o['value'] as int
+                    ? const Icon(Icons.check_rounded,
+                        color: AppColors.aquaCore)
+                    : null,
+                onTap: () async {
+                  final seconds = o['value'] as int;
+                  await PrivacyService.setSelfDestructTimer(
+                    chatId: widget.chatId,
+                    isGroup: false,
+                    seconds: seconds,
+                  );
+                  setState(() => _selfDestructSeconds = seconds);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(seconds == 0
+                          ? '💣 Timer disabled'
+                          : '💣 Messages delete after ${o['label']}'),
+                    ));
+                  }
+                },
+              )),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  String _formatDestructTime(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    return '${seconds ~/ 60}m';
   }
 
   // ── Phase 1 helpers ────────────────────────────────────
@@ -407,6 +536,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         style: AppTextStyles.caption),
                   ),
                   data: (msgs) {
+                    // Check for self destructing messages
+                    _checkSelfDestruct(msgs);
+
                     // Filter out messages deleted for current user
                     final filtered = msgs
                         .where((m) =>
@@ -604,6 +736,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
 
+                // Self-destruct banner
+                if (_selfDestructSeconds > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    color: Colors.red.withOpacity(0.1),
+                    child: Row(
+                      children: [
+                        const Text('💣',
+                            style: TextStyle(fontSize: 14)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Messages delete after '
+                          '${_formatDestructTime(_selfDestructSeconds)}',
+                          style: TextStyle(
+                              color: Colors.red.shade300, fontSize: 13),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: () async {
+                            await PrivacyService.setSelfDestructTimer(
+                              chatId: widget.chatId,
+                              isGroup: false,
+                              seconds: 0,
+                            );
+                            setState(() => _selfDestructSeconds = 0);
+                          },
+                          child: const Text('Turn Off',
+                              style: TextStyle(
+                                  color: Colors.red,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13)),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 GlassInputBar(
                   controller: _messageController,
                   onSend: _sendMessage,
@@ -612,6 +781,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   replyTo: _replyTo,
                   onClearReply: () =>
                       setState(() => _replyTo = null),
+                  incognitoKeyboard: _incognitoKeyboard,
                   onEmoji: () {
                     setState(() => _showEmojiPicker =
                         !_showEmojiPicker);
@@ -888,6 +1058,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 );
               } else if (value == 'summary') {
                 _showChatSummary();
+              } else if (value == 'self_destruct') {
+                _showSelfDestructPicker();
               }
             },
             itemBuilder: (_) => [
@@ -911,6 +1083,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         color: AppColors.aquaCore, size: 20),
                     SizedBox(width: 12),
                     Text('Summarise Chat',
+                        style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'self_destruct',
+                child: Row(
+                  children: [
+                    Text('💣', style: TextStyle(fontSize: 18)),
+                    SizedBox(width: 12),
+                    Text('Self-Destruct Timer',
                         style: TextStyle(color: Colors.white)),
                   ],
                 ),
@@ -1149,6 +1332,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         fileName: fileName,
         replyTo: _replyTo,
       );
+
+      final myUid = ref.read(chatServiceProvider).myUid;
+      await SocialService.checkAndUnlock(
+        uid: myUid,
+        trigger: 'image_sent', 
+      );
+
       setState(() => _replyTo = null);
       _scrollToBottom();
     } catch (e) {
@@ -1254,6 +1444,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         'lastMessage': '🎙️ Voice message',
         'lastMessageTimestamp': FieldValue.serverTimestamp(),
       });
+
+      final myUid = ref.read(chatServiceProvider).myUid;
+      await SocialService.checkAndUnlock(
+        uid: myUid,
+        trigger: 'voice_sent', 
+      );
 
       _scrollToBottom();
     } catch (e) {
@@ -1414,7 +1610,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  Future<void> _showChatSummary() async {
+  Future<void> _checkSelfDestruct(List<MessageModel> messages) async {
+    final now = DateTime.now();
+    for (final msg in messages) {
+      if (msg.deleteAt != null && msg.deleteAt!.toDate().isBefore(now)) {
+        await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(widget.chatId)
+            .collection('messages')
+            .doc(msg.id)
+            .update({
+          'isDeleted': true,
+          'text': null,
+          'mediaUrl': null,
+          'deletedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
+  }
+
+  void _showChatSummary() async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -1460,6 +1675,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final summary = await AiService.summariseChat(
         messages: messages,
         chatName: widget.partnerName,
+      );
+
+      await SocialService.checkAndUnlock(
+        uid: currentUid,
+        trigger: 'ai_used',
       );
 
       if (mounted) Navigator.pop(context);
@@ -1562,6 +1782,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 text: message.text ?? '',
                 targetLanguage: lang,
               );
+
+              final myUid = ref.read(chatServiceProvider).myUid;
+              await SocialService.checkAndUnlock(
+                uid: myUid,
+                trigger: 'translator_used',
+              );
+
               setModal(() {
                 translation = result;
                 isLoading = false;
@@ -1708,6 +1935,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             try {
               final result =
                   await AiService.fixTone(text: originalText, tone: tone);
+                  
+              final myUid = ref.read(chatServiceProvider).myUid;
+              await SocialService.checkAndUnlock(
+                uid: myUid,
+                trigger: 'ai_used',
+              );
+
               setModal(() {
                 rewrittenText = result;
                 isLoading = false;
@@ -1930,6 +2164,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 chatHistory: history,
                 myName: myName,
                 otherName: widget.partnerName,
+              );
+
+              final myUid = ref.read(chatServiceProvider).myUid;
+              await SocialService.checkAndUnlock(
+                uid: myUid,
+                trigger: 'ai_used',
               );
 
               setModal(() {

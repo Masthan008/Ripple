@@ -111,12 +111,18 @@ class StatusService {
     return _fs
         .collection('statuses')
         .where('uid', whereIn: uids)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map(StatusModel.fromFirestore)
-            .where((s) => !s.isExpired)
-            .toList());
+        .handleError((e) {
+          debugPrint('\u274c getFriendsStatuses stream error: $e');
+        })
+        .map((snap) {
+          final list = snap.docs
+              .map(StatusModel.fromFirestore)
+              .where((s) => !s.isExpired)
+              .toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        });
   }
 
   // ── GET MY STATUSES ───────────────────────────────────
@@ -127,12 +133,18 @@ class StatusService {
     return _fs
         .collection('statuses')
         .where('uid', isEqualTo: uid)
-        .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((snap) => snap.docs
-            .map(StatusModel.fromFirestore)
-            .where((s) => !s.isExpired)
-            .toList());
+        .handleError((e) {
+          debugPrint('\u274c getMyStatuses stream error: $e');
+        })
+        .map((snap) {
+          final list = snap.docs
+              .map(StatusModel.fromFirestore)
+              .where((s) => !s.isExpired)
+              .toList();
+          list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          return list;
+        });
   }
 
   // ── CLEANUP EXPIRED (call on app open) ────────────────

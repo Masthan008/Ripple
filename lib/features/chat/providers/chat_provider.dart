@@ -161,6 +161,7 @@ class ChatService {
           senderName: myName,
           messageText: notifText,
           chatId: chatId,
+          senderUid: _myUid,
         );
       }
     } catch (_) {}
@@ -227,16 +228,24 @@ class ChatService {
 
   /// Set typing status
   Future<void> setTypingTo(String targetId) async {
-    await _firestore.collection('users').doc(_myUid).update({
-      'isTypingTo': targetId,
-    });
+    try {
+      await _firestore.collection('users').doc(_myUid).update({
+        'isTypingTo': targetId,
+      });
+    } catch (e) {
+      debugPrint('⚠️ setTypingTo failed: $e');
+    }
   }
 
   /// Clear typing status
   Future<void> clearTyping() async {
-    await _firestore.collection('users').doc(_myUid).update({
-      'isTypingTo': '',
-    });
+    try {
+      await _firestore.collection('users').doc(_myUid).update({
+        'isTypingTo': '',
+      });
+    } catch (e) {
+      debugPrint('⚠️ clearTyping failed: $e');
+    }
   }
 
   /// Extract participants from chatId

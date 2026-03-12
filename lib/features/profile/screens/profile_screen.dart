@@ -23,6 +23,8 @@ import 'data_usage_screen.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
 import '../../chat/screens/saved_messages_screen.dart';
+import '../../social/services/social_service.dart';
+import '../../social/widgets/achievements_section.dart';
 
 /// Profile Screen — PRD §6.8
 /// Full profile view with avatar, name, email, settings, about, and sign out
@@ -175,7 +177,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     style: AppTextStyles.display.copyWith(fontSize: 26),
                   ),
                   const SizedBox(height: 4),
-                  Text(u.email, style: AppTextStyles.caption),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(u.email, style: AppTextStyles.caption),
+                      const SizedBox(width: 8),
+                      // Ripple Score
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: SocialService.getRippleRankColor(u.rippleScore).withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                             Text(SocialService.getRippleRank(u.rippleScore),
+                              style: TextStyle(
+                                color: SocialService.getRippleRankColor(u.rippleScore),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                            Text(u.rippleScore.toString(),
+                              style: TextStyle(
+                                color: SocialService.getRippleRankColor(u.rippleScore),
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
 
                   const SizedBox(height: 8),
 
@@ -215,6 +251,44 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ),
 
                   const SizedBox(height: 28),
+                  AchievementsSection(uid: u.uid),
+
+                  const SizedBox(height: 24),
+
+                  // ─── Social & Activity Section ────────────
+                  _SectionHeader(title: 'Social & Activity'),
+                  const SizedBox(height: 8),
+
+                  _SettingsTile(
+                    icon: Icons.emoji_events_rounded,
+                    title: 'Leaderboard',
+                    subtitle: 'See how you rank among friends',
+                    iconColor: Colors.amber,
+                    onTap: () => context.push('/leaderboard'),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.people_alt_rounded,
+                    title: 'Friend Suggestions',
+                    subtitle: 'People you may know',
+                    iconColor: AppColors.aquaCore,
+                    onTap: () => context.push('/friend-suggestions'),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.local_fire_department_rounded,
+                    title: 'Activity Feed',
+                    subtitle: 'Recent updates from friends',
+                    iconColor: Colors.orange,
+                    onTap: () => context.push('/activity-feed'),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.visibility_rounded,
+                    title: 'Profile Visitors',
+                    subtitle: 'See who viewed your profile',
+                    iconColor: Colors.purple,
+                    onTap: () => context.push('/profile-visitors'),
+                  ),
+
+                  const SizedBox(height: 20),
 
                   // ─── Account Section ──────────────────────
                   _SectionHeader(title: 'Account'),
@@ -276,11 +350,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ),
                   _SettingsTile(
                     icon: Icons.lock_outline_rounded,
-                    title: 'Privacy',
-                    subtitle: 'Blocked users, read receipts',
+                    title: 'Privacy & Security',
+                    subtitle: 'Stealth mode, chat lock, visibility',
                     iconColor: const Color(0xFF4CAF50),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const PrivacyScreen())),
+                    onTap: () => context.push('/privacy-settings'),
                   ),
                   _SettingsTile(
                     icon: Icons.color_lens_outlined,

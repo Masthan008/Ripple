@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_windowmanager_plus/flutter_windowmanager_plus.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/utils/env.dart';
 import 'core/services/firebase_service.dart';
@@ -61,6 +63,13 @@ void main() async {
 
     // Start scheduled message checker (every 30s)
     ScheduleService.startScheduleChecker();
+
+    // Restore screenshot block setting
+    final prefs = await SharedPreferences.getInstance();
+    if (prefs.getBool('screenshot_block') ?? false) {
+      await FlutterWindowManagerPlus.addFlags(
+          FlutterWindowManagerPlus.FLAG_SECURE);
+    }
   } catch (e, stack) {
     debugPrint('⚠️ Initialization error: $e');
     debugPrint('$stack');

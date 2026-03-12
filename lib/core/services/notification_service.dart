@@ -115,12 +115,23 @@ class NotificationService {
     switch (type) {
       case 'chat':
         final chatId = data['chatId'] as String?;
-        final partnerUid = data['partnerUid'] as String?;
+        var partnerUid = data['partnerUid'] as String? ?? '';
         final partnerName = data['partnerName'] as String? ?? 'Chat';
-        if (chatId != null && chatId.isNotEmpty) {
+
+        // Fallback: derive partnerUid from chatId (format: uid1_uid2)
+        if (partnerUid.isEmpty && chatId != null && chatId.contains('_')) {
+          final currentUid =
+              FirebaseService.auth.currentUser?.uid ?? '';
+          final parts = chatId.split('_');
+          partnerUid = parts[0] == currentUid
+              ? (parts.length > 1 ? parts[1] : '')
+              : parts[0];
+        }
+
+        if (chatId != null && chatId.isNotEmpty && partnerUid.isNotEmpty) {
           router.push(
             '/chat?chatId=$chatId'
-            '&partnerUid=${partnerUid ?? ''}'
+            '&partnerUid=$partnerUid'
             '&partnerName=${Uri.encodeComponent(partnerName)}',
           );
         } else {
@@ -178,12 +189,18 @@ class NotificationService {
     required String senderName,
     required String messageText,
     required String chatId,
+    String senderUid = '',
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
       title: senderName,
       body: messageText,
-      data: {'type': 'chat', 'chatId': chatId},
+      data: {
+        'type': 'chat',
+        'chatId': chatId,
+        'partnerUid': senderUid,
+        'partnerName': senderName,
+      },
     );
   }
 

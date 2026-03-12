@@ -30,6 +30,8 @@ import '../../chat/widgets/glass_input_bar.dart';
 import '../../chat/widgets/message_bubble.dart';
 import '../../chat/widgets/message_context_menu.dart';
 import '../../chat/widgets/pinned_message_banner.dart';
+import '../../../core/services/privacy_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/group_provider.dart';
 import 'group_info_screen.dart';
 
@@ -64,6 +66,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   bool _isMultiSelectMode = false;
   final Set<String> _selectedMessageIds = {};
 
+  // Phase 6 — Privacy state
+  bool _incognitoKeyboard = false;
+  int _selfDestructSeconds = 0;
+
   @override
   void initState() {
     super.initState();
@@ -72,7 +78,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         chatId: widget.groupId,
         currentUid: ref.read(groupServiceProvider).myUid,
         isGroup: true,
+        selfDestructSeconds: _selfDestructSeconds,
       );
+      _loadPrivacySettings();
     });
   }
 
@@ -142,6 +150,116 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         mediaUrl: message.mediaUrl,
       );
     });
+  }
+
+  // ── Phase 6 — Privacy helpers ──────────────────────────
+
+  Future<void> _loadPrivacySettings() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Load self-destruct timer for this group
+      final groupDoc = await FirebaseFirestore.instance
+          .collection('groups').doc(widget.groupId).get();
+      final timer = groupDoc.data()?['selfDestructTimer'] as int? ?? 0;
+
+      if (mounted) {
+        setState(() {
+          _incognitoKeyboard = prefs.getBool('incognito_keyboard') ?? false;
+          _selfDestructSeconds = timer;
+        });
+      }
+    } catch (e) {
+      debugPrint('Privacy settings load error: $e');
+    }
+  }
+
+  void _showSelfDestructPicker() {
+    final options = [
+      {'label': 'Off', 'value': 0},
+      {'label': '5 seconds', 'value': 5},
+      {'label': '10 seconds', 'value': 10},
+      {'label': '30 seconds', 'value': 30},
+      {'label': '1 minute', 'value': 60},
+      {'label': '5 minutes', 'value': 300},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Padding(
+            padding: EdgeInsets.all(16),
+            child: Text('💣 Self-Destruct Timer',
+                style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
+          ),
+          ...options.map((o) => ListTile(
+                leading: Icon(
+                  o['value'] == 0
+                      ? Icons.timer_off_rounded
+                      : Icons.timer_rounded,
+                  color: AppColors.aquaCore,
+                ),
+                title: Text(o['label'] as String,
+                    style: const TextStyle(color: Colors.white)),
+                trailing: _selfDestructSeconds == o['value'] as int
+                    ? const Icon(Icons.check_rounded,
+                        color: AppColors.aquaCore)
+                    : null,
+                onTap: () async {
+                  final seconds = o['value'] as int;
+                  await PrivacyService.setSelfDestructTimer(
+                    chatId: widget.groupId,
+                    isGroup: true,
+                    seconds: seconds,
+                  );
+                  setState(() => _selfDestructSeconds = seconds);
+                  if (mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text(seconds == 0
+                          ? '💣 Timer disabled'
+                          : '💣 Messages delete after ${o['label']}'),
+                    ));
+                  }
+                },
+              )),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+
+  String _formatDestructTime(int seconds) {
+    if (seconds < 60) return '${seconds}s';
+    return '${seconds ~/ 60}m';
+  }
+
+  Future<void> _checkSelfDestruct(List<MessageModel> messages) async {
+    final now = DateTime.now();
+    for (final msg in messages) {
+      if (msg.deleteAt != null && msg.deleteAt!.toDate().isBefore(now)) {
+        await FirebaseFirestore.instance
+            .collection('groups')
+            .doc(widget.groupId)
+            .collection('messages')
+            .doc(msg.id)
+            .update({
+          'isDeleted': true,
+          'text': null,
+          'mediaUrl': null,
+          'deletedAt': FieldValue.serverTimestamp(),
+        });
+      }
+    }
   }
 
   void _showEditDialog(MessageModel message) {
@@ -376,6 +494,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         style: AppTextStyles.caption),
                   ),
                   data: (msgs) {
+                    _checkSelfDestruct(msgs);
+
                     final filtered = msgs
                         .where(
                             (m) => !m.deletedFor.contains(myUid))
@@ -448,6 +568,43 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               if (_isMultiSelectMode)
                 _buildMultiSelectBar(),
 
+              // Self-destruct banner
+              if (!_isMultiSelectMode && _selfDestructSeconds > 0)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  color: Colors.red.withOpacity(0.1),
+                  child: Row(
+                    children: [
+                      const Text('💣',
+                          style: TextStyle(fontSize: 14)),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Messages delete after '
+                        '${_formatDestructTime(_selfDestructSeconds)}',
+                        style: TextStyle(
+                            color: Colors.red.shade300, fontSize: 13),
+                      ),
+                      const Spacer(),
+                      GestureDetector(
+                        onTap: () async {
+                          await PrivacyService.setSelfDestructTimer(
+                            chatId: widget.groupId,
+                            isGroup: true,
+                            seconds: 0,
+                          );
+                          setState(() => _selfDestructSeconds = 0);
+                        },
+                        child: const Text('Turn Off',
+                            style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13)),
+                      ),
+                    ],
+                  ),
+                ),
+
               // Input bar
               if (!_isMultiSelectMode) ...[
                 GlassInputBar(
@@ -457,6 +614,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   replyTo: _replyTo,
                   onClearReply: () =>
                       setState(() => _replyTo = null),
+                  incognitoKeyboard: _incognitoKeyboard,
                   onEmoji: () {
                     setState(() => _showEmojiPicker =
                         !_showEmojiPicker);
@@ -726,6 +884,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                     ),
                   ),
                 );
+              } else if (value == 'self_destruct') {
+                _showSelfDestructPicker();
               }
             },
             itemBuilder: (_) => [
@@ -737,6 +897,17 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         color: AppColors.aquaCore, size: 20),
                     SizedBox(width: 12),
                     Text('Media & Files',
+                        style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'self_destruct',
+                child: Row(
+                  children: [
+                    Text('💣', style: TextStyle(fontSize: 18)),
+                    SizedBox(width: 12),
+                    Text('Self-Destruct Timer',
                         style: TextStyle(color: Colors.white)),
                   ],
                 ),

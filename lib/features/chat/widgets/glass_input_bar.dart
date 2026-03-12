@@ -24,6 +24,7 @@ class GlassInputBar extends StatefulWidget {
       onVoiceRecorded;
   final VoidCallback? onAiCompose;
   final VoidCallback? onToneFix;
+  final bool incognitoKeyboard;
 
   const GlassInputBar({
     super.key,
@@ -39,6 +40,7 @@ class GlassInputBar extends StatefulWidget {
     this.onVoiceRecorded,
     this.onAiCompose,
     this.onToneFix,
+    this.incognitoKeyboard = false,
   });
 
   @override
@@ -143,6 +145,11 @@ class _GlassInputBarState extends State<GlassInputBar> {
                 maxLines: 4,
                 minLines: 1,
                 textCapitalization: TextCapitalization.sentences,
+                keyboardType: widget.incognitoKeyboard
+                    ? TextInputType.visiblePassword
+                    : TextInputType.multiline,
+                autocorrect: !widget.incognitoKeyboard,
+                enableSuggestions: !widget.incognitoKeyboard,
                 decoration: InputDecoration(
                   hintText: 'Type a message...',
                   hintStyle: AppTextStyles.caption

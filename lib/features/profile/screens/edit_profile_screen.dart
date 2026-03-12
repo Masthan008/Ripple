@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -5,6 +7,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/cloudinary_service.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
@@ -55,16 +58,38 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
       setState(() => _isUploadingPhoto = true);
 
-      // For now, just show picked image path; full Cloudinary upload
-      // requires CloudinaryService configuration
-      // TODO: Upload to Cloudinary when service is configured
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Photo selected! Cloud upload coming soon.'),
-            backgroundColor: Color(0xFF0EA5E9),
-          ),
-        );
+      final file = File(picked.path);
+      final secureUrl = await CloudinaryService.uploadImage(file);
+
+      if (secureUrl != null) {
+        final uid = FirebaseService.auth.currentUser?.uid;
+        if (uid != null) {
+          await FirebaseService.firestore.collection('users').doc(uid).update({
+            'photoUrl': secureUrl,
+          });
+
+          setState(() {
+            _photoUrl = secureUrl;
+          });
+
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Profile photo updated!'),
+                backgroundColor: AppColors.onlineGreen,
+              ),
+            );
+          }
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Failed to upload photo. Please try again.'),
+              backgroundColor: AppColors.errorRed,
+            ),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

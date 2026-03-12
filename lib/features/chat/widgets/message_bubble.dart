@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:any_link_preview/any_link_preview.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -663,6 +664,47 @@ class MessageBubble extends StatelessWidget {
     }
   }
 
+  Widget _buildDestructCountdown(Timestamp deleteAt) {
+    return StreamBuilder<int>(
+      stream: Stream.periodic(
+        const Duration(seconds: 1),
+        (_) {
+          final remaining = deleteAt
+              .toDate()
+              .difference(DateTime.now())
+              .inSeconds;
+          return remaining < 0 ? 0 : remaining;
+        },
+      ),
+      builder: (_, snap) {
+        final remaining = snap.data ??
+            deleteAt.toDate().difference(DateTime.now()).inSeconds;
+        if (remaining <= 0) return const SizedBox.shrink();
+        return Container(
+          margin: const EdgeInsets.only(left: 6),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: Colors.red.withOpacity(0.2),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.timer_rounded,
+                  size: 10, color: Colors.red),
+              const SizedBox(width: 3),
+              Text('${remaining}s',
+                  style: const TextStyle(
+                      color: Colors.red,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildTimestamp() {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -698,9 +740,13 @@ class MessageBubble extends StatelessWidget {
             color: message.seenBy
                     .any((uid) => uid != currentUid)
                 ? AppColors.aquaCyan
-                : Colors.white.withValues(alpha: 0.5),
+                : Colors.white.withOpacity(0.38),
           ),
         ],
+
+        // Self-destruct countdown timer
+        if (message.deleteAt != null)
+          _buildDestructCountdown(message.deleteAt!),
       ],
     );
   }

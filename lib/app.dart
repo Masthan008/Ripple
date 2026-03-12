@@ -23,6 +23,15 @@ import 'features/search/screens/global_search_screen.dart';
 import 'features/chat/screens/saved_messages_screen.dart';
 import 'features/chat/screens/archived_chats_screen.dart';
 import 'features/ai/screens/ai_settings_screen.dart';
+import 'features/privacy/screens/privacy_settings_screen.dart';
+import 'features/privacy/screens/chat_lock_settings_screen.dart';
+import 'features/privacy/screens/fake_passcode_screen.dart';
+import 'features/profile/screens/other_user_profile_screen.dart';
+import 'features/social/screens/achievements_screen.dart';
+import 'features/social/screens/leaderboard_screen.dart';
+import 'features/social/screens/friend_suggestions_screen.dart';
+import 'features/social/screens/activity_feed_screen.dart';
+import 'features/social/screens/profile_visitors_screen.dart';
 
 /// GoRouter provider — created ONCE, uses refreshListenable to re-run redirect
 final routerProvider = Provider<GoRouter>((ref) {
@@ -134,6 +143,45 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/ai-settings',
         builder: (_, __) => const AiSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/privacy-settings',
+        builder: (_, __) => const PrivacySettingsScreen(),
+      ),
+      GoRoute(
+        path: '/chat-lock-settings',
+        builder: (_, __) => const ChatLockSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/fake-passcode',
+        builder: (_, __) => const FakePasscodeScreen(),
+      ),
+      GoRoute(
+        path: '/other-profile',
+        builder: (_, state) {
+          final uid = state.uri.queryParameters['uid'] ?? '';
+          return OtherUserProfileScreen(uid: uid);
+        },
+      ),
+      GoRoute(
+        path: '/achievements',
+        builder: (_, __) => const AchievementsScreen(),
+      ),
+      GoRoute(
+        path: '/leaderboard',
+        builder: (_, __) => const LeaderboardScreen(),
+      ),
+      GoRoute(
+        path: '/friend-suggestions',
+        builder: (_, __) => const FriendSuggestionsScreen(),
+      ),
+      GoRoute(
+        path: '/activity-feed',
+        builder: (_, __) => const ActivityFeedScreen(),
+      ),
+      GoRoute(
+        path: '/profile-visitors',
+        builder: (_, __) => const ProfileVisitorsScreen(),
       ),
     ],
     redirect: (context, state) {
