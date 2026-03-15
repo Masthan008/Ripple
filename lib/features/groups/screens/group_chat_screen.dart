@@ -1251,8 +1251,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           .collection('groups')
           .doc(widget.groupId)
           .update({
-        'lastMessage': '🎙️ Voice message',
-        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+        'lastMessage': {
+          'text': '🎙️ Voice message',
+          'senderId': myUid,
+          'timestamp': FieldValue.serverTimestamp(),
+          'type': 'voice',
+        },
       });
 
       _scrollToBottom();
@@ -1330,8 +1334,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           .collection('groups')
           .doc(widget.groupId)
           .update({
-        'lastMessage': '🎬 Video',
-        'lastMessageTimestamp': FieldValue.serverTimestamp(),
+        'lastMessage': {
+          'text': '🎬 Video',
+          'senderId': myUid,
+          'timestamp': FieldValue.serverTimestamp(),
+          'type': 'video',
+        },
       });
 
       _scrollToBottom();

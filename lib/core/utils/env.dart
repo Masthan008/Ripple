@@ -64,8 +64,8 @@ class Env {
   // ─── Giphy ────────────────────────────────────────────
   static String get giphyApiKey => dotenv.env['GIPHY_API_KEY'] ?? '';
 
-  // ─── Anthropic (Claude AI) ───────────────────────────
-  static String get anthropicApiKey => dotenv.env['ANTHROPIC_API_KEY'] ?? '';
+  // ─── Groq AI ───────────────────────────
+  static String get groqApiKey => dotenv.env['GROQ_API_KEY'] ?? '';
 
   // ─── App Config ──────────────────────────────────────
   static String get appName => dotenv.env['APP_NAME'] ?? 'Ripple';

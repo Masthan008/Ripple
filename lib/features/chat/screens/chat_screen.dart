@@ -38,6 +38,7 @@ import '../services/chat_organisation_service.dart';
 import '../../../core/services/ai_service.dart';
 import '../../../core/services/privacy_service.dart';
 import '../widgets/typing_indicator.dart';
+import '../widgets/chat_theme_picker.dart';
 import 'chat_media_gallery_screen.dart';
 import 'video_player_screen.dart';
 import '../../social/services/social_service.dart';
@@ -931,13 +932,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
 
           // Avatar
-          AquaAvatar(
-            imageUrl: widget.partnerPhoto,
-            name: widget.partnerName,
-            size: 36,
-            showOnlineDot: true,
-            isOnline:
-                partner.valueOrNull?.isOnline ?? false,
+          Hero(
+            tag: 'chat_avatar_${widget.chatId}',
+            child: AquaAvatar(
+              imageUrl: widget.partnerPhoto,
+              name: widget.partnerName,
+              size: 36,
+              showOnlineDot: true,
+              isOnline:
+                  partner.valueOrNull?.isOnline ?? false,
+            ),
           ),
 
           const SizedBox(width: 12),
@@ -1060,6 +1064,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 _showChatSummary();
               } else if (value == 'self_destruct') {
                 _showSelfDestructPicker();
+              } else if (value == 'theme') {
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder: (_) => ChatThemePicker(
+                    chatId: widget.chatId,
+                    onThemeChanged: () => setState(() {}),
+                  ),
+                );
               }
             },
             itemBuilder: (_) => [
@@ -1094,6 +1108,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     Text('💣', style: TextStyle(fontSize: 18)),
                     SizedBox(width: 12),
                     Text('Self-Destruct Timer',
+                        style: TextStyle(color: Colors.white)),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'theme',
+                child: Row(
+                  children: [
+                    Icon(Icons.palette_rounded,
+                        color: AppColors.aquaCore, size: 20),
+                    SizedBox(width: 12),
+                    Text('Chat Theme',
                         style: TextStyle(color: Colors.white)),
                   ],
                 ),

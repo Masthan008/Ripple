@@ -77,4 +77,20 @@ class AppTextStyles {
         fontWeight: FontWeight.w300,
         color: AppColors.textSecondary,
       );
+
+  // ─── Chat Bubble — Inter Regular 14sp ─────────────────
+  static TextStyle get chatBubble => GoogleFonts.inter(
+        fontSize: 14,
+        fontWeight: FontWeight.w400,
+        color: AppColors.textPrimary,
+        height: 1.4,
+      );
+
+  // ─── Chat Bubble Small — Inter Light 12sp ─────────────
+  static TextStyle get chatBubbleSmall => GoogleFonts.inter(
+        fontSize: 12,
+        fontWeight: FontWeight.w300,
+        color: AppColors.textSecondary,
+        height: 1.3,
+      );
 }

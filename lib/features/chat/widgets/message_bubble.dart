@@ -296,7 +296,7 @@ class MessageBubble extends StatelessWidget {
           text,
           style: isEmoji
               ? const TextStyle(fontSize: 32)
-              : AppTextStyles.body.copyWith(
+              : AppTextStyles.chatBubble.copyWith(
                   color: Colors.white,
                   height: 1.4,
                 ),

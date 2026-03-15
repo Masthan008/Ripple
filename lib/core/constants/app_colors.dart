@@ -23,6 +23,8 @@ class AppColors {
   static const Color glassPanel = Color(0x14FFFFFF); // 8% white
   static const Color glassBorder = Color(0x2DFFFFFF); // 18% white
   static const Color glassBorderLight = Color(0x0FFFFFFF); // 6% white
+  static const Color glassTintLight = Color(0x0A22D3EE); // subtle cyan tint
+  static const Color glassTintDark = Color(0x0A0C4A6E); // subtle deep blue tint
 
   // ─── Status Colors ───────────────────────────────────
   static const Color onlineGreen = Color(0xFF22C55E);

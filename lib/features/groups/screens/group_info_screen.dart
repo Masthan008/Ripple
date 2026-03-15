@@ -1,10 +1,14 @@
 import 'dart:io';
+import 'dart:math';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:qr_flutter/qr_flutter.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -323,6 +327,9 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                       ),
                     ),
                     const SizedBox(height: 28),
+
+                    // ─── Invite Link Section ──────────────
+                    if (isAdmin) _buildInviteLinkSection(groupSnap.data),
 
                     // ─── Members Section ─────────────────
                     Row(
@@ -1042,4 +1049,173 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       },
     );
   }
+
+  // ─── Invite Link / QR Section ─────────────────────────
+
+  Widget _buildInviteLinkSection(DocumentSnapshot<Map<String, dynamic>>? groupDoc) {
+    final inviteCode = groupDoc?.data()?['inviteCode'] as String?;
+    final inviteLink = inviteCode != null
+        ? 'https://ripple.app/join/$inviteCode'
+        : null;
+
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.link_rounded, color: AppColors.aquaCore, size: 18),
+              const SizedBox(width: 8),
+              Text('Invite Link',
+                  style: AppTextStyles.headingSmall.copyWith(fontSize: 14)),
+              const Spacer(),
+              if (inviteCode == null)
+                GestureDetector(
+                  onTap: () => _generateInviteCode(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.buttonGradient,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Text('Generate',
+                        style: AppTextStyles.label.copyWith(fontSize: 12)),
+                  ),
+                ),
+            ],
+          ),
+
+          if (inviteCode != null) ...[
+            const SizedBox(height: 14),
+
+            // QR Code
+            Center(
+              child: Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: QrImageView(
+                  data: inviteLink!,
+                  version: QrVersions.auto,
+                  size: 140,
+                  backgroundColor: Colors.white,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Invite code display
+            Center(
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: SelectableText(
+                  inviteLink!,
+                  style: AppTextStyles.caption.copyWith(
+                    color: AppColors.aquaCyan,
+                    fontSize: 12,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            // Actions
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _inviteButton(
+                  icon: Icons.copy_rounded,
+                  label: 'Copy',
+                  onTap: () {
+                    Clipboard.setData(ClipboardData(text: inviteLink!));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Link copied! 📋')),
+                    );
+                  },
+                ),
+                const SizedBox(width: 12),
+                _inviteButton(
+                  icon: Icons.share_rounded,
+                  label: 'Share',
+                  onTap: () => Share.share(
+                    'Join my group on Ripple!\n$inviteLink',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                _inviteButton(
+                  icon: Icons.refresh_rounded,
+                  label: 'Reset',
+                  onTap: () => _generateInviteCode(),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _inviteButton({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.aquaCore.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.aquaCore.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.aquaCore, size: 16),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(
+              color: AppColors.aquaCore, fontSize: 12, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _generateInviteCode() async {
+    try {
+      final random = Random.secure();
+      final code = List.generate(8, (_) {
+        const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
+        return chars[random.nextInt(chars.length)];
+      }).join();
+
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .update({'inviteCode': code});
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invite link generated! 🔗')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e'), backgroundColor: AppColors.errorRed),
+        );
+      }
+    }
+  }
 }
+

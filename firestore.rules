@@ -22,13 +22,30 @@ service cloud.firestore {
       allow create: if isOwner(userId);
 
       // User can fully update their own document
-      // OTHER users can update only friendRequests, friends, blockedUsers
+      // OTHER users can update social/friend fields
       allow update: if isOwner(userId)
         || (isSignedIn()
             && request.resource.data.diff(resource.data).affectedKeys()
-               .hasOnly(['friendRequests', 'friends', 'blockedUsers', 'oneSignalPlayerId']));
+               .hasOnly([
+                 'friendRequests', 'friends', 'blockedUsers', 'oneSignalPlayerId',
+                 'rippleScore', 'totalMessagesSent', 'totalImagesSent',
+                 'totalVoiceMessages', 'totalFriends', 'translatorUsed',
+                 'aiFeaturesUsed'
+               ]));
 
       allow delete: if false;
+
+      // Achievements subcollection
+      match /achievements/{docId} {
+        allow read: if isSignedIn();
+        allow write: if isSignedIn();
+      }
+
+      // Visitors subcollection
+      match /visitors/{docId} {
+        allow read: if isOwner(userId);
+        allow write: if isSignedIn();
+      }
     }
 
     // ═══════════════════════════════════════════════════════

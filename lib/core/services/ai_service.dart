@@ -8,49 +8,48 @@ import '../utils/env.dart';
 /// AI Service powered by Claude API — provides smart replies, chat summary,
 /// translation, tone fixing, spam detection, AI compose, and message explain.
 class AiService {
-  static const _baseUrl = 'https://api.anthropic.com/v1/messages';
-  static const _haiku = 'claude-3-5-haiku-20241022';
-  static const _sonnet = 'claude-3-5-sonnet-20241022';
+  static const _baseUrl = 'https://api.groq.com/openai/v1/chat/completions';
+  static const _defaultModel = 'llama-3.3-70b-versatile';
 
-  // ── CORE API CALL ─────────────────────────────────────
   static Future<String> _call({
     required String prompt,
-    String model = _haiku,
-    int maxTokens = 300,
     String? systemPrompt,
+    int maxTokens = 300,
+    String? model, // Uses llama-3.3-70b-versatile by default
   }) async {
     try {
+      final apiKey = Env.groqApiKey;
+
+      final messages = [];
+      if (systemPrompt != null) {
+        messages.add({'role': 'system', 'content': systemPrompt});
+      }
+      messages.add({'role': 'user', 'content': prompt});
+
       final response = await Dio().post(
         _baseUrl,
         options: Options(
           headers: {
-            'x-api-key': Env.anthropicApiKey,
-            'anthropic-version': '2023-06-01',
-            'content-type': 'application/json',
+            'Authorization': 'Bearer $apiKey',
+            'Content-Type': 'application/json',
           },
           sendTimeout: const Duration(seconds: 30),
           receiveTimeout: const Duration(seconds: 30),
         ),
         data: {
-          'model': model,
+          'model': model ?? _defaultModel,
+          'messages': messages,
           'max_tokens': maxTokens,
-          if (systemPrompt != null) 'system': systemPrompt,
-          'messages': [
-            {'role': 'user', 'content': prompt},
-          ],
+          'temperature': 0.7,
         },
       );
 
-      final content = response.data['content'] as List;
-      return content
-          .where((c) => c['type'] == 'text')
-          .map((c) => c['text'] as String)
-          .join('');
+      final choices = response.data['choices'] as List;
+      final message = choices[0]['message'];
+      return message['content'] as String;
+
     } on DioException catch (e) {
-      debugPrint('❌ AI Service error [${e.response?.statusCode}]: '
-          '${e.response?.data}');
-      debugPrint('   API key present: ${Env.anthropicApiKey.isNotEmpty}');
-      debugPrint('   Model: $model');
+      debugPrint('❌ Groq error: ${e.response?.data}');
       throw AiException(_parseError(e));
     } catch (e) {
       debugPrint('❌ AI Service unexpected error: $e');
@@ -60,8 +59,9 @@ class AiService {
 
   static String _parseError(DioException e) {
     final status = e.response?.statusCode;
-    if (status == 401) return 'Invalid API key';
-    if (status == 429) return 'Too many requests. Please wait a moment.';
+    if (status == 400) return 'Bad request — check prompt';
+    if (status == 401) return 'Invalid Groq API key';
+    if (status == 429) return 'Rate limit — try again soon';
     if (status == 500) return 'AI service temporarily unavailable';
     return 'AI request failed';
   }
@@ -114,7 +114,6 @@ class AiService {
         .join('\n');
 
     return await _call(
-      model: _sonnet,
       maxTokens: 400,
       systemPrompt:
           'You are a chat summariser. Create clear, concise summaries '
@@ -218,7 +217,6 @@ class AiService {
         .join('\n');
 
     return await _call(
-      model: _sonnet,
       maxTokens: 200,
       systemPrompt:
           'You are a message composer for a chat app. Write natural, '
@@ -247,6 +245,24 @@ class AiService {
           '3. Any slang or cultural context\n4. How to respond\n'
           'Keep it brief and friendly.',
       maxTokens: 250,
+    );
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FEATURE 8 — STATUS CAPTION GENERATOR
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  static Future<String> generateCaption({
+    required String context,
+    String? mood,
+  }) async {
+    final moodHint = mood != null ? ' The mood is: $mood.' : '';
+    return _call(
+      systemPrompt:
+          'You are a creative social media caption generator. Generate a single '
+          'engaging, short caption (under 15 words) for a status update. '
+          'Be trendy, fun, and use 1-2 emojis. Return ONLY the caption text, nothing else.',
+      prompt: 'Generate a caption for this status: $context.$moodHint',
+      maxTokens: 60,
     );
   }
 }

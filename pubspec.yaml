@@ -17,6 +17,7 @@ dependencies:
 
   # Authentication
   google_sign_in: ^6.2.1
+  flutter_svg: ^2.0.10
 
   # Environment
   flutter_dotenv: ^5.2.1

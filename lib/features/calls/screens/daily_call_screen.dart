@@ -10,6 +10,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/daily_service.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../widgets/pip_call_overlay.dart';
 
 /// Daily.co-powered video/audio call screen using InAppWebView.
 /// InAppWebView supports camera/mic permissions natively on Android.
@@ -204,7 +205,37 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
     } catch (_) {}
 
     DailyService.deleteRoom(widget.channelName);
+    PipManager.dismiss(); // Remove PiP if active
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Minimize call into PiP overlay
+  void _minimizeCall() {
+    if (!_isConnected) return;
+    PipManager.show(
+      context: context,
+      callerName: widget.otherUserName,
+      isVideo: widget.isVideo,
+      onExpand: () {
+        // Re-open the full call screen
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => DailyCallScreen(
+              callId: widget.callId,
+              channelName: widget.channelName,
+              currentUserId: widget.currentUserId,
+              currentUserName: widget.currentUserName,
+              otherUserName: widget.otherUserName,
+              otherUserId: widget.otherUserId,
+              isVideo: widget.isVideo,
+              isGroup: widget.isGroup,
+            ),
+          ),
+        );
+      },
+      onEndCall: () => _endCall(),
+    );
+    Navigator.of(context).pop();
   }
 
   @override
@@ -490,28 +521,53 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
               Positioned(
                 bottom: 40,
                 right: 20,
-                child: GestureDetector(
-                  onTap: _endCall,
-                  child: Container(
-                    width: 56,
-                    height: 56,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.red,
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.red.withOpacity(0.5),
-                          blurRadius: 12,
-                          spreadRadius: 2,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Minimize to PiP
+                    if (_isConnected)
+                      GestureDetector(
+                        onTap: _minimizeCall,
+                        child: Container(
+                          width: 48,
+                          height: 48,
+                          margin: const EdgeInsets.only(right: 12),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: Colors.white.withOpacity(0.15),
+                            border: Border.all(color: Colors.white24),
+                          ),
+                          child: const Icon(
+                            Icons.picture_in_picture_alt_rounded,
+                            color: Colors.white,
+                            size: 22,
+                          ),
                         ),
-                      ],
+                      ),
+                    GestureDetector(
+                      onTap: _endCall,
+                      child: Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.red,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.red.withOpacity(0.5),
+                              blurRadius: 12,
+                              spreadRadius: 2,
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.call_end_rounded,
+                          color: Colors.white,
+                          size: 26,
+                        ),
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.call_end_rounded,
-                      color: Colors.white,
-                      size: 26,
-                    ),
-                  ),
+                  ],
                 ),
               ),
           ],

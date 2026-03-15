@@ -112,8 +112,12 @@ class ScheduleService {
               .collection(collection)
               .doc(data['chatId'] as String)
               .update({
-            'lastMessage': data['text'],
-            'lastMessageAt': FieldValue.serverTimestamp(),
+            'lastMessage': {
+              'text': data['text'],
+              'senderId': uid,
+              'timestamp': FieldValue.serverTimestamp(),
+              'type': 'text',
+            },
           });
         } catch (e) {
           debugPrint('Failed to send scheduled message: $e');

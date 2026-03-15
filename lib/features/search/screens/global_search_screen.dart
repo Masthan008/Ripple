@@ -1,12 +1,17 @@
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/haptic_feedback.dart';
 
-/// Global search screen — searches people, chats, and messages.
+/// Global search screen — searches people, chats, messages, media, and links.
+/// Phase 2 upgrade: filter chips, media/link search, functional navigation.
 class GlobalSearchScreen extends StatefulWidget {
   const GlobalSearchScreen({super.key});
 
@@ -19,10 +24,15 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   String _query = '';
   bool _isSearching = false;
   Timer? _searchDebounce;
+  String _activeFilter = 'All';
+
+  static const _filters = ['All', 'People', 'Messages', 'Media', 'Links'];
 
   List<Map<String, dynamic>> _peopleResults = [];
   List<Map<String, dynamic>> _chatResults = [];
   List<Map<String, dynamic>> _messageResults = [];
+  List<Map<String, dynamic>> _mediaResults = [];
+  List<Map<String, dynamic>> _linkResults = [];
 
   @override
   Widget build(BuildContext context) {
@@ -64,14 +74,111 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
             ),
         ],
       ),
-      body: _query.length < 2
-          ? _buildSearchSuggestions()
-          : _isSearching
-              ? const Center(
-                  child: CircularProgressIndicator(
-                      color: AppColors.aquaCore))
-              : _buildResults(),
+      body: Column(
+        children: [
+          // Filter chips
+          if (_query.length >= 2) _buildFilterBar(),
+
+          // Results
+          Expanded(
+            child: _query.length < 2
+                ? _buildSearchSuggestions()
+                : _isSearching
+                    ? const Center(
+                        child: CircularProgressIndicator(
+                            color: AppColors.aquaCore))
+                    : _buildResults(),
+          ),
+        ],
+      ),
     );
+  }
+
+  Widget _buildFilterBar() {
+    return Container(
+      height: 48,
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      decoration: const BoxDecoration(
+        color: Color(0xFF0A1628),
+        border: Border(
+          bottom: BorderSide(color: Color(0x0FFFFFFF), width: 0.5),
+        ),
+      ),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: _filters.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
+        itemBuilder: (_, i) {
+          final filter = _filters[i];
+          final isActive = _activeFilter == filter;
+          final count = _getFilterCount(filter);
+          return GestureDetector(
+            onTap: () {
+              AppHaptics.selectionTick();
+              setState(() => _activeFilter = filter);
+            },
+            child: Center(
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 200),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(20),
+                  color: isActive
+                      ? AppColors.aquaCore.withValues(alpha: 0.2)
+                      : Colors.white.withValues(alpha: 0.06),
+                  border: Border.all(
+                    color: isActive ? AppColors.aquaCore : Colors.transparent,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      filter,
+                      style: TextStyle(
+                        color: isActive ? AppColors.aquaCore : Colors.white54,
+                        fontSize: 13,
+                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    ),
+                    if (count > 0) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(
+                          color: isActive
+                              ? AppColors.aquaCore.withValues(alpha: 0.3)
+                              : Colors.white12,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '$count',
+                          style: TextStyle(
+                            color: isActive ? AppColors.aquaCore : Colors.white38,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  int _getFilterCount(String filter) {
+    switch (filter) {
+      case 'People': return _peopleResults.length;
+      case 'Messages': return _messageResults.length;
+      case 'Media': return _mediaResults.length;
+      case 'Links': return _linkResults.length;
+      default: return 0;
+    }
   }
 
   Widget _buildSearchSuggestions() {
@@ -88,7 +195,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   fontSize: 20,
                   fontWeight: FontWeight.bold)),
           const SizedBox(height: 8),
-          const Text('Find people, chats\nand messages',
+          const Text('Find people, chats, messages,\nmedia & links',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.white38)),
         ],
@@ -97,9 +204,15 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   Widget _buildResults() {
-    final hasAny = _peopleResults.isNotEmpty ||
-        _chatResults.isNotEmpty ||
-        _messageResults.isNotEmpty;
+    final showPeople = _activeFilter == 'All' || _activeFilter == 'People';
+    final showMessages = _activeFilter == 'All' || _activeFilter == 'Messages';
+    final showMedia = _activeFilter == 'All' || _activeFilter == 'Media';
+    final showLinks = _activeFilter == 'All' || _activeFilter == 'Links';
+
+    final hasAny = (showPeople && _peopleResults.isNotEmpty) ||
+        (showMessages && _messageResults.isNotEmpty) ||
+        (showMedia && _mediaResults.isNotEmpty) ||
+        (showLinks && _linkResults.isNotEmpty);
 
     if (!hasAny) {
       return Center(
@@ -118,78 +231,210 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     return ListView(
       children: [
         // PEOPLE section
-        if (_peopleResults.isNotEmpty) ...[
-          _sectionHeader('People'),
-          ..._peopleResults.map((user) => ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFF1A2A40),
-                  child: Text(
-                    (user['name'] as String? ?? '?')[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                title: Text(user['name'] as String? ?? '',
-                    style: const TextStyle(color: Colors.white)),
-                subtitle: Text('@${user['username'] ?? ''}',
-                    style: const TextStyle(color: Colors.white54, fontSize: 13)),
-                onTap: () {},
-              )),
-        ],
-
-        // CHATS section
-        if (_chatResults.isNotEmpty) ...[
-          _sectionHeader('Chats'),
-          ..._chatResults.map((chat) => ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFF1A2A40),
-                  child: const Icon(Icons.chat_bubble_outline,
-                      color: Colors.white54, size: 18),
-                ),
-                title: Text(chat['name'] as String? ?? '',
-                    style: const TextStyle(color: Colors.white)),
-                subtitle: Text(chat['lastMessage'] as String? ?? '',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white54, fontSize: 13)),
-                onTap: () {},
-              )),
+        if (showPeople && _peopleResults.isNotEmpty) ...[
+          _sectionHeader('People', Icons.person_rounded),
+          ..._peopleResults.map(_buildPersonTile),
         ],
 
         // MESSAGES section
-        if (_messageResults.isNotEmpty) ...[
-          _sectionHeader('Messages'),
-          ..._messageResults.map((msg) => ListTile(
-                leading: CircleAvatar(
-                  backgroundColor: const Color(0xFF1A2A40),
-                  child: Text(
-                    (msg['senderName'] as String? ?? '?')[0].toUpperCase(),
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ),
-                title: Text(msg['senderName'] as String? ?? '',
-                    style: const TextStyle(color: Colors.white)),
-                subtitle: _HighlightedText(
-                    text: msg['text'] as String? ?? '', query: _query),
-                trailing: Text(
-                  _timeAgo(msg['createdAt']),
-                  style: const TextStyle(color: Colors.white38, fontSize: 11),
-                ),
-                onTap: () {},
-              )),
+        if (showMessages && _messageResults.isNotEmpty) ...[
+          _sectionHeader('Messages', Icons.chat_rounded),
+          ..._messageResults.map(_buildMessageTile),
         ],
+
+        // MEDIA section
+        if (showMedia && _mediaResults.isNotEmpty) ...[
+          _sectionHeader('Media', Icons.photo_library_rounded),
+          _buildMediaGrid(),
+        ],
+
+        // LINKS section
+        if (showLinks && _linkResults.isNotEmpty) ...[
+          _sectionHeader('Links', Icons.link_rounded),
+          ..._linkResults.map(_buildLinkTile),
+        ],
+
+        const SizedBox(height: 24),
       ],
     );
   }
 
-  Widget _sectionHeader(String title) {
+  Widget _buildPersonTile(Map<String, dynamic> user) {
+    final photoUrl = user['photoUrl'] as String? ?? '';
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFF1A2A40),
+        backgroundImage: photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null,
+        child: photoUrl.isEmpty
+            ? Text(
+                (user['name'] as String? ?? '?')[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white),
+              )
+            : null,
+      ),
+      title: Text(user['name'] as String? ?? '',
+          style: const TextStyle(color: Colors.white)),
+      subtitle: Text('@${user['username'] ?? ''}',
+          style: const TextStyle(color: Colors.white54, fontSize: 13)),
+      trailing: const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+      onTap: () {
+        final uid = user['uid'] as String? ?? '';
+        if (uid.isNotEmpty) {
+          // Navigate to chat with this user (find or create chat)
+          GoRouter.of(context).push(
+            '/chat?partnerUid=$uid&partnerName=${Uri.encodeComponent(user['name'] ?? 'User')}&partnerPhoto=${Uri.encodeComponent(photoUrl)}',
+          );
+        }
+      },
+    );
+  }
+
+  Widget _buildMessageTile(Map<String, dynamic> msg) {
+    return ListTile(
+      leading: CircleAvatar(
+        backgroundColor: const Color(0xFF1A2A40),
+        child: Text(
+          (msg['senderName'] as String? ?? '?')[0].toUpperCase(),
+          style: const TextStyle(color: Colors.white),
+        ),
+      ),
+      title: Text(msg['senderName'] as String? ?? '',
+          style: const TextStyle(color: Colors.white)),
+      subtitle: _HighlightedText(text: msg['text'] as String? ?? '', query: _query),
+      trailing: Text(
+        _timeAgo(msg['createdAt']),
+        style: const TextStyle(color: Colors.white38, fontSize: 11),
+      ),
+      onTap: () {
+        final chatId = msg['chatId'] as String? ?? '';
+        if (chatId.isNotEmpty) {
+          GoRouter.of(context).push('/chat?chatId=$chatId');
+        }
+      },
+    );
+  }
+
+  Widget _buildMediaGrid() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      child: GridView.builder(
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 3,
+          crossAxisSpacing: 4,
+          mainAxisSpacing: 4,
+        ),
+        itemCount: _mediaResults.length,
+        itemBuilder: (_, i) {
+          final media = _mediaResults[i];
+          final url = media['mediaUrl'] as String? ?? '';
+          final isVideo = media['type'] == 'video';
+          return GestureDetector(
+            onTap: () {
+              final chatId = media['chatId'] as String? ?? '';
+              if (chatId.isNotEmpty) {
+                GoRouter.of(context).push('/chat?chatId=$chatId');
+              }
+            },
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  CachedNetworkImage(
+                    imageUrl: (media['thumbnailUrl'] as String?) ?? url,
+                    fit: BoxFit.cover,
+                    placeholder: (_, __) => Container(
+                      color: AppColors.glassPanel,
+                      child: const Center(
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: AppColors.aquaCore),
+                      ),
+                    ),
+                    errorWidget: (_, __, ___) => Container(
+                      color: AppColors.glassPanel,
+                      child: const Icon(Icons.broken_image,
+                          color: Colors.white24, size: 24),
+                    ),
+                  ),
+                  if (isVideo)
+                    Center(
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.black.withValues(alpha: 0.6),
+                        ),
+                        child: const Icon(Icons.play_arrow_rounded,
+                            color: Colors.white, size: 20),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildLinkTile(Map<String, dynamic> msg) {
+    final text = msg['text'] as String? ?? '';
+    final url = _extractUrl(text) ?? text;
+    return ListTile(
+      leading: Container(
+        width: 40,
+        height: 40,
+        decoration: BoxDecoration(
+          color: AppColors.aquaCore.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Icon(Icons.link_rounded, color: AppColors.aquaCore, size: 20),
+      ),
+      title: Text(
+        url,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: AppColors.aquaCyan,
+          fontSize: 13,
+          decoration: TextDecoration.underline,
+        ),
+      ),
+      subtitle: Text(
+        'from ${msg['senderName'] ?? 'unknown'}',
+        style: const TextStyle(color: Colors.white38, fontSize: 11),
+      ),
+      trailing: Text(
+        _timeAgo(msg['createdAt']),
+        style: const TextStyle(color: Colors.white38, fontSize: 11),
+      ),
+      onTap: () {
+        final chatId = msg['chatId'] as String? ?? '';
+        if (chatId.isNotEmpty) {
+          GoRouter.of(context).push('/chat?chatId=$chatId');
+        }
+      },
+    );
+  }
+
+  Widget _sectionHeader(String title, IconData icon) {
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-      child: Text(title,
-          style: TextStyle(
-              color: AppColors.aquaCore,
-              fontSize: 13,
-              fontWeight: FontWeight.bold,
-              letterSpacing: 0.5)),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.aquaCore, size: 16),
+          const SizedBox(width: 8),
+          Text(title,
+              style: TextStyle(
+                  color: AppColors.aquaCore,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 0.5)),
+        ],
+      ),
     );
   }
 
@@ -203,8 +448,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
       await Future.wait([
         _searchPeople(query),
-        _searchChats(query),
         _searchMessages(query),
+        _searchMedia(query),
+        _searchLinks(query),
       ]);
 
       if (mounted) setState(() => _isSearching = false);
@@ -240,29 +486,6 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       }
 
       if (mounted) setState(() => _peopleResults = all);
-    } catch (_) {}
-  }
-
-  Future<void> _searchChats(String query) async {
-    try {
-      final uid = FirebaseAuth.instance.currentUser!.uid;
-      final snap = await FirebaseFirestore.instance
-          .collection('chats')
-          .where('participants', arrayContains: uid)
-          .limit(50)
-          .get();
-
-      final q = query.toLowerCase();
-      final results = snap.docs
-          .map((d) => {...d.data(), 'chatId': d.id})
-          .where((chat) {
-        final name = (chat['name'] as String? ?? '').toLowerCase();
-        final lastMsg =
-            (chat['lastMessage'] as String? ?? '').toLowerCase();
-        return name.contains(q) || lastMsg.contains(q);
-      }).toList();
-
-      if (mounted) setState(() => _chatResults = results);
     } catch (_) {}
   }
 
@@ -305,11 +528,102 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     } catch (_) {}
   }
 
+  Future<void> _searchMedia(String query) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final results = <Map<String, dynamic>>[];
+
+      final chatsSnap = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('participants', arrayContains: uid)
+          .limit(20)
+          .get();
+
+      for (final chat in chatsSnap.docs) {
+        final msgsSnap = await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(chat.id)
+            .collection('messages')
+            .where('type', whereIn: ['image', 'video'])
+            .orderBy('createdAt', descending: true)
+            .limit(15)
+            .get();
+
+        for (final msg in msgsSnap.docs) {
+          results.add({
+            ...msg.data(),
+            'messageId': msg.id,
+            'chatId': chat.id,
+          });
+        }
+        if (results.length >= 20) break;
+      }
+
+      if (mounted) setState(() => _mediaResults = results);
+    } catch (_) {}
+  }
+
+  Future<void> _searchLinks(String query) async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser!.uid;
+      final results = <Map<String, dynamic>>[];
+
+      final chatsSnap = await FirebaseFirestore.instance
+          .collection('chats')
+          .where('participants', arrayContains: uid)
+          .limit(20)
+          .get();
+
+      for (final chat in chatsSnap.docs) {
+        final msgsSnap = await FirebaseFirestore.instance
+            .collection('chats')
+            .doc(chat.id)
+            .collection('messages')
+            .where('type', isEqualTo: 'text')
+            .orderBy('createdAt', descending: true)
+            .limit(50)
+            .get();
+
+        for (final msg in msgsSnap.docs) {
+          final text = msg.data()['text'] as String? ?? '';
+          if (_containsUrl(text)) {
+            results.add({
+              ...msg.data(),
+              'messageId': msg.id,
+              'chatId': chat.id,
+            });
+          }
+        }
+        if (results.length >= 15) break;
+      }
+
+      if (mounted) setState(() => _linkResults = results);
+    } catch (_) {}
+  }
+
+  static final _urlRegex = RegExp(
+    r'(https?:\/\/)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b([-a-zA-Z0-9()@:%_\+.~#?&//=]*)',
+    caseSensitive: false,
+  );
+
+  bool _containsUrl(String text) => _urlRegex.hasMatch(text);
+
+  String? _extractUrl(String text) {
+    final match = _urlRegex.firstMatch(text)?.group(0);
+    if (match == null) return null;
+    if (!match.startsWith('http://') && !match.startsWith('https://')) {
+      return 'https://$match';
+    }
+    return match;
+  }
+
   void _clearResults() {
     setState(() {
       _peopleResults = [];
       _chatResults = [];
       _messageResults = [];
+      _mediaResults = [];
+      _linkResults = [];
     });
   }
 

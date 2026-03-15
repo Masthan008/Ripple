@@ -99,10 +99,17 @@ class ArchivedChatsScreen extends StatelessWidget {
                           orElse: () => '');
                   final name =
                       data['name'] as String? ?? 'Chat';
-                  final lastMsg =
-                      data['lastMessage'] as String? ?? '';
-                  final lastMsgAt =
-                      data['lastMessageAt'] as Timestamp?;
+                  final lastMsg = () {
+                      final lm = data['lastMessage'];
+                      if (lm is Map) return lm['text'] as String? ?? '';
+                      if (lm is String) return lm;
+                      return '';
+                    }();
+                  final lastMsgAt = () {
+                      final lm = data['lastMessage'];
+                      if (lm is Map) return lm['timestamp'] as Timestamp?;
+                      return data['lastMessageAt'] as Timestamp?;
+                    }();
 
                   return ListTile(
                     leading: CircleAvatar(

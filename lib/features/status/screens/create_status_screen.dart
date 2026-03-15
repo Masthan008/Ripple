@@ -7,6 +7,8 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/cloudinary_service.dart';
+import '../../../core/services/ai_service.dart';
+import '../../../core/utils/haptic_feedback.dart';
 import '../models/mood_config.dart';
 import '../services/status_service.dart';
 
@@ -148,22 +150,24 @@ class CreateStatusSheet extends StatelessWidget {
       final url = await CloudinaryService.uploadImage(File(filePath));
       if (url == null) throw Exception('Upload failed');
 
-      // Post status
-      await StatusService.postStatus(type: 'photo', mediaUrl: url);
-
       scaffold.hideCurrentSnackBar();
-      scaffold.showSnackBar(
-        const SnackBar(
-          content: Text('Photo status posted! 🎉'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Color(0xFF1A2A40),
-        ),
-      );
+
+      // Navigate to Caption Editor
+      if (context.mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _StatusCaptionEditor(
+              mediaUrl: url,
+              type: 'photo',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       scaffold.hideCurrentSnackBar();
       scaffold.showSnackBar(
         SnackBar(
-          content: Text('Failed to post photo: $e'),
+          content: Text('Failed to process photo: $e'),
           backgroundColor: Colors.red.shade800,
         ),
       );
@@ -192,27 +196,229 @@ class CreateStatusSheet extends StatelessWidget {
       final url = await CloudinaryService.uploadVideo(File(picked.path));
       if (url == null) throw Exception('Upload failed');
 
-      await StatusService.postStatus(type: 'video', mediaUrl: url);
-
       scaffold.hideCurrentSnackBar();
-      scaffold.showSnackBar(
-        const SnackBar(
-          content: Text('Video status posted! 🎉'),
-          duration: Duration(seconds: 2),
-          backgroundColor: Color(0xFF1A2A40),
-        ),
-      );
+
+      // Navigate to Caption Editor
+      if (context.mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => _StatusCaptionEditor(
+              mediaUrl: url,
+              type: 'video',
+            ),
+          ),
+        );
+      }
     } catch (e) {
       scaffold.hideCurrentSnackBar();
       scaffold.showSnackBar(
         SnackBar(
-          content: Text('Failed to post video: $e'),
+          content: Text('Failed to process video: $e'),
           backgroundColor: Colors.red.shade800,
         ),
       );
     }
   }
 }
+
+// ─── Status Caption Editor ────────────────────────────────
+
+class _StatusCaptionEditor extends StatefulWidget {
+  final String mediaUrl;
+  final String type; // 'photo' or 'video'
+
+  const _StatusCaptionEditor({
+    required this.mediaUrl,
+    required this.type,
+  });
+
+  @override
+  State<_StatusCaptionEditor> createState() => _StatusCaptionEditorState();
+}
+
+class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
+  final _captionCtrl = TextEditingController();
+  bool _isGenerating = false;
+  bool _isPosting = false;
+
+  @override
+  void dispose() {
+    _captionCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _generateAiCaption() async {
+    setState(() => _isGenerating = true);
+    AppHaptics.lightTap();
+    
+    try {
+      final caption = await AiService.generateCaption(
+        context: 'A ${widget.type} shared as a status update',
+        mood: 'fun and casual',
+      );
+      
+      if (mounted) {
+        _captionCtrl.text = caption;
+        AppHaptics.success();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('AI Error: $e'), backgroundColor: AppColors.errorRed),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isGenerating = false);
+    }
+  }
+
+  Future<void> _postStatus() async {
+    setState(() => _isPosting = true);
+    try {
+      // NOTE: StatusService.postStatus method signature needs to be verified/updated
+      // to accept a 'text' or 'caption' parameter if it doesn't already.
+      // Currently, it accepts type, mediaUrl, auth, background gradient, etc.
+      // the existing method only has type, mediaUrl, text, backgroundGradient, mood, moodAura
+      await StatusService.postStatus(
+        type: widget.type,
+        mediaUrl: widget.mediaUrl,
+        text: _captionCtrl.text.trim().isNotEmpty ? _captionCtrl.text.trim() : null,
+      );
+
+      if (mounted) {
+        Navigator.pop(context); // Close editor
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Status posted! 🎉'),
+            backgroundColor: Color(0xFF1A2A40),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.errorRed),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isPosting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      body: SafeArea(
+        child: Column(
+          children: [
+            // Top Bar
+            Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                const Spacer(),
+                if (_isPosting)
+                  const Padding(
+                    padding: EdgeInsets.only(right: 16),
+                    child: SizedBox(
+                      width: 20, height: 20,
+                      child: CircularProgressIndicator(color: AppColors.aquaCore, strokeWidth: 2),
+                    ),
+                  )
+                else
+                  TextButton(
+                    onPressed: _postStatus,
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.aquaCore,
+                      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    child: const Text('Post'),
+                  ),
+              ],
+            ),
+            
+            // Media Preview
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: widget.type == 'photo'
+                      ? Image.network(widget.mediaUrl, fit: BoxFit.contain)
+                      // A real app would use a video player here, but for simplicity we show a placeholder
+                      : Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            Container(color: Colors.white10),
+                            const Icon(Icons.play_circle_fill, size: 64, color: Colors.white54),
+                          ],
+                        ),
+                ),
+              ),
+            ),
+            
+            // Caption Input
+            Container(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).viewInsets.bottom + 12),
+              decoration: BoxDecoration(
+                color: const Color(0xFF0A1628),
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                border: Border.all(color: Colors.white12),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _captionCtrl,
+                          style: const TextStyle(color: Colors.white),
+                          maxLines: 4,
+                          minLines: 1,
+                          decoration: const InputDecoration(
+                            hintText: 'Add a caption...',
+                            hintStyle: TextStyle(color: Colors.white38),
+                            border: InputBorder.none,
+                          ),
+                        ),
+                      ),
+                      
+                      // AI Generate Button
+                      GestureDetector(
+                        onTap: _isGenerating ? null : _generateAiCaption,
+                        child: Container(
+                          padding: const EdgeInsets.all(10),
+                          margin: const EdgeInsets.only(left: 8, bottom: 4),
+                          decoration: BoxDecoration(
+                            gradient: AppColors.buttonGradient,
+                            shape: BoxShape.circle,
+                          ),
+                          child: _isGenerating
+                              ? const SizedBox(
+                                  width: 20, height: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 
 // ─── Option Tile ──────────────────────────────────────────
 

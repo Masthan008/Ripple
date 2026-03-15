@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/haptic_feedback.dart';
 
 /// Water ripple CustomPainter — draws 3 expanding rings on tap
 /// From PRD §5.3
@@ -77,6 +78,7 @@ class _WaterRippleEffectState extends State<WaterRippleEffect>
   }
 
   void _onTapDown(TapDownDetails details) {
+    AppHaptics.lightTap();
     setState(() {
       _rippleCenter = details.localPosition;
       _controller.forward(from: 0);

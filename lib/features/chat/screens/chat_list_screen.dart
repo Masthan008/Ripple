@@ -982,10 +982,13 @@ class _ChatTile extends ConsumerWidget {
                   // Avatar with online dot
                   Stack(
                     children: [
-                      AquaAvatar(
-                        imageUrl: photoUrl.isNotEmpty ? photoUrl : null,
-                        name: name,
-                        size: 44,
+                      Hero(
+                        tag: 'chat_avatar_$chatId',
+                        child: AquaAvatar(
+                          imageUrl: photoUrl.isNotEmpty ? photoUrl : null,
+                          name: name,
+                          size: 44,
+                        ),
                       ),
                       if (isOnline)
                         Positioned(
@@ -1484,4 +1487,3 @@ class _ProfileTab extends StatelessWidget {
     return const ProfileScreen();
   }
 }
-

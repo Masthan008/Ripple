@@ -44,7 +44,12 @@ class GroupModel {
       admins: List<String>.from(data['admins'] ?? []),
       createdAt:
           (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      lastMessage: data['lastMessage'] as Map<String, dynamic>?,
+      lastMessage: () {
+        final lm = data['lastMessage'];
+        if (lm is Map) return Map<String, dynamic>.from(lm);
+        if (lm is String) return <String, dynamic>{'text': lm, 'type': 'text'};
+        return null;
+      }(),
       unreadCount: Map<String, int>.from(data['unreadCount'] ?? {}),
       memberPermissions: (data['memberPermissions'] as Map<String, dynamic>?)?.map(
         (k, v) => MapEntry(k, Map<String, dynamic>.from(v as Map)),
