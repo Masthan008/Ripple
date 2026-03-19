@@ -16,13 +16,14 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
-import '../../../shared/widgets/ripple_nav_bar.dart';
+import '../../../shared/widgets/liquid_glass_navbar/navbar_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../groups/providers/group_provider.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../status/screens/status_list_screen.dart';
 import '../../status/services/status_service.dart';
 import '../../calls/screens/incoming_call_screen.dart';
+import '../../ai/widgets/ai_bot_picker.dart';
 import '../services/chat_organisation_service.dart';
 import '../../../core/services/privacy_service.dart';
 import '../../../core/services/chat_lock_service.dart';
@@ -45,6 +46,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     StatusListScreen(),
     _GroupsTab(),
     _CallsTab(),
+    _AiTab(),
     _ProfileTab(),
   ];
 
@@ -153,13 +155,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.abyssBackground,
+      extendBody: true, // Need this so body can flow under navbar glass
       body: IndexedStack(
         index: _currentIndex,
         children: _tabs,
       ),
       bottomNavigationBar: myUid != null
           ? _buildNavBarWithUnread(myUid, currentUser?.photoUrl)
-          : RippleNavBar(
+          : LiquidNavbarWidget(
               currentIndex: _currentIndex,
               onTap: (i) => setState(() => _currentIndex = i),
             ),
@@ -199,10 +202,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               }
             }
 
-            return RippleNavBar(
+            return LiquidNavbarWidget(
               currentIndex: _currentIndex,
               onTap: (i) => setState(() => _currentIndex = i),
-              unreadCounts: [totalChatUnread, 0, totalGroupUnread, 0, 0],
+              unreadCounts: [totalChatUnread, 0, totalGroupUnread, 0, 0, 0],
               userPhotoUrl: photoUrl,
             );
           },
@@ -1043,16 +1046,6 @@ class _ChatTile extends ConsumerWidget {
                                 return const SizedBox.shrink();
                               },
                             ),
-                            if (timeStr.isNotEmpty) ...[
-                              const SizedBox(width: 8),
-                              Text(
-                                timeStr,
-                                style: const TextStyle(
-                                  color: Colors.white38,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -1485,5 +1478,16 @@ class _ProfileTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const ProfileScreen();
+  }
+}
+
+class _AiTab extends StatelessWidget {
+  const _AiTab();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Center(
+      child: AiBotPicker(),
+    );
   }
 }

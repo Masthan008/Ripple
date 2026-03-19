@@ -747,7 +747,22 @@ class MessageBubble extends StatelessWidget {
         // Self-destruct countdown timer
         if (message.deleteAt != null)
           _buildDestructCountdown(message.deleteAt!),
+          
+        // Vanish Mode indicator
+        if (message.expiresAt != null)
+          _buildVanishCountdown(message.expiresAt!),
       ],
+    );
+  }
+
+  Widget _buildVanishCountdown(Timestamp expiresAt) {
+    return Container(
+      margin: const EdgeInsets.only(left: 6),
+      child: const Icon(
+        Icons.auto_delete_outlined,
+        size: 11,
+        color: Colors.purpleAccent,
+      ),
     );
   }
 

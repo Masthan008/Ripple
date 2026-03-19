@@ -42,6 +42,7 @@ import '../widgets/chat_theme_picker.dart';
 import 'chat_media_gallery_screen.dart';
 import 'video_player_screen.dart';
 import '../../social/services/social_service.dart';
+import '../../privacy/services/vanish_mode_service.dart';
 
 /// 1-to-1 Chat Screen — PRD §6.3
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -85,6 +86,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _incognitoKeyboard = false;
   int _selfDestructSeconds = 0;
   bool _canShowTyping = true;
+  bool _vanishModeEnabled = false;
 
   @override
   void initState() {
@@ -138,11 +140,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _replyTo = null);
 
     try {
+      final chatDoc = await FirebaseFirestore.instance
+          .collection('chats')
+          .doc(widget.chatId)
+          .get();
+      
+      final vmData = chatDoc.data()?['vanishMode'] as Map<String, dynamic>?;
+      final expiresAt = VanishModeService.calculateExpiration(vmData);
+
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
         chatId: widget.chatId,
         text: text,
         replyTo: replyData,
+        expiresAt: expiresAt,
       );
 
       final myUid = ref.read(chatServiceProvider).myUid;
@@ -203,11 +214,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final chatDoc = await FirebaseFirestore.instance
           .collection('chats').doc(widget.chatId).get();
       final timer = chatDoc.data()?['selfDestructTimer'] as int? ?? 0;
+      final vmData = chatDoc.data()?['vanishMode'] as Map<String, dynamic>?;
 
       if (mounted) {
         setState(() {
           _incognitoKeyboard = prefs.getBool('incognito_keyboard') ?? false;
           _selfDestructSeconds = timer;
+          _vanishModeEnabled = vmData?['enabled'] == true;
           final stealth = privacy['stealthMode'] as bool? ?? false;
           final typing = privacy['typingIndicator'] as bool? ?? true;
           _canShowTyping = !stealth && typing;
@@ -285,6 +298,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String _formatDestructTime(int seconds) {
     if (seconds < 60) return '${seconds}s';
     return '${seconds ~/ 60}m';
+  }
+
+  // ── Phase 6 — Privacy helpers ──────────────────────────
+
+  Future<void> _toggleVanishMode() async {
+    final newState = !_vanishModeEnabled;
+    setState(() => _vanishModeEnabled = newState);
+    
+    await VanishModeService.toggleVanishMode(
+      chatId: widget.chatId,
+      isGroup: false,
+      enabled: newState,
+    );
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(newState ? 'Vanish Mode enabled 👻' : 'Vanish Mode disabled'),
+        backgroundColor: newState ? Colors.purple : const Color(0xFF1A2A40),
+        duration: const Duration(seconds: 2),
+      ));
+    }
   }
 
   // ── Phase 1 helpers ────────────────────────────────────
@@ -540,11 +574,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     // Check for self destructing messages
                     _checkSelfDestruct(msgs);
 
-                    // Filter out messages deleted for current user
-                    final filtered = msgs
-                        .where((m) =>
-                            !m.deletedFor.contains(currentUser))
-                        .toList();
+                    // Filter out expired and deleted messages
+                    final now = DateTime.now();
+                    final filtered = msgs.where((m) {
+                      if (m.deletedFor.contains(currentUser)) return false;
+                      // Vanish Mode check
+                      if (m.expiresAt != null && m.expiresAt!.toDate().isBefore(now)) {
+                        return false;
+                      }
+                      return true;
+                    }).toList();
 
                     if (filtered.isEmpty) {
                       return Center(
@@ -738,7 +777,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
 
                 // Self-destruct banner
-                if (_selfDestructSeconds > 0)
+                if (_vanishModeEnabled)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 8),
+                    color: Colors.purple.withValues(alpha: 0.1),
+                    child: Row(
+                      children: [
+                        const Text('👻',
+                            style: TextStyle(fontSize: 14)),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Vanish Mode Active. New messages disappear after 24 hours.',
+                          style: TextStyle(
+                            color: Colors.purpleAccent,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const Spacer(),
+                        GestureDetector(
+                          onTap: _toggleVanishMode,
+                          child: const Text('Turn Off',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                  decoration: TextDecoration.underline)),
+                        ),
+                      ],
+                    ),
+                  )
+                else if (_selfDestructSeconds > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 8),

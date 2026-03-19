@@ -64,6 +64,7 @@ class ChatService {
     String? mediaUrl,
     String? fileName,
     ReplyData? replyTo,
+    Timestamp? expiresAt,
     bool isForwarded = false,
   }) async {
     if (_myUid.isEmpty) return; // Guard during auth transition
@@ -105,6 +106,7 @@ class ChatService {
       isForwarded: isForwarded,
       seenBy: [_myUid],
       createdAt: DateTime.now(),
+      expiresAt: expiresAt,
     );
 
     final chatRef = _firestore.collection('chats').doc(chatId);

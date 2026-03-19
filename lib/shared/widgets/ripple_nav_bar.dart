@@ -17,7 +17,7 @@ class RippleNavBar extends StatefulWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
-    this.unreadCounts = const [0, 0, 0, 0, 0],
+    this.unreadCounts = const [0, 0, 0, 0, 0, 0],
     this.userPhotoUrl,
   });
 
@@ -30,13 +30,14 @@ class _RippleNavBarState extends State<RippleNavBar>
   late AnimationController _pillController;
   late Animation<double> _pillScale;
 
-  static const _labels = ['Chats', 'Status', 'Groups', 'Calls', 'Profile'];
+  static const _labels = ['Chats', 'Status', 'Groups', 'Calls', 'AI', 'Profile'];
 
   static const _activeIcons = [
     Icons.chat_bubble_rounded,
     Icons.circle_notifications_rounded,
     Icons.group_rounded,
     Icons.call_rounded,
+    Icons.smart_toy_rounded,
     Icons.person_rounded,
   ];
 
@@ -45,6 +46,7 @@ class _RippleNavBarState extends State<RippleNavBar>
     Icons.circle_notifications_outlined,
     Icons.group_outlined,
     Icons.call_outlined,
+    Icons.smart_toy_outlined,
     Icons.person_outline_rounded,
   ];
 
@@ -104,7 +106,7 @@ class _RippleNavBarState extends State<RippleNavBar>
         ),
       ),
       child: Row(
-        children: List.generate(5, (i) => Expanded(child: _buildTab(i))),
+        children: List.generate(6, (i) => Expanded(child: _buildTab(i))),
       ),
     );
 
@@ -194,7 +196,7 @@ class _RippleNavBarState extends State<RippleNavBar>
 
   Widget _buildIcon(int index, bool isActive, int unread) {
     Widget icon;
-    if (index == 4 && isActive && widget.userPhotoUrl != null && widget.userPhotoUrl!.isNotEmpty) {
+    if (index == 5 && isActive && widget.userPhotoUrl != null && widget.userPhotoUrl!.isNotEmpty) {
       icon = Container(
         width: 22,
         height: 22,

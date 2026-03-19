@@ -265,6 +265,52 @@ class AiService {
       maxTokens: 60,
     );
   }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FEATURE 9 — VOICE TRANSCRIBER (WHISPER)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  static Future<String> transcribeAudio(String filePath) async {
+    try {
+      final apiKey = Env.groqApiKey;
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(filePath),
+        'model': 'whisper-large-v3',
+        'response_format': 'json',
+      });
+
+      final response = await Dio().post(
+        'https://api.groq.com/openai/v1/audio/transcriptions',
+        options: Options(
+          headers: {'Authorization': 'Bearer $apiKey'},
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+        data: formData,
+      );
+
+      return response.data['text'] as String;
+    } on DioException catch (e) {
+      debugPrint('❌ Whisper error: ${e.response?.data}');
+      throw AiException(_parseError(e));
+    } catch (e) {
+      debugPrint('❌ Transcribe error: $e');
+      throw AiException('Transcription failed');
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FEATURE 10 — PERSONA CHAT
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  static Future<String> chatWithPersona({
+    required String systemPrompt,
+    required String prompt,
+  }) async {
+    return await _call(
+      systemPrompt: systemPrompt,
+      prompt: prompt,
+      maxTokens: 500, // Slightly longer max for chat replies
+    );
+  }
 }
 
 // ── MODELS ───────────────────────────────────────────────

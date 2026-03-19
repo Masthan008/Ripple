@@ -82,10 +82,13 @@ class _StatusListScreenState extends State<StatusListScreen> {
           ],
         ),
       ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.aquaCore,
-        onPressed: () => _showCreateStatusSheet(),
-        child: const Icon(Icons.edit_rounded, color: Colors.white),
+      floatingActionButton: Padding(
+        padding: const EdgeInsets.only(bottom: 90.0), // Clear the high navbar
+        child: FloatingActionButton(
+          backgroundColor: AppColors.aquaCore,
+          onPressed: () => _showCreateStatusSheet(),
+          child: const Icon(Icons.edit_rounded, color: Colors.white),
+        ),
       ),
     );
   }

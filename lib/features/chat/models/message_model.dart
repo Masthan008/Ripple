@@ -58,6 +58,7 @@ class MessageModel {
   final DateTime createdAt;
   final DateTime? editedAt;
   final Timestamp? deleteAt;
+  final Timestamp? expiresAt;
 
   const MessageModel({
     required this.id,
@@ -79,6 +80,7 @@ class MessageModel {
     required this.createdAt,
     this.editedAt,
     this.deleteAt,
+    this.expiresAt,
   });
 
   factory MessageModel.fromFirestore(
@@ -133,6 +135,7 @@ class MessageModel {
           ? (data['editedAt'] as Timestamp).toDate()
           : null,
       deleteAt: data['deleteAt'] as Timestamp?,
+      expiresAt: data['expiresAt'] as Timestamp?,
     );
   }
 
@@ -157,6 +160,7 @@ class MessageModel {
       'editedAt':
           editedAt != null ? Timestamp.fromDate(editedAt!) : null,
       'deleteAt': deleteAt,
+      'expiresAt': expiresAt,
     };
   }
 
@@ -180,6 +184,7 @@ class MessageModel {
     DateTime? createdAt,
     DateTime? editedAt,
     Timestamp? deleteAt,
+    Timestamp? expiresAt,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -201,6 +206,7 @@ class MessageModel {
       createdAt: createdAt ?? this.createdAt,
       editedAt: editedAt ?? this.editedAt,
       deleteAt: deleteAt ?? this.deleteAt,
+      expiresAt: expiresAt ?? this.expiresAt,
     );
   }
 

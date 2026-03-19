@@ -1,7 +1,13 @@
+import 'dart:io';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../../core/services/ai_service.dart';
+import '../../../core/utils/haptic_feedback.dart';
 
 /// Voice message bubble with play/pause, waveform progress, and duration display
 class VoiceMessageBubble extends StatefulWidget {
@@ -28,6 +34,11 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
   Duration _position = Duration.zero;
   late Duration _total;
   bool _hasError = false;
+
+  // Transcription states
+  bool _isTranscribing = false;
+  String? _transcript;
+  String? _transcribeError;
 
   @override
   void initState() {
@@ -81,6 +92,48 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
     super.dispose();
   }
 
+  Future<void> _transcribe() async {
+    if (_transcript != null) return;
+    AppHaptics.lightTap();
+    setState(() {
+      _isTranscribing = true;
+      _transcribeError = null;
+    });
+
+    try {
+      // 1. Download file temporarily
+      final dir = await getTemporaryDirectory();
+      final targetPath =
+          '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
+
+      await Dio().download(widget.audioUrl, targetPath);
+
+      // 2. Transcribe via Whisper
+      final text = await AiService.transcribeAudio(targetPath);
+
+      if (mounted) {
+        setState(() {
+          _transcript = text;
+          _isTranscribing = false;
+        });
+        AppHaptics.success();
+      }
+
+      // Cleanup
+      final file = File(targetPath);
+      if (await file.exists()) {
+        await file.delete();
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isTranscribing = false;
+          _transcribeError = 'Failed to transcribe';
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final progress =
@@ -89,7 +142,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
     final contentColor =
         widget.isMyMessage ? Colors.white : AppColors.aquaCore;
 
-    return SizedBox(
+    final audioRow = SizedBox(
       width: 240,
       child: Row(
         children: [
@@ -139,15 +192,51 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                 ),
                 const SizedBox(height: 4),
 
-                // Duration
-                Text(
-                  _isPlaying || _position.inSeconds > 0
-                      ? _formatDuration(_position)
-                      : _formatDuration(_total),
-                  style: TextStyle(
-                    color: contentColor.withValues(alpha: 0.7),
-                    fontSize: 11,
-                  ),
+                // Duration & Transcribe button row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      _isPlaying || _position.inSeconds > 0
+                          ? _formatDuration(_position)
+                          : _formatDuration(_total),
+                      style: TextStyle(
+                        color: contentColor.withValues(alpha: 0.7),
+                        fontSize: 11,
+                      ),
+                    ),
+                    if (_transcript == null)
+                      GestureDetector(
+                        onTap: _isTranscribing ? null : _transcribe,
+                        child: Row(
+                          children: [
+                            if (_isTranscribing)
+                              SizedBox(
+                                width: 10,
+                                height: 10,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                  color: contentColor.withValues(alpha: 0.7),
+                                ),
+                              )
+                            else
+                              Icon(
+                                Icons.auto_awesome,
+                                size: 12,
+                                color: contentColor.withValues(alpha: 0.7),
+                              ),
+                            const SizedBox(width: 4),
+                            Text(
+                              _isTranscribing ? 'Transcribing...' : 'Transcribe',
+                              style: TextStyle(
+                                  color: contentColor.withValues(alpha: 0.7),
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
                 ),
               ],
             ),
@@ -155,6 +244,59 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
         ],
       ),
     );
+
+    if (_transcript != null || _transcribeError != null) {
+      return Column(
+        crossAxisAlignment: widget.isMyMessage
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
+        children: [
+          audioRow,
+          const SizedBox(height: 8),
+
+          // Transcript Display
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: widget.isMyMessage
+                  ? Colors.white.withValues(alpha: 0.1)
+                  : AppColors.aquaCore.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  _transcribeError != null
+                      ? Icons.error_outline
+                      : Icons.format_quote_rounded,
+                  size: 16,
+                  color: _transcribeError != null
+                      ? AppColors.errorRed
+                      : contentColor.withValues(alpha: 0.7),
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _transcribeError ?? _transcript!,
+                    style: TextStyle(
+                      color: _transcribeError != null
+                          ? AppColors.errorRed
+                          : contentColor.withValues(alpha: 0.9),
+                      fontSize: 13,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      );
+    }
+
+    return audioRow;
   }
 }
 

@@ -290,13 +290,17 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   Widget _buildMessageTile(Map<String, dynamic> msg) {
+    final senderPhoto = msg['senderPhoto'] as String? ?? '';
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: const Color(0xFF1A2A40),
-        child: Text(
-          (msg['senderName'] as String? ?? '?')[0].toUpperCase(),
-          style: const TextStyle(color: Colors.white),
-        ),
+        backgroundImage: senderPhoto.isNotEmpty ? CachedNetworkImageProvider(senderPhoto) : null,
+        child: senderPhoto.isEmpty
+            ? Text(
+                (msg['senderName'] as String? ?? '?')[0].toUpperCase(),
+                style: const TextStyle(color: Colors.white),
+              )
+            : null,
       ),
       title: Text(msg['senderName'] as String? ?? '',
           style: const TextStyle(color: Colors.white)),
@@ -514,10 +518,26 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           final text =
               (msg.data()['text'] as String? ?? '').toLowerCase();
           if (text.contains(q)) {
+            // Fetch sender info so avatar/name display correctly
+            final senderId = msg.data()['senderId'] as String? ?? '';
+            String senderName = 'User';
+            String senderPhoto = '';
+            if (senderId.isNotEmpty) {
+              try {
+                final senderDoc = await FirebaseFirestore.instance
+                    .collection('users')
+                    .doc(senderId)
+                    .get();
+                senderName = senderDoc.data()?['name'] as String? ?? 'User';
+                senderPhoto = senderDoc.data()?['photoUrl'] as String? ?? '';
+              } catch (_) {}
+            }
             results.add({
               ...msg.data(),
               'messageId': msg.id,
               'chatId': chat.id,
+              'senderName': senderName,
+              'senderPhoto': senderPhoto,
             });
           }
         }

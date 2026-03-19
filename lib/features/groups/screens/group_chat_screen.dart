@@ -34,6 +34,9 @@ import '../../../core/services/privacy_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../providers/group_provider.dart';
 import 'group_info_screen.dart';
+import '../models/poll_model.dart';
+import '../widgets/create_poll_sheet.dart';
+import '../widgets/poll_bubble.dart';
 
 /// Group Chat Screen — PRD §6.6
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -533,31 +536,84 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                             memberNames[msg.senderId] ??
                                 'Unknown';
 
-                        return MessageBubble(
-                          message: msg,
-                          isMe: isMe,
-                          showSenderName: !isMe,
-                          senderName: senderName,
-                          currentUid: myUid,
-                          chatId: widget.groupId,
-                          isGroup: true,
-                          isSelected: _selectedMessageIds
-                              .contains(msg.id),
-                          isMultiSelectMode:
-                              _isMultiSelectMode,
-                          onLongPress: () {
-                            if (_isMultiSelectMode) {
-                              _toggleSelection(msg.id);
-                            } else {
-                              _showContextMenu(
-                                  msg, isMe, senderName);
-                            }
-                          },
-                          onTap: _isMultiSelectMode
-                              ? () =>
-                                  _toggleSelection(msg.id)
-                              : null,
-                        );
+                        Widget bubbleChild;
+                        
+                        if (msg.type == 'poll' && msg.toMap()['pollData'] != null) {
+                          final pollData = msg.toMap()['pollData'] as Map<String, dynamic>;
+                          final pollModel = PollModel.fromMap(pollData);
+                          
+                          bubbleChild = PollBubble(
+                            message: msg,
+                            poll: pollModel,
+                            currentUid: myUid,
+                            isMe: isMe,
+                            onVote: (optionIndex) async {
+                              if (pollModel.hasVoted(myUid)) return;
+                              
+                              final newVotes = Map<String, List<String>>.from(pollModel.votes);
+                              newVotes[optionIndex] = [...(newVotes[optionIndex] ?? []), myUid];
+                              
+                              await FirebaseService.firestore
+                                  .collection('groups')
+                                  .doc(widget.groupId)
+                                  .collection('messages')
+                                  .doc(msg.id)
+                                  .update({
+                                     'pollData.votes': newVotes,
+                                  });
+                            },
+                          );
+                        } else {
+                          bubbleChild = MessageBubble(
+                            message: msg,
+                            isMe: isMe,
+                            showSenderName: !isMe,
+                            senderName: senderName,
+                            currentUid: myUid,
+                            chatId: widget.groupId,
+                            isGroup: true,
+                            isSelected: _selectedMessageIds
+                                .contains(msg.id),
+                            isMultiSelectMode:
+                                _isMultiSelectMode,
+                            onLongPress: () {
+                              if (_isMultiSelectMode) {
+                                _toggleSelection(msg.id);
+                              } else {
+                                _showContextMenu(
+                                    msg, isMe, senderName);
+                              }
+                            },
+                            onTap: _isMultiSelectMode
+                                ? () =>
+                                    _toggleSelection(msg.id)
+                                : null,
+                          );
+                        }
+
+                        // Also wrap PollBubble in a GestureDetector for multi-select if needed.
+                        if (msg.type == 'poll') {
+                          return GestureDetector(
+                            onLongPress: () {
+                              if (_isMultiSelectMode) {
+                                _toggleSelection(msg.id);
+                              } else {
+                                _showContextMenu(msg, isMe, senderName);
+                              }
+                            },
+                            onTap: _isMultiSelectMode ? () => _toggleSelection(msg.id) : null,
+                            child: Container(
+                              color: _selectedMessageIds.contains(msg.id) 
+                                ? AppColors.aquaCore.withValues(alpha: 0.1) 
+                                : Colors.transparent,
+                              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+                              alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                              child: bubbleChild,
+                            ),
+                          );
+                        }
+
+                        return bubbleChild;
                       },
                     );
                   },
@@ -1077,6 +1133,15 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                     }
                   },
                 ),
+                _attachOption(
+                  icon: Icons.poll_rounded,
+                  label: 'Poll',
+                  color: const Color(0xFF10B981),
+                  onTap: () {
+                    Navigator.pop(ctx);
+                    _showCreatePollSheet();
+                  },
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -1348,6 +1413,83 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  // ── Phase 3: Polls ────────────────────────────────────────
+
+  void _showCreatePollSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => CreatePollSheet(
+        onPollCreated: (question, options) => _sendPollMessage(question, options),
+      ),
+    );
+  }
+
+  Future<void> _sendPollMessage(String question, List<String> options) async {
+    setState(() => _isSending = true);
+    
+    try {
+      final myUid = ref.read(groupServiceProvider).myUid;
+      final poll = PollModel(
+        question: question,
+        options: options,
+        votes: {for (var i = 0; i < options.length; i++) i.toString(): []},
+        createdAt: Timestamp.now(),
+        creatorId: myUid,
+      );
+
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .collection('messages')
+          .add({
+        'senderId': myUid,
+        'type': 'poll',
+        'text': null,
+        'pollData': poll.toMap(),
+        'createdAt': FieldValue.serverTimestamp(),
+        'isDeleted': false,
+        'isEdited': false,
+        'isPinned': false,
+        'isStarred': false,
+        'isForwarded': false,
+        'reactions': {},
+        'seenBy': [myUid],
+        'deletedFor': [],
+        'starredBy': [],
+      });
+
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .update({
+        'lastMessage': {
+          'text': '📊 Poll: $question',
+          'senderId': myUid,
+          'timestamp': FieldValue.serverTimestamp(),
+          'type': 'poll',
+        },
+      });
+      
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to post poll: $e'),
             backgroundColor: AppColors.errorRed,
           ),
         );
