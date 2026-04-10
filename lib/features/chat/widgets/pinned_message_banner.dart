@@ -1,11 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/l10n.dart';
 
 /// Pinned message banner displayed below the app bar in chat screens
-class PinnedMessageBanner extends StatelessWidget {
+class PinnedMessageBanner extends ConsumerWidget {
   final String chatId;
   final bool isGroup;
   final VoidCallback? onTap;
@@ -20,14 +23,15 @@ class PinnedMessageBanner extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final collection = isGroup ? 'groups' : 'chats';
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance
-          .collection(collection)
-          .doc(chatId)
-          .snapshots(),
+      stream:
+          FirebaseFirestore.instance
+              .collection(collection)
+              .doc(chatId)
+              .snapshots(),
       builder: (context, snapshot) {
         if (!snapshot.hasData || snapshot.data == null) {
           return const SizedBox.shrink();
@@ -36,20 +40,20 @@ class PinnedMessageBanner extends StatelessWidget {
         final data = snapshot.data!.data();
         if (data == null) return const SizedBox.shrink();
 
-        final pinnedMessageId =
-            data['pinnedMessageId'] as String?;
+        final pinnedMessageId = data['pinnedMessageId'] as String?;
         if (pinnedMessageId == null || pinnedMessageId.isEmpty) {
           return const SizedBox.shrink();
         }
 
         // Get the pinned message text
         return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection(collection)
-              .doc(chatId)
-              .collection('messages')
-              .doc(pinnedMessageId)
-              .snapshots(),
+          stream:
+              FirebaseFirestore.instance
+                  .collection(collection)
+                  .doc(chatId)
+                  .collection('messages')
+                  .doc(pinnedMessageId)
+                  .snapshots(),
           builder: (context, msgSnapshot) {
             if (!msgSnapshot.hasData || msgSnapshot.data == null) {
               return const SizedBox.shrink();
@@ -67,7 +71,9 @@ class PinnedMessageBanner extends StatelessWidget {
               onTap: onTap,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 8),
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: AppColors.aquaCore.withOpacity(0.1),
                   border: Border(
@@ -79,8 +85,11 @@ class PinnedMessageBanner extends StatelessWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.push_pin_rounded,
-                        color: AppColors.aquaCore, size: 16),
+                    Icon(
+                      Icons.push_pin_rounded,
+                      color: AppColors.aquaCore,
+                      size: 16,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -88,15 +97,27 @@ class PinnedMessageBanner extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            'Pinned Message',
+                            L10n.s(ref, 'pinnedMessage'),
                             style: AppTextStyles.caption.copyWith(
                               color: AppColors.aquaCore,
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 11,
                             ),
                           ),
                           Text(
-                            text.isEmpty ? '[Media]' : text,
+                            text.isNotEmpty
+                                ? text
+                                : msgData['type'] == 'image'
+                                ? L10n.s(ref, 'image')
+                                : msgData['type'] == 'video'
+                                ? L10n.s(ref, 'video')
+                                : msgData['type'] == 'file'
+                                ? L10n.s(ref, 'document')
+                                : msgData['type'] == 'voice'
+                                ? L10n.s(ref, 'voiceMessage')
+                                : msgData['type'] == 'gif'
+                                ? L10n.s(ref, 'gif')
+                                : L10n.s(ref, 'pinnedMessage'),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: AppTextStyles.body.copyWith(
@@ -112,9 +133,11 @@ class PinnedMessageBanner extends StatelessWidget {
                         onTap: onUnpin,
                         child: Padding(
                           padding: const EdgeInsets.only(left: 8),
-                          child: Icon(Icons.close,
-                              color: Colors.white.withOpacity(0.4),
-                              size: 16),
+                          child: Icon(
+                            Icons.close,
+                            color: Colors.white.withOpacity(0.4),
+                            size: 16,
+                          ),
                         ),
                       ),
                   ],

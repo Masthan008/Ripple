@@ -7,7 +7,6 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../models/message_model.dart';
 import '../services/message_actions_service.dart';
-import '../services/chat_organisation_service.dart';
 
 /// Glass morphism context menu shown on long-press of a message
 class MessageContextMenu extends StatefulWidget {

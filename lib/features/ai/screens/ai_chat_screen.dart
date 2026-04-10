@@ -6,7 +6,6 @@ import '../../../shared/widgets/floating_particles.dart';
 import '../../chat/widgets/glass_input_bar.dart';
 import '../services/ai_bot_service.dart';
 import '../../chat/models/message_model.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class AiChatScreen extends ConsumerStatefulWidget {
   final String botId;

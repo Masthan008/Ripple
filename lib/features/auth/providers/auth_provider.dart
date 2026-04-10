@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/services/firebase_service.dart';
-import '../../../core/services/notification_service.dart';
 import '../../../core/services/presence_service.dart';
 import '../models/user_model.dart';
 

@@ -402,7 +402,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
               )
             else
               ...viewers.map((v) {
-                final reaction = status.reactions[v['uid']] as String?;
+                final reaction = status.reactions[v['uid']];
                 final viewedAt = v['viewedAt'] as Timestamp?;
                 return ListTile(
                   leading: CircleAvatar(

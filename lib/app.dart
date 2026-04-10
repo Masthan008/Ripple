@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/utils/l10n.dart';
 import 'core/services/notification_service.dart';
 import 'features/auth/screens/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
@@ -32,6 +34,7 @@ import 'features/social/screens/leaderboard_screen.dart';
 import 'features/social/screens/friend_suggestions_screen.dart';
 import 'features/social/screens/activity_feed_screen.dart';
 import 'features/social/screens/profile_visitors_screen.dart';
+import 'features/profile/providers/settings_provider.dart';
 
 /// GoRouter provider — created ONCE, uses refreshListenable to re-run redirect
 final routerProvider = Provider<GoRouter>((ref) {
@@ -47,141 +50,623 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(
         path: '/splash',
-        builder: (_, __) => const SplashScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const SplashScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return FadeTransition(
+                  opacity: CurveTween(
+                    curve: Curves.easeInOut,
+                  ).animate(animation),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/login',
-        builder: (_, __) => const LoginScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const LoginScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return FadeTransition(
+                  opacity: CurveTween(
+                    curve: Curves.easeInOut,
+                  ).animate(animation),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/register',
-        builder: (_, state) {
-          return RegisterScreen(
-            uid: state.uri.queryParameters['uid'] ?? '',
-            name: state.uri.queryParameters['name'] ?? '',
-            email: state.uri.queryParameters['email'] ?? '',
-            photoUrl: state.uri.queryParameters['photoUrl'] ?? '',
-            isGoogleSignIn:
-                state.uri.queryParameters['isGoogleSignIn'] == 'true',
+        pageBuilder: (context, state) {
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: RegisterScreen(
+              uid: state.uri.queryParameters['uid'] ?? '',
+              name: state.uri.queryParameters['name'] ?? '',
+              email: state.uri.queryParameters['email'] ?? '',
+              photoUrl: state.uri.queryParameters['photoUrl'] ?? '',
+              isGoogleSignIn:
+                  state.uri.queryParameters['isGoogleSignIn'] == 'true',
+            ),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
           );
         },
       ),
       GoRoute(
         path: '/home',
-        builder: (_, __) => const HomeScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const HomeScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return FadeTransition(
+                  opacity: CurveTween(
+                    curve: Curves.easeInOut,
+                  ).animate(animation),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/users',
-        builder: (_, __) => const UsersScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const UsersScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(1.0, 0.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/requests',
-        builder: (_, __) => const RequestsScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const RequestsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(1.0, 0.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/chat',
-        builder: (_, state) {
-          return ChatScreen(
-            chatId: state.uri.queryParameters['chatId'] ?? '',
-            partnerUid: state.uri.queryParameters['partnerUid'] ?? '',
-            partnerName: state.uri.queryParameters['partnerName'] ?? '',
-            partnerPhoto: state.uri.queryParameters['partnerPhoto'],
+        pageBuilder: (context, state) {
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: ChatScreen(
+              chatId: state.uri.queryParameters['chatId'] ?? '',
+              partnerUid: state.uri.queryParameters['partnerUid'] ?? '',
+              partnerName: state.uri.queryParameters['partnerName'] ?? '',
+              partnerPhoto: state.uri.queryParameters['partnerPhoto'],
+            ),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(1.0, 0.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
           );
         },
       ),
       GoRoute(
         path: '/create-group',
-        builder: (_, __) => const CreateGroupScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const CreateGroupScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/group-chat',
-        builder: (_, state) {
-          return GroupChatScreen(
-            groupId: state.uri.queryParameters['groupId'] ?? '',
-            groupName: state.uri.queryParameters['groupName'] ?? '',
-            groupPhoto: state.uri.queryParameters['groupPhoto'],
+        pageBuilder: (context, state) {
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: GroupChatScreen(
+              groupId: state.uri.queryParameters['groupId'] ?? '',
+              groupName: state.uri.queryParameters['groupName'] ?? '',
+              groupPhoto: state.uri.queryParameters['groupPhoto'],
+            ),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(1.0, 0.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
           );
         },
       ),
       GoRoute(
         path: '/group-info',
-        builder: (_, state) {
-          return GroupInfoScreen(
-            groupId: state.uri.queryParameters['groupId'] ?? '',
-            groupName: state.uri.queryParameters['groupName'] ?? '',
-            groupPhoto: state.uri.queryParameters['groupPhoto'],
+        pageBuilder: (context, state) {
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: GroupInfoScreen(
+              groupId: state.uri.queryParameters['groupId'] ?? '',
+              groupName: state.uri.queryParameters['groupName'] ?? '',
+              groupPhoto: state.uri.queryParameters['groupPhoto'],
+            ),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
           );
         },
       ),
       GoRoute(
         path: '/call',
-        builder: (_, state) {
-          return CallScreen(
-            callerName: state.uri.queryParameters['callerName'] ?? '',
-            callerPhoto: state.uri.queryParameters['callerPhoto'],
-            isVideo: state.uri.queryParameters['isVideo'] == 'true',
-            isIncoming: state.uri.queryParameters['isIncoming'] == 'true',
+        pageBuilder: (context, state) {
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: CallScreen(
+              callerName: state.uri.queryParameters['callerName'] ?? '',
+              callerPhoto: state.uri.queryParameters['callerPhoto'],
+              isVideo: state.uri.queryParameters['isVideo'] == 'true',
+              isIncoming: state.uri.queryParameters['isIncoming'] == 'true',
+            ),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return ScaleTransition(
+                scale: animation.drive(
+                  Tween(
+                    begin: 0.0,
+                    end: 1.0,
+                  ).chain(CurveTween(curve: Curves.easeOutBack)),
+                ),
+                child: child,
+              );
+            },
           );
         },
       ),
       GoRoute(
         path: '/profile',
-        builder: (_, __) => const ProfileScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ProfileScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/search',
-        builder: (_, __) => const GlobalSearchScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const GlobalSearchScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return FadeTransition(
+                  opacity: CurveTween(
+                    curve: Curves.easeInOut,
+                  ).animate(animation),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/saved-messages',
-        builder: (_, __) => const SavedMessagesScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const SavedMessagesScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(1.0, 0.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/archived-chats',
-        builder: (_, __) => const ArchivedChatsScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ArchivedChatsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(1.0, 0.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/ai-settings',
-        builder: (_, __) => const AiSettingsScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const AiSettingsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/privacy-settings',
-        builder: (_, __) => const PrivacySettingsScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const PrivacySettingsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/chat-lock-settings',
-        builder: (_, __) => const ChatLockSettingsScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ChatLockSettingsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/fake-passcode',
-        builder: (_, __) => const FakePasscodeScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const FakePasscodeScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/other-profile',
-        builder: (_, state) {
+        pageBuilder: (context, state) {
           final uid = state.uri.queryParameters['uid'] ?? '';
-          return OtherUserProfileScreen(uid: uid);
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: OtherUserProfileScreen(uid: uid),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(1.0, 0.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
         },
       ),
       GoRoute(
         path: '/achievements',
-        builder: (_, __) => const AchievementsScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const AchievementsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/leaderboard',
-        builder: (_, __) => const LeaderboardScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const LeaderboardScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/friend-suggestions',
-        builder: (_, __) => const FriendSuggestionsScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const FriendSuggestionsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/activity-feed',
-        builder: (_, __) => const ActivityFeedScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ActivityFeedScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
       GoRoute(
         path: '/profile-visitors',
-        builder: (_, __) => const ProfileVisitorsScreen(),
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ProfileVisitorsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
       ),
     ],
     redirect: (context, state) {
@@ -259,11 +744,20 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final currentLang = ref.watch(languageProvider);
+
     return MaterialApp.router(
       title: 'Ripple',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.darkTheme,
       routerConfig: router,
+      locale: L10n.supportedLocales[currentLang] ?? const Locale('en'),
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: L10n.supportedLocales.values.toList(),
     );
   }
 }

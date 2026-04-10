@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,90 +14,119 @@ import 'features/chat/services/schedule_service.dart';
 import 'app.dart';
 
 void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
+  runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-  // Lock to portrait mode
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
+      // Catch Flutter-level errors
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        debugPrint('🔴 Flutter Error: ${details.exception}');
+        debugPrint('Stack trace: ${details.stack}');
+      };
 
-  // Set system UI overlay style for dark ocean theme
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: Color(0xFF060D1A),
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
-  );
+      // Lock to portrait mode
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+      ]);
 
-  try {
-    // Load environment variables
-    await Env.load();
+      // Set system UI overlay style for dark ocean theme
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: Color(0xFF060D1A),
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
+      );
 
-    // Initialize Firebase
-    await FirebaseService.initialize();
+      try {
+        // Load environment variables
+        await Env.load();
 
-    // Initialize Supabase (for file storage)
-    await SupabaseService.initialize();
+        // Initialize Firebase
+        await FirebaseService.initialize();
 
-    // ── OneSignal MUST be initialized before runApp() ──
-    final oneSignalId = Env.oneSignalAppId;
-    if (oneSignalId.isEmpty) {
-      debugPrint('❌ ONESIGNAL_APP_ID is missing or empty from .env!');
-    } else {
-      debugPrint('✅ OneSignal ID loaded: $oneSignalId');
-    }
+        // Initialize Supabase (for file storage)
+        if (Env.supabaseUrl.isNotEmpty &&
+            (Env.supabaseAnonKey.isNotEmpty ||
+                Env.supabaseServiceRoleKey.isNotEmpty)) {
+          await SupabaseService.initialize();
+        } else {
+          debugPrint(
+            '⚠️ Supabase credentials missing — skipping initialization',
+          );
+        }
 
-    OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-    OneSignal.initialize(oneSignalId);
-    OneSignal.consentRequired(false);
-    OneSignal.consentGiven(true);
+        // ── OneSignal MUST be initialized before runApp() ──
+        final oneSignalId = Env.oneSignalAppId;
+        if (oneSignalId.isEmpty) {
+          debugPrint(
+            '❌ ONESIGNAL_APP_ID is missing or empty from .env! Skipping OneSignal init.',
+          );
+        } else {
+          debugPrint('✅ OneSignal ID loaded: $oneSignalId');
+          OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+          OneSignal.initialize(oneSignalId);
+          OneSignal.consentRequired(false);
+          OneSignal.consentGiven(true);
 
-    debugPrint('🔔 OneSignal initialized, requesting permission...');
-    await OneSignal.Notifications.requestPermission(true);
-    debugPrint('🔔 OneSignal permission requested successfully');
+          // Requesting permission is async and shouldn't block app launch
+          // On some devices, awaiting this before runApp() can cause issues
+          OneSignal.Notifications.requestPermission(true)
+              .then((_) {
+                debugPrint('🔔 OneSignal permission requested successfully');
+              })
+              .catchError((e) {
+                debugPrint('⚠️ OneSignal permission error: $e');
+              });
+        }
 
-    // Initialize local notification channels
-    await NotificationService.initialize();
+        // Initialize local notification channels
+        await NotificationService.initialize();
 
-    // Start scheduled message checker (every 30s)
-    ScheduleService.startScheduleChecker();
+        // Start scheduled message checker (every 30s)
+        ScheduleService.startScheduleChecker();
 
-    // Restore screenshot block setting
-    final prefs = await SharedPreferences.getInstance();
-    if (prefs.getBool('screenshot_block') ?? false) {
-      await FlutterWindowManagerPlus.addFlags(
-          FlutterWindowManagerPlus.FLAG_SECURE);
-    }
-  } catch (e, stack) {
-    debugPrint('⚠️ Initialization error: $e');
-    debugPrint('$stack');
-    runApp(MaterialApp(
-      home: Scaffold(
-        backgroundColor: const Color(0xFF060D1A),
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Initialization Error:\n$e',
-              style: const TextStyle(color: Colors.white70, fontSize: 14),
-              textAlign: TextAlign.center,
+        // Restore screenshot block setting
+        final prefs = await SharedPreferences.getInstance();
+        if (prefs.getBool('screenshot_block') ?? false) {
+          await FlutterWindowManagerPlus.addFlags(
+            FlutterWindowManagerPlus.FLAG_SECURE,
+          );
+        }
+      } catch (e, stack) {
+        debugPrint('⚠️ Initialization error: $e');
+        debugPrint('$stack');
+        runApp(
+          MaterialApp(
+            home: Scaffold(
+              backgroundColor: const Color(0xFF060D1A),
+              body: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text(
+                    'Initialization Error:\n$e',
+                    style: const TextStyle(color: Colors.white70, fontSize: 14),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
             ),
           ),
-        ),
-      ),
-    ));
-    return;
-  }
+        );
+        return;
+      }
 
-  // Note: AppLifecycleObserver is now registered in HomeScreen
-  // with the user's UID after login (requires PresenceService)
+      // Note: AppLifecycleObserver is now registered in HomeScreen
+      // with the user's UID after login (requires PresenceService)
 
-  runApp(
-    const ProviderScope(
-      child: App(),
-    ),
+      runApp(const ProviderScope(child: App()));
+    },
+    (error, stack) {
+      debugPrint('🔴 Global Async Error: $error');
+      debugPrint('Stack trace: $stack');
+    },
   );
 }

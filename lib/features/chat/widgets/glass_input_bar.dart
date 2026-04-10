@@ -1,16 +1,23 @@
+import '../../../core/utils/haptic_feedback.dart';
 import 'dart:ui' show ImageFilter;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Add this
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/l10n.dart'; // Add this
 import '../../../shared/widgets/water_ripple_painter.dart';
 import '../models/message_model.dart';
 import 'voice_recorder_widget.dart';
 
+import 'circular_video_recorder.dart';
+
 /// Frosted glass input bar for the chat screen bottom
 /// Phase 2: Added voice recording (hold mic) and GIF button
-class GlassInputBar extends StatefulWidget {
+/// Phase 3: Added circular video recording (toggle mic)
+class GlassInputBar extends ConsumerStatefulWidget {
+  // Change to ConsumerStatefulWidget
   final TextEditingController controller;
   final VoidCallback onSend;
   final VoidCallback? onAttach;
@@ -21,7 +28,8 @@ class GlassInputBar extends StatefulWidget {
   final ReplyData? replyTo;
   final VoidCallback? onClearReply;
   final Function(String filePath, Duration duration, List<double> waveformData)?
-      onVoiceRecorded;
+  onVoiceRecorded;
+  final Function(String filePath, Duration duration)? onVideoRecorded;
   final VoidCallback? onAiCompose;
   final VoidCallback? onToneFix;
   final bool incognitoKeyboard;
@@ -38,17 +46,20 @@ class GlassInputBar extends StatefulWidget {
     this.replyTo,
     this.onClearReply,
     this.onVoiceRecorded,
+    this.onVideoRecorded,
     this.onAiCompose,
     this.onToneFix,
     this.incognitoKeyboard = false,
   });
 
   @override
-  State<GlassInputBar> createState() => _GlassInputBarState();
+  ConsumerState<GlassInputBar> createState() => _GlassInputBarState();
 }
 
-class _GlassInputBarState extends State<GlassInputBar> {
+class _GlassInputBarState extends ConsumerState<GlassInputBar> {
   bool _isRecording = false;
+  bool _isRecordingVideo = false;
+  bool _showVideoMode = false;
   double _dragOffset = 0;
   final GlobalKey<VoiceRecorderWidgetState> _voiceRecorderKey = GlobalKey();
 
@@ -70,6 +81,16 @@ class _GlassInputBarState extends State<GlassInputBar> {
             },
             onCancelled: () {
               setState(() => _isRecording = false);
+            },
+          )
+        else if (_isRecordingVideo)
+          CircularVideoRecorder(
+            onVideoRecorded: (path, duration) {
+              setState(() => _isRecordingVideo = false);
+              widget.onVideoRecorded?.call(path, duration);
+            },
+            onCancelled: () {
+              setState(() => _isRecordingVideo = false);
             },
           )
         else
@@ -101,30 +122,19 @@ class _GlassInputBarState extends State<GlassInputBar> {
       ),
       decoration: const BoxDecoration(
         color: Color(0xCC060D1A),
-        border: Border(
-          top: BorderSide(color: Color(0x0FFFFFFF), width: 1),
-        ),
+        border: Border(top: BorderSide(color: Color(0x0FFFFFFF), width: 1)),
       ),
       child: Row(
         children: [
           // Emoji button
-          _IconBtn(
-            icon: Icons.emoji_emotions_outlined,
-            onTap: widget.onEmoji,
-          ),
+          _IconBtn(icon: Icons.emoji_emotions_outlined, onTap: widget.onEmoji),
 
           // Attach button
-          _IconBtn(
-            icon: Icons.attach_file_rounded,
-            onTap: widget.onAttach,
-          ),
+          _IconBtn(icon: Icons.attach_file_rounded, onTap: widget.onAttach),
 
           // GIF button
           if (widget.onGif != null)
-            _IconBtn(
-              icon: Icons.gif_box_rounded,
-              onTap: widget.onGif,
-            ),
+            _IconBtn(icon: Icons.gif_box_rounded, onTap: widget.onGif),
 
           const SizedBox(width: 4),
 
@@ -135,9 +145,7 @@ class _GlassInputBarState extends State<GlassInputBar> {
               decoration: BoxDecoration(
                 color: const Color(0x0FFFFFFF),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                  color: const Color(0x17FFFFFF),
-                ),
+                border: Border.all(color: const Color(0x17FFFFFF)),
               ),
               child: TextField(
                 controller: widget.controller,
@@ -145,15 +153,17 @@ class _GlassInputBarState extends State<GlassInputBar> {
                 maxLines: 4,
                 minLines: 1,
                 textCapitalization: TextCapitalization.sentences,
-                keyboardType: widget.incognitoKeyboard
-                    ? TextInputType.visiblePassword
-                    : TextInputType.multiline,
+                keyboardType:
+                    widget.incognitoKeyboard
+                        ? TextInputType.visiblePassword
+                        : TextInputType.multiline,
                 autocorrect: !widget.incognitoKeyboard,
                 enableSuggestions: !widget.incognitoKeyboard,
                 decoration: InputDecoration(
-                  hintText: 'Type a message...',
-                  hintStyle: AppTextStyles.caption
-                      .copyWith(color: AppColors.textMuted),
+                  hintText: L10n.s(ref, 'typeMessage'),
+                  hintStyle: AppTextStyles.caption.copyWith(
+                    color: AppColors.textMuted,
+                  ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
                     horizontal: 14,
@@ -194,7 +204,13 @@ class _GlassInputBarState extends State<GlassInputBar> {
           // Send button or Mic button
           if (hasText || widget.isSending)
             WaterRippleEffect(
-              onTap: widget.isSending ? null : widget.onSend,
+              onTap:
+                  widget.isSending
+                      ? null
+                      : () {
+                        AppHaptics.success();
+                        widget.onSend();
+                      },
               child: Container(
                 width: 42,
                 height: 42,
@@ -208,45 +224,69 @@ class _GlassInputBarState extends State<GlassInputBar> {
                     ),
                   ],
                 ),
-                child: widget.isSending
-                    ? const Padding(
-                        padding: EdgeInsets.all(12),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          valueColor:
-                              AlwaysStoppedAnimation(Colors.white),
+                child:
+                    widget.isSending
+                        ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
+                        : const Icon(
+                          Icons.send_rounded,
+                          color: Colors.white,
+                          size: 20,
                         ),
-                      )
-                    : const Icon(Icons.send_rounded,
-                        color: Colors.white, size: 20),
               ),
             )
+          // Mic or Video button
           else
-            // Mic button — tap or hold to record
             GestureDetector(
               onTap: () {
+                AppHaptics.mediumTap();
                 setState(() {
-                  _isRecording = true;
-                  _dragOffset = 0;
+                  _showVideoMode = !_showVideoMode;
                 });
               },
               onLongPressStart: (_) {
+                AppHaptics.heavyTap();
                 setState(() {
-                  _isRecording = true;
+                  if (_showVideoMode) {
+                    _isRecordingVideo = true;
+                  } else {
+                    _isRecording = true;
+                  }
                   _dragOffset = 0;
                 });
               },
-              child: Container(
-                width: 42,
-                height: 42,
-                decoration: BoxDecoration(
-                  color: AppColors.aquaCore.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.mic_rounded,
-                  color: AppColors.aquaCore,
-                  size: 22,
+              onLongPressMoveUpdate: (details) {
+                if (_isRecording) {
+                  setState(() {
+                    _dragOffset = details.localPosition.dx;
+                  });
+                  if (_dragOffset < -100) {
+                    _voiceRecorderKey.currentState?.cancelRecording();
+                  }
+                }
+              },
+              onLongPressEnd: (_) {
+                if (_isRecording) {
+                  _voiceRecorderKey.currentState?.stopAndSend();
+                }
+              },
+              child: WaterRippleEffect(
+                child: Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: AppColors.aquaCore,
+                  ),
+                  child: Icon(
+                    _showVideoMode ? Icons.videocam_rounded : Icons.mic_rounded,
+                    color: Colors.white,
+                    size: 22,
+                  ),
                 ),
               ),
             ),
@@ -260,12 +300,7 @@ class _GlassInputBarState extends State<GlassInputBar> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.aquaCore.withOpacity(0.1),
-        border: Border(
-          left: BorderSide(
-            color: AppColors.aquaCore,
-            width: 3,
-          ),
-        ),
+        border: Border(left: BorderSide(color: AppColors.aquaCore, width: 3)),
       ),
       child: Row(
         children: [
@@ -300,8 +335,11 @@ class _GlassInputBarState extends State<GlassInputBar> {
             onTap: widget.onClearReply,
             child: Padding(
               padding: const EdgeInsets.only(left: 8),
-              child: Icon(Icons.close,
-                  color: Colors.white.withOpacity(0.5), size: 18),
+              child: Icon(
+                Icons.close,
+                color: Colors.white.withOpacity(0.5),
+                size: 18,
+              ),
             ),
           ),
         ],
@@ -324,7 +362,11 @@ class _IconBtn extends StatelessWidget {
       onTap: onTap,
       child: Padding(
         padding: const EdgeInsets.all(8),
-        child: Icon(icon, color: color ?? AppColors.textMuted, size: size ?? 22),
+        child: Icon(
+          icon,
+          color: color ?? AppColors.textMuted,
+          size: size ?? 22,
+        ),
       ),
     );
   }

@@ -4,6 +4,7 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/l10n.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../providers/settings_provider.dart';
 
@@ -19,7 +20,7 @@ class AppearanceScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: AppColors.abyssBackground,
       appBar: AppBar(
-        title: Text('Appearance', style: AppTextStyles.heading),
+        title: Text(L10n.s(ref, 'appearance'), style: AppTextStyles.heading),
         backgroundColor: Colors.transparent,
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.aquaCore),
@@ -37,26 +38,26 @@ class AppearanceScreen extends ConsumerWidget {
               ),
               children: [
                 // Theme section
-                _sectionHeader('Theme'),
+                _sectionHeader(L10n.s(ref, 'theme')),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     _ThemeCard(
-                      label: 'Dark Ocean',
+                      label: L10n.s(ref, 'darkOcean'),
                       colors: [const Color(0xFF060D1A), const Color(0xFF0C4A6E)],
                       isSelected: currentTheme == 'dark_ocean',
                       onTap: () => ref.read(themeProvider.notifier).setTheme('dark_ocean'),
                     ),
                     const SizedBox(width: 10),
                     _ThemeCard(
-                      label: 'Light Glass',
+                      label: L10n.s(ref, 'lightGlass'),
                       colors: [const Color(0xFFE0F7FA), const Color(0xFFB2EBF2)],
                       isSelected: currentTheme == 'light_glass',
                       onTap: () => ref.read(themeProvider.notifier).setTheme('light_glass'),
                     ),
                     const SizedBox(width: 10),
                     _ThemeCard(
-                      label: 'Midnight',
+                      label: L10n.s(ref, 'midnight'),
                       colors: [const Color(0xFF1A0033), const Color(0xFF4A0080)],
                       isSelected: currentTheme == 'midnight_purple',
                       onTap: () => ref.read(themeProvider.notifier).setTheme('midnight_purple'),
@@ -66,26 +67,26 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // Bubble style section
-                _sectionHeader('Chat Bubble Style'),
+                _sectionHeader(L10n.s(ref, 'chatBubbleStyle')),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     _BubbleCard(
-                      label: 'Rounded',
+                      label: L10n.s(ref, 'rounded'),
                       radius: 20,
                       isSelected: currentBubble == 'rounded',
                       onTap: () => ref.read(bubbleStyleProvider.notifier).setStyle('rounded'),
                     ),
                     const SizedBox(width: 10),
                     _BubbleCard(
-                      label: 'Sharp',
+                      label: L10n.s(ref, 'sharp'),
                       radius: 4,
                       isSelected: currentBubble == 'sharp',
                       onTap: () => ref.read(bubbleStyleProvider.notifier).setStyle('sharp'),
                     ),
                     const SizedBox(width: 10),
                     _BubbleCard(
-                      label: 'Minimal',
+                      label: L10n.s(ref, 'minimal'),
                       radius: 12,
                       isSelected: currentBubble == 'minimal',
                       onTap: () => ref.read(bubbleStyleProvider.notifier).setStyle('minimal'),
@@ -95,7 +96,7 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // Font size section
-                _sectionHeader('Font Size'),
+                _sectionHeader(L10n.s(ref, 'fontSize')),
                 const SizedBox(height: 8),
                 GlassCard(
                   borderRadius: 16,

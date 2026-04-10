@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -12,6 +13,12 @@ class FirebaseService {
 
   /// Initialize Firebase with env vars
   static Future<void> initialize() async {
+    if (Env.firebaseApiKey.isEmpty || Env.firebaseAppId.isEmpty) {
+      debugPrint(
+        '❌ Firebase credentials missing in .env! App might crash or fail to function.',
+      );
+      return;
+    }
     try {
       await Firebase.initializeApp(
         options: FirebaseOptions(

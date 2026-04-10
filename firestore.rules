@@ -155,5 +155,31 @@ service cloud.firestore {
       allow read, update, delete: if isSignedIn()
         && request.auth.uid == resource.data.senderId;
     }
+
+    // ═══════════════════════════════════════════════════════
+    // CLOUD DRIVE (per-user files)
+    // ═══════════════════════════════════════════════════════
+    match /user_files/{userId} {
+      match /files/{fileId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // POLLS (within groups or individual chats)
+    // ═══════════════════════════════════════════════════════
+    match /polls/{pollId} {
+      // Anyone in the chat/group can read and vote
+      allow read: if isSignedIn()
+        && (request.auth.uid in resource.data.voterIds || resource.data.get('isPublic', false));
+      
+      // Creating a poll
+      allow create: if isSignedIn();
+
+      // Voting - only update specific fields
+      allow update: if isSignedIn()
+        && (request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['votes', 'voterIds']));
+    }
   }
 }

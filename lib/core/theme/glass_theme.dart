@@ -20,63 +20,83 @@ class GlassTheme {
         color: borderColor ?? AppColors.glassBorder,
         width: borderWidth,
       ),
-      boxShadow: shadows,
+      boxShadow: shadows ??
+          [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 10,
+              spreadRadius: 0,
+            ),
+          ],
     );
   }
 
-  // ─── Glass Card with Shimmer Top Edge ────────────────
-  static BoxDecoration glassDecorationWithShimmer({
+  // ─── Glass Card with Bioluminescent Edge ────────────────
+  static BoxDecoration glassDecorationWithBiolume({
     double borderRadius = 24,
   }) {
     return BoxDecoration(
       borderRadius: BorderRadius.circular(borderRadius),
-      gradient: const LinearGradient(
+      gradient: LinearGradient(
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          Color(0x1FFFFFFF),
+          const Color(0x33FFFFFF),
           Colors.transparent,
-          Color(0x0F0EA5E9),
+          AppColors.aquaCore.withOpacity(0.1),
         ],
       ),
-      border: const Border(
-        top: BorderSide(color: Color(0x40FFFFFF), width: 1),
-        left: BorderSide(color: Color(0x1FFFFFFF), width: 1),
-        right: BorderSide(color: Color(0x0AFFFFFF), width: 0.5),
-        bottom: BorderSide(color: Color(0x0AFFFFFF), width: 0.5),
+      border: Border.fromBorderSide(
+        BorderSide(color: AppColors.glassBorder, width: 0.5),
       ),
+      boxShadow: [
+        BoxShadow(
+          color: AppColors.aquaCore.withOpacity(0.1),
+          blurRadius: 20,
+          spreadRadius: -5,
+        ),
+      ],
     );
   }
 
   // ─── Message Bubble Incoming ─────────────────────────
   static BoxDecoration incomingBubbleDecoration() {
-    return const BoxDecoration(
+    return BoxDecoration(
       color: AppColors.msgIn,
-      borderRadius: BorderRadius.only(
+      borderRadius: const BorderRadius.only(
         topLeft: Radius.circular(4),
-        topRight: Radius.circular(16),
-        bottomLeft: Radius.circular(16),
-        bottomRight: Radius.circular(16),
+        topRight: Radius.circular(20),
+        bottomLeft: Radius.circular(20),
+        bottomRight: Radius.circular(20),
       ),
-      border: Border.fromBorderSide(
-        BorderSide(color: AppColors.glassBorder, width: 0.5),
+      border: Border.all(
+        color: AppColors.glassBorder.withOpacity(0.3),
+        width: 0.5,
       ),
     );
   }
 
   // ─── Message Bubble Outgoing ─────────────────────────
   static BoxDecoration outgoingBubbleDecoration() {
-    return const BoxDecoration(
+    return BoxDecoration(
       gradient: AppColors.msgOutGradient,
-      borderRadius: BorderRadius.only(
-        topLeft: Radius.circular(16),
+      borderRadius: const BorderRadius.only(
+        topLeft: Radius.circular(20),
         topRight: Radius.circular(4),
-        bottomLeft: Radius.circular(16),
-        bottomRight: Radius.circular(16),
+        bottomLeft: Radius.circular(20),
+        bottomRight: Radius.circular(20),
       ),
-      border: Border.fromBorderSide(
-        BorderSide(color: Color(0x400EA5E9), width: 0.5),
+      border: Border.all(
+        color: AppColors.aquaCore.withOpacity(0.4),
+        width: 0.5,
       ),
+      boxShadow: [
+        BoxShadow(
+          color: AppColors.aquaCore.withOpacity(0.15),
+          blurRadius: 12,
+          offset: const Offset(0, 4),
+        ),
+      ],
     );
   }
 

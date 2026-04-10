@@ -12,6 +12,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+// Add this
 import '../../../core/services/cloudinary_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/media_compressor.dart';
@@ -22,7 +23,6 @@ import '../../auth/models/user_model.dart';
 import '../../calls/screens/daily_call_screen.dart';
 import '../../chat/models/message_model.dart';
 import '../../chat/screens/chat_media_gallery_screen.dart';
-import '../../chat/screens/video_player_screen.dart';
 import '../../chat/services/message_actions_service.dart';
 import '../../chat/widgets/forward_message_sheet.dart';
 import '../../chat/widgets/gif_picker_sheet.dart';
@@ -32,6 +32,7 @@ import '../../chat/widgets/message_context_menu.dart';
 import '../../chat/widgets/pinned_message_banner.dart';
 import '../../../core/services/privacy_service.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../chat/providers/chat_provider.dart';
 import '../providers/group_provider.dart';
 import 'group_info_screen.dart';
 import '../models/poll_model.dart';
@@ -54,8 +55,7 @@ class GroupChatScreen extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<GroupChatScreen> createState() =>
-      _GroupChatScreenState();
+  ConsumerState<GroupChatScreen> createState() => _GroupChatScreenState();
 }
 
 class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
@@ -119,7 +119,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     setState(() => _replyTo = null);
 
     try {
-      await ref.read(groupServiceProvider).sendGroupMessage(
+      await ref
+          .read(groupServiceProvider)
+          .sendGroupMessage(
             groupId: widget.groupId,
             text: text,
             replyTo: replyData,
@@ -129,8 +131,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Failed: $e'),
-              backgroundColor: AppColors.errorRed),
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
         );
       }
     } finally {
@@ -144,10 +147,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     setState(() {
       _replyTo = ReplyData(
         messageId: message.id,
-        senderName: message.senderId ==
-                ref.read(groupServiceProvider).myUid
-            ? 'You'
-            : senderName,
+        senderName:
+            message.senderId == ref.read(groupServiceProvider).myUid
+                ? 'You'
+                : senderName,
         text: message.text ?? '',
         type: message.type,
         mediaUrl: message.mediaUrl,
@@ -162,8 +165,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       final prefs = await SharedPreferences.getInstance();
 
       // Load self-destruct timer for this group
-      final groupDoc = await FirebaseFirestore.instance
-          .collection('groups').doc(widget.groupId).get();
+      final groupDoc =
+          await FirebaseFirestore.instance
+              .collection('groups')
+              .doc(widget.groupId)
+              .get();
       final timer = groupDoc.data()?['selfDestructTimer'] as int? ?? 0;
 
       if (mounted) {
@@ -193,51 +199,66 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Padding(
-            padding: EdgeInsets.all(16),
-            child: Text('💣 Self-Destruct Timer',
-                style: TextStyle(
+      builder:
+          (_) => Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Text(
+                  '💣 Self-Destruct Timer',
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
-                    fontWeight: FontWeight.bold)),
-          ),
-          ...options.map((o) => ListTile(
-                leading: Icon(
-                  o['value'] == 0
-                      ? Icons.timer_off_rounded
-                      : Icons.timer_rounded,
-                  color: AppColors.aquaCore,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-                title: Text(o['label'] as String,
-                    style: const TextStyle(color: Colors.white)),
-                trailing: _selfDestructSeconds == o['value'] as int
-                    ? const Icon(Icons.check_rounded,
-                        color: AppColors.aquaCore)
-                    : null,
-                onTap: () async {
-                  final seconds = o['value'] as int;
-                  await PrivacyService.setSelfDestructTimer(
-                    chatId: widget.groupId,
-                    isGroup: true,
-                    seconds: seconds,
-                  );
-                  setState(() => _selfDestructSeconds = seconds);
-                  if (mounted) {
-                    Navigator.pop(context);
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text(seconds == 0
-                          ? '💣 Timer disabled'
-                          : '💣 Messages delete after ${o['label']}'),
-                    ));
-                  }
-                },
-              )),
-          const SizedBox(height: 16),
-        ],
-      ),
+              ),
+              ...options.map(
+                (o) => ListTile(
+                  leading: Icon(
+                    o['value'] == 0
+                        ? Icons.timer_off_rounded
+                        : Icons.timer_rounded,
+                    color: AppColors.aquaCore,
+                  ),
+                  title: Text(
+                    o['label'] as String,
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                  trailing:
+                      _selfDestructSeconds == o['value'] as int
+                          ? const Icon(
+                            Icons.check_rounded,
+                            color: AppColors.aquaCore,
+                          )
+                          : null,
+                  onTap: () async {
+                    final seconds = o['value'] as int;
+                    await PrivacyService.setSelfDestructTimer(
+                      chatId: widget.groupId,
+                      isGroup: true,
+                      seconds: seconds,
+                    );
+                    setState(() => _selfDestructSeconds = seconds);
+                    if (mounted) {
+                      Navigator.pop(context);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                            seconds == 0
+                                ? '💣 Timer disabled'
+                                : '💣 Messages delete after ${o['label']}',
+                          ),
+                        ),
+                      );
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+          ),
     );
   }
 
@@ -256,95 +277,95 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             .collection('messages')
             .doc(msg.id)
             .update({
-          'isDeleted': true,
-          'text': null,
-          'mediaUrl': null,
-          'deletedAt': FieldValue.serverTimestamp(),
-        });
+              'isDeleted': true,
+              'text': null,
+              'mediaUrl': null,
+              'deletedAt': FieldValue.serverTimestamp(),
+            });
       }
     }
   }
 
   void _showEditDialog(MessageModel message) {
-    final editController =
-        TextEditingController(text: message.text ?? '');
+    final editController = TextEditingController(text: message.text ?? '');
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        backgroundColor: const Color(0xFF0A1628),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-              color: AppColors.aquaCyan.withOpacity(0.2)),
-        ),
-        title: Text('Edit Message',
-            style: AppTextStyles.body
-                .copyWith(fontWeight: FontWeight.w600)),
-        content: TextField(
-          controller: editController,
-          style: AppTextStyles.body.copyWith(fontSize: 14),
-          decoration: InputDecoration(
-            hintText: 'Edit your message...',
-            hintStyle: AppTextStyles.caption
-                .copyWith(color: AppColors.textMuted),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                  color: Colors.white.withOpacity(0.1)),
+      builder:
+          (_) => AlertDialog(
+            backgroundColor: const Color(0xFF0A1628),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: AppColors.aquaCyan.withOpacity(0.2)),
             ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(
-                  color: Colors.white.withOpacity(0.1)),
+            title: Text(
+              'Edit Message',
+              style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
             ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(12),
-              borderSide:
-                  const BorderSide(color: AppColors.aquaCore),
-            ),
-          ),
-          autofocus: true,
-          maxLines: null,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
-                style: TextStyle(color: AppColors.textMuted)),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              final newText = editController.text.trim();
-              if (newText.isEmpty) return;
-              try {
-                await MessageActionsService.editMessage(
-                  chatId: widget.groupId,
-                  messageId: message.id,
-                  newText: newText,
-                  isGroup: true,
-                );
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('$e'),
-                      backgroundColor: AppColors.errorRed,
-                    ),
-                  );
-                }
-              }
-              if (mounted) Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.aquaCore,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+            content: TextField(
+              controller: editController,
+              style: AppTextStyles.body.copyWith(fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Edit your message...',
+                hintStyle: AppTextStyles.caption.copyWith(
+                  color: AppColors.textMuted,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: Colors.white.withOpacity(0.1)),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.aquaCore),
+                ),
               ),
+              autofocus: true,
+              maxLines: null,
             ),
-            child: const Text('Save'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(
+                  'Cancel',
+                  style: TextStyle(color: AppColors.textMuted),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  final newText = editController.text.trim();
+                  if (newText.isEmpty) return;
+                  try {
+                    await MessageActionsService.editMessage(
+                      chatId: widget.groupId,
+                      messageId: message.id,
+                      newText: newText,
+                      isGroup: true,
+                    );
+                  } catch (e) {
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('$e'),
+                          backgroundColor: AppColors.errorRed,
+                        ),
+                      );
+                    }
+                  }
+                  if (mounted) Navigator.pop(context);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.aquaCore,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                child: const Text('Save'),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -353,8 +374,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       context: context,
       backgroundColor: const Color(0xFF0A1628),
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(20)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       isScrollControlled: true,
       builder: (_) => ForwardMessageSheet(message: message),
@@ -404,7 +424,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   }
 
   void _showContextMenu(
-      MessageModel message, bool isMyMessage, String senderName) {
+    MessageModel message,
+    bool isMyMessage,
+    String senderName,
+  ) {
     showMessageContextMenu(
       context: context,
       message: message,
@@ -413,40 +436,40 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       isGroup: true,
       currentUid: ref.read(groupServiceProvider).myUid,
       onReply: () => _setReplyTo(message, senderName),
-      onEdit:
-          isMyMessage ? () => _showEditDialog(message) : null,
-      onDeleteForEveryone: () =>
-          MessageActionsService.deleteForEveryone(
-        chatId: widget.groupId,
-        messageId: message.id,
-        isGroup: true,
-      ),
-      onDeleteForMe: () => MessageActionsService.deleteForMe(
-        chatId: widget.groupId,
-        messageId: message.id,
-        isGroup: true,
-      ),
+      onEdit: isMyMessage ? () => _showEditDialog(message) : null,
+      onDeleteForEveryone:
+          () => MessageActionsService.deleteForEveryone(
+            chatId: widget.groupId,
+            messageId: message.id,
+            isGroup: true,
+          ),
+      onDeleteForMe:
+          () => MessageActionsService.deleteForMe(
+            chatId: widget.groupId,
+            messageId: message.id,
+            isGroup: true,
+          ),
       onForward: () => _showForwardSheet(message),
-      onPin: () => MessageActionsService.togglePinMessage(
-        chatId: widget.groupId,
-        messageId: message.id,
-        pin: !message.isPinned,
-        isGroup: true,
-      ),
-      onStar: () => MessageActionsService.toggleStarMessage(
-        chatId: widget.groupId,
-        messageId: message.id,
-        isGroup: true,
-      ),
+      onPin:
+          () => MessageActionsService.togglePinMessage(
+            chatId: widget.groupId,
+            messageId: message.id,
+            pin: !message.isPinned,
+            isGroup: true,
+          ),
+      onStar:
+          () => MessageActionsService.toggleStarMessage(
+            chatId: widget.groupId,
+            messageId: message.id,
+            isGroup: true,
+          ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final messages =
-        ref.watch(groupMessagesProvider(widget.groupId));
-    final members =
-        ref.watch(groupMembersProvider(widget.groupId));
+    final messages = ref.watch(groupMessagesProvider(widget.groupId));
+    final members = ref.watch(groupMembersProvider(widget.groupId));
     final myUid = ref.read(groupServiceProvider).myUid;
 
     messages.whenData((_) => _scrollToBottom());
@@ -474,51 +497,58 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                 chatId: widget.groupId,
                 isGroup: true,
                 onTap: () {},
-                onUnpin: () =>
-                    MessageActionsService.togglePinMessage(
-                  chatId: widget.groupId,
-                  messageId: '',
-                  pin: false,
-                  isGroup: true,
-                ),
+                onUnpin:
+                    () => MessageActionsService.togglePinMessage(
+                      chatId: widget.groupId,
+                      messageId: '',
+                      pin: false,
+                      isGroup: true,
+                    ),
               ),
 
               // Messages
               Expanded(
                 child: messages.when(
-                  loading: () => const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation(
-                          AppColors.aquaCore),
-                    ),
-                  ),
-                  error: (e, _) => Center(
-                    child: Text('Error: $e',
-                        style: AppTextStyles.caption),
-                  ),
+                  loading:
+                      () => const Center(
+                        child: CircularProgressIndicator(
+                          valueColor: AlwaysStoppedAnimation(
+                            AppColors.aquaCore,
+                          ),
+                        ),
+                      ),
+                  error:
+                      (e, _) => Center(
+                        child: Text('Error: $e', style: AppTextStyles.caption),
+                      ),
                   data: (msgs) {
                     _checkSelfDestruct(msgs);
 
-                    final filtered = msgs
-                        .where(
-                            (m) => !m.deletedFor.contains(myUid))
-                        .toList();
+                    final filtered =
+                        msgs
+                            .where((m) => !m.deletedFor.contains(myUid))
+                            .toList();
 
                     if (filtered.isEmpty) {
                       return Center(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.group_outlined,
-                                color: AppColors.aquaCore
-                                    .withValues(alpha: 0.2),
-                                size: 64),
+                            Icon(
+                              Icons.group_outlined,
+                              color: AppColors.aquaCore.withValues(alpha: 0.2),
+                              size: 64,
+                            ),
                             const SizedBox(height: 12),
-                            Text('No messages yet',
-                                style: AppTextStyles.bodySmall),
+                            Text(
+                              'No messages yet',
+                              style: AppTextStyles.bodySmall,
+                            ),
                             const SizedBox(height: 4),
-                            Text('Start the conversation!',
-                                style: AppTextStyles.caption),
+                            Text(
+                              'Start the conversation!',
+                              style: AppTextStyles.caption,
+                            ),
                           ],
                         ),
                       );
@@ -526,22 +556,22 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
                     return ListView.builder(
                       controller: _scrollController,
-                      padding: const EdgeInsets.symmetric(
-                          vertical: 12),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
                       itemCount: filtered.length,
                       itemBuilder: (_, i) {
                         final msg = filtered[i];
                         final isMe = msg.senderId == myUid;
                         final senderName =
-                            memberNames[msg.senderId] ??
-                                'Unknown';
+                            memberNames[msg.senderId] ?? 'Unknown';
 
                         Widget bubbleChild;
-                        
-                        if (msg.type == 'poll' && msg.toMap()['pollData'] != null) {
-                          final pollData = msg.toMap()['pollData'] as Map<String, dynamic>;
+
+                        if (msg.type == 'poll' &&
+                            msg.toMap()['pollData'] != null) {
+                          final pollData =
+                              msg.toMap()['pollData'] as Map<String, dynamic>;
                           final pollModel = PollModel.fromMap(pollData);
-                          
+
                           bubbleChild = PollBubble(
                             message: msg,
                             poll: pollModel,
@@ -549,46 +579,50 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                             isMe: isMe,
                             onVote: (optionIndex) async {
                               if (pollModel.hasVoted(myUid)) return;
-                              
-                              final newVotes = Map<String, List<String>>.from(pollModel.votes);
-                              newVotes[optionIndex] = [...(newVotes[optionIndex] ?? []), myUid];
-                              
+
+                              final newVotes = Map<String, List<String>>.from(
+                                pollModel.votes,
+                              );
+                              newVotes[optionIndex] = [
+                                ...(newVotes[optionIndex] ?? []),
+                                myUid,
+                              ];
+
                               await FirebaseService.firestore
                                   .collection('groups')
                                   .doc(widget.groupId)
                                   .collection('messages')
                                   .doc(msg.id)
-                                  .update({
-                                     'pollData.votes': newVotes,
-                                  });
+                                  .update({'pollData.votes': newVotes});
                             },
                           );
                         } else {
-                          bubbleChild = MessageBubble(
-                            message: msg,
-                            isMe: isMe,
-                            showSenderName: !isMe,
-                            senderName: senderName,
-                            currentUid: myUid,
-                            chatId: widget.groupId,
-                            isGroup: true,
-                            isSelected: _selectedMessageIds
-                                .contains(msg.id),
-                            isMultiSelectMode:
-                                _isMultiSelectMode,
-                            onLongPress: () {
-                              if (_isMultiSelectMode) {
-                                _toggleSelection(msg.id);
-                              } else {
-                                _showContextMenu(
-                                    msg, isMe, senderName);
-                              }
-                            },
-                            onTap: _isMultiSelectMode
-                                ? () =>
-                                    _toggleSelection(msg.id)
-                                : null,
-                          );
+                          bubbleChild =
+                              MessageBubble(
+                                    message: msg,
+                                    isMe: isMe,
+                                    showSenderName: !isMe,
+                                    senderName: senderName,
+                                    currentUid: myUid,
+                                    chatId: widget.groupId,
+                                    isGroup: true,
+                                    isSelected: _selectedMessageIds.contains(
+                                      msg.id,
+                                    ),
+                                    isMultiSelectMode: _isMultiSelectMode,
+                                    onLongPress: () {
+                                      if (_isMultiSelectMode) {
+                                        _toggleSelection(msg.id);
+                                      } else {
+                                        _showContextMenu(msg, isMe, senderName);
+                                      }
+                                    },
+                                    onTap:
+                                        _isMultiSelectMode
+                                            ? () => _toggleSelection(msg.id)
+                                            : null,
+                                  )
+                                  as Widget;
                         }
 
                         // Also wrap PollBubble in a GestureDetector for multi-select if needed.
@@ -601,13 +635,25 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                                 _showContextMenu(msg, isMe, senderName);
                               }
                             },
-                            onTap: _isMultiSelectMode ? () => _toggleSelection(msg.id) : null,
+                            onTap:
+                                _isMultiSelectMode
+                                    ? () => _toggleSelection(msg.id)
+                                    : null,
                             child: Container(
-                              color: _selectedMessageIds.contains(msg.id) 
-                                ? AppColors.aquaCore.withValues(alpha: 0.1) 
-                                : Colors.transparent,
-                              padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
-                              alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+                              color:
+                                  _selectedMessageIds.contains(msg.id)
+                                      ? AppColors.aquaCore.withValues(
+                                        alpha: 0.1,
+                                      )
+                                      : Colors.transparent,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 4,
+                                horizontal: 12,
+                              ),
+                              alignment:
+                                  isMe
+                                      ? Alignment.centerRight
+                                      : Alignment.centerLeft,
                               child: bubbleChild,
                             ),
                           );
@@ -621,25 +667,27 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               ),
 
               // Multi-select bottom bar
-              if (_isMultiSelectMode)
-                _buildMultiSelectBar(),
+              if (_isMultiSelectMode) _buildMultiSelectBar(),
 
               // Self-destruct banner
               if (!_isMultiSelectMode && _selfDestructSeconds > 0)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   color: Colors.red.withOpacity(0.1),
                   child: Row(
                     children: [
-                      const Text('💣',
-                          style: TextStyle(fontSize: 14)),
+                      const Text('💣', style: TextStyle(fontSize: 14)),
                       const SizedBox(width: 8),
                       Text(
                         'Messages delete after '
                         '${_formatDestructTime(_selfDestructSeconds)}',
                         style: TextStyle(
-                            color: Colors.red.shade300, fontSize: 13),
+                          color: Colors.red.shade300,
+                          fontSize: 13,
+                        ),
                       ),
                       const Spacer(),
                       GestureDetector(
@@ -651,11 +699,14 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                           );
                           setState(() => _selfDestructSeconds = 0);
                         },
-                        child: const Text('Turn Off',
-                            style: TextStyle(
-                                color: Colors.red,
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13)),
+                        child: const Text(
+                          'Turn Off',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -668,20 +719,18 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   onSend: _sendMessage,
                   isSending: _isSending,
                   replyTo: _replyTo,
-                  onClearReply: () =>
-                      setState(() => _replyTo = null),
+                  onClearReply: () => setState(() => _replyTo = null),
                   incognitoKeyboard: _incognitoKeyboard,
                   onEmoji: () {
-                    setState(() => _showEmojiPicker =
-                        !_showEmojiPicker);
+                    setState(() => _showEmojiPicker = !_showEmojiPicker);
                     if (_showEmojiPicker) {
                       FocusScope.of(context).unfocus();
                     }
                   },
-                  onAttach: () =>
-                      _showAttachmentSheet(context),
+                  onAttach: () => _showAttachmentSheet(context),
                   onGif: () => _showGifPicker(),
                   onVoiceRecorded: _sendVoiceMessage,
+                  onVideoRecorded: _sendCircularVideoMessage,
                 ),
 
                 // Emoji picker
@@ -690,13 +739,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                     height: 250,
                     child: EmojiPicker(
                       onEmojiSelected: (category, emoji) {
-                        _messageController.text +=
-                            emoji.emoji;
-                        _messageController.selection =
-                            TextSelection.fromPosition(
-                          TextPosition(
-                              offset: _messageController
-                                  .text.length),
+                        _messageController.text += emoji.emoji;
+                        _messageController
+                            .selection = TextSelection.fromPosition(
+                          TextPosition(offset: _messageController.text.length),
                         );
                       },
                       config: const Config(
@@ -723,9 +769,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       ),
       decoration: const BoxDecoration(
         color: Color(0xE6060D1A),
-        border: Border(
-          top: BorderSide(color: Color(0x0FFFFFFF), width: 1),
-        ),
+        border: Border(top: BorderSide(color: Color(0x0FFFFFFF), width: 1)),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -751,16 +795,17 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           GestureDetector(
             onTap: _exitMultiSelect,
             child: Container(
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 12, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: Colors.white.withOpacity(0.08),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
                 '${_selectedMessageIds.length} selected',
-                style: AppTextStyles.caption
-                    .copyWith(color: Colors.white, fontSize: 12),
+                style: AppTextStyles.caption.copyWith(
+                  color: Colors.white,
+                  fontSize: 12,
+                ),
               ),
             ),
           ),
@@ -782,9 +827,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         children: [
           Icon(icon, color: color, size: 22),
           const SizedBox(height: 4),
-          Text(label,
-              style: AppTextStyles.caption
-                  .copyWith(fontSize: 10, color: color)),
+          Text(
+            label,
+            style: AppTextStyles.caption.copyWith(fontSize: 10, color: color),
+          ),
         ],
       ),
     );
@@ -800,26 +846,22 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       ),
       decoration: const BoxDecoration(
         color: Color(0xE6060D1A),
-        border: Border(
-          bottom: BorderSide(color: Color(0x0FFFFFFF), width: 1),
-        ),
+        border: Border(bottom: BorderSide(color: Color(0x0FFFFFFF), width: 1)),
       ),
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(
-                Icons.arrow_back_ios_rounded, size: 20),
+            icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
             onPressed: () => Navigator.of(context).pop(),
           ),
-          StreamBuilder<
-              DocumentSnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance
-                .collection('groups')
-                .doc(widget.groupId)
-                .snapshots(),
+          StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream:
+                FirebaseFirestore.instance
+                    .collection('groups')
+                    .doc(widget.groupId)
+                    .snapshots(),
             builder: (context, groupSnap) {
-              final photoUrl = groupSnap.data
-                  ?.data()?['photoUrl'] as String?;
+              final photoUrl = groupSnap.data?.data()?['photoUrl'] as String?;
               return AquaAvatar(
                 imageUrl:
                     (photoUrl != null && photoUrl.isNotEmpty)
@@ -837,160 +879,165 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               children: [
                 Text(
                   widget.groupName,
-                  style: AppTextStyles.headingSmall
-                      .copyWith(fontSize: 15),
+                  style: AppTextStyles.headingSmall.copyWith(fontSize: 15),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 1),
                 members.when(
-                  data: (list) => Text(
-                    '${list.length} members',
-                    style: AppTextStyles.caption
-                        .copyWith(fontSize: 10),
-                  ),
+                  data:
+                      (list) => Text(
+                        '${list.length} members',
+                        style: AppTextStyles.caption.copyWith(fontSize: 10),
+                      ),
                   loading: () => const SizedBox.shrink(),
-                  error: (_, __) =>
-                      const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
                 ),
               ],
             ),
           ),
           // Video call button
           GestureDetector(
-            onTap: () =>
-                _startGroupCall(isVideo: true),
+            onTap: () => _startGroupCall(isVideo: true),
             child: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: AppColors.glassBorder,
-                    width: 0.5),
+                border: Border.all(color: AppColors.glassBorder, width: 0.5),
               ),
-              child: const Icon(Icons.videocam_rounded,
-                  color: AppColors.lightWave, size: 18),
+              child: const Icon(
+                Icons.videocam_rounded,
+                color: AppColors.lightWave,
+                size: 18,
+              ),
             ),
           ),
           const SizedBox(width: 6),
           // Audio call button
           GestureDetector(
-            onTap: () =>
-                _startGroupCall(isVideo: false),
+            onTap: () => _startGroupCall(isVideo: false),
             child: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: AppColors.glassBorder,
-                    width: 0.5),
+                border: Border.all(color: AppColors.glassBorder, width: 0.5),
               ),
-              child: const Icon(Icons.call_rounded,
-                  color: AppColors.lightWave, size: 18),
+              child: const Icon(
+                Icons.call_rounded,
+                color: AppColors.lightWave,
+                size: 18,
+              ),
             ),
           ),
           const SizedBox(width: 6),
           // Group info button
           GestureDetector(
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => GroupInfoScreen(
-                  groupId: widget.groupId,
-                  groupName: widget.groupName,
-                  groupPhoto: widget.groupPhoto,
+            onTap:
+                () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder:
+                        (_) => GroupInfoScreen(
+                          groupId: widget.groupId,
+                          groupName: widget.groupName,
+                          groupPhoto: widget.groupPhoto,
+                        ),
+                  ),
                 ),
-              ),
-            ),
             child: Container(
               width: 36,
               height: 36,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                    color: AppColors.glassBorder,
-                    width: 0.5),
+                border: Border.all(color: AppColors.glassBorder, width: 0.5),
               ),
               child: const Icon(
-                  Icons.info_outline_rounded,
-                  color: AppColors.lightWave,
-                  size: 18),
+                Icons.info_outline_rounded,
+                color: AppColors.lightWave,
+                size: 18,
+              ),
             ),
           ),
           const SizedBox(width: 4),
           // More menu (Media gallery)
           PopupMenuButton<String>(
-            icon: const Icon(Icons.more_vert_rounded,
-                color: AppColors.lightWave, size: 20),
+            icon: const Icon(
+              Icons.more_vert_rounded,
+              color: AppColors.lightWave,
+              size: 20,
+            ),
             color: const Color(0xFF0C1E3A),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12)),
+              borderRadius: BorderRadius.circular(12),
+            ),
             onSelected: (value) {
               if (value == 'media') {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => ChatMediaGalleryScreen(
-                      chatId: widget.groupId,
-                      isGroup: true,
-                    ),
+                    builder:
+                        (_) => ChatMediaGalleryScreen(
+                          chatId: widget.groupId,
+                          isGroup: true,
+                        ),
                   ),
                 );
               } else if (value == 'self_destruct') {
                 _showSelfDestructPicker();
               }
             },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                value: 'media',
-                child: Row(
-                  children: [
-                    Icon(Icons.photo_library_rounded,
-                        color: AppColors.aquaCore, size: 20),
-                    SizedBox(width: 12),
-                    Text('Media & Files',
-                        style: TextStyle(color: Colors.white)),
-                  ],
-                ),
-              ),
-              const PopupMenuItem(
-                value: 'self_destruct',
-                child: Row(
-                  children: [
-                    Text('💣', style: TextStyle(fontSize: 18)),
-                    SizedBox(width: 12),
-                    Text('Self-Destruct Timer',
-                        style: TextStyle(color: Colors.white)),
-                  ],
-                ),
-              ),
-            ],
+            itemBuilder:
+                (_) => [
+                  const PopupMenuItem(
+                    value: 'media',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.photo_library_rounded,
+                          color: AppColors.aquaCore,
+                          size: 20,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Media & Files',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'self_destruct',
+                    child: Row(
+                      children: [
+                        Text('💣', style: TextStyle(fontSize: 18)),
+                        SizedBox(width: 12),
+                        Text(
+                          'Self-Destruct Timer',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
           ),
         ],
       ),
     );
   }
 
-  Future<void> _startGroupCall(
-      {required bool isVideo}) async {
+  Future<void> _startGroupCall({required bool isVideo}) async {
     final myUid = ref.read(groupServiceProvider).myUid;
     final callId = const Uuid().v4();
-    final members = ref
-            .read(groupMembersProvider(widget.groupId))
-            .valueOrNull ??
-        [];
-    final memberIds =
-        members.map((m) => m.uid).toList();
+    final members =
+        ref.read(groupMembersProvider(widget.groupId)).valueOrNull ?? [];
+    final memberIds = members.map((m) => m.uid).toList();
 
     try {
-      await FirebaseService.firestore
-          .collection('calls')
-          .doc(callId)
-          .set({
+      await FirebaseService.firestore.collection('calls').doc(callId).set({
         'callerId': myUid,
         'callerName': 'Me',
         'channelName': widget.groupId,
@@ -1003,18 +1050,58 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // Post a system message so group members can see & join the call
+      final callerName =
+          members.where((m) => m.uid == myUid).map((m) => m.name).firstOrNull ??
+          'Someone';
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .collection('messages')
+          .add({
+            'senderId': myUid,
+            'type': 'call_invite',
+            'text': '$callerName started a ${isVideo ? 'video' : 'voice'} call',
+            'callId': callId,
+            'callType': isVideo ? 'video' : 'audio',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isDeleted': false,
+            'isEdited': false,
+            'isPinned': false,
+            'isStarred': false,
+            'isForwarded': false,
+            'reactions': {},
+            'seenBy': [myUid],
+            'deletedFor': [],
+            'starredBy': [],
+          });
+
+      // Update group's lastMessage
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .update({
+            'lastMessage': {
+              'text': '${isVideo ? '📹' : '📞'} $callerName started a call',
+              'senderId': myUid,
+              'timestamp': FieldValue.serverTimestamp(),
+              'type': 'call_invite',
+            },
+          });
+
       if (mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => DailyCallScreen(
-              callId: callId,
-              channelName: widget.groupId,
-              currentUserId: myUid,
-              currentUserName: 'Me',
-              otherUserName: widget.groupName,
-              isVideo: isVideo,
-              isGroup: true,
-            ),
+            builder:
+                (_) => DailyCallScreen(
+                  callId: callId,
+                  channelName: widget.groupId,
+                  currentUserId: myUid,
+                  currentUserName: 'Me',
+                  otherUserName: widget.groupName,
+                  isVideo: isVideo,
+                  isGroup: true,
+                ),
           ),
         );
       }
@@ -1036,118 +1123,117 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       context: ctx,
       backgroundColor: const Color(0xFF0C1E3A),
       shape: const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) => Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              decoration: BoxDecoration(
-                color: Colors.white24,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment:
-                  MainAxisAlignment.spaceAround,
+      builder:
+          (_) => Padding(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _attachOption(
-                  icon: Icons.photo_library_rounded,
-                  label: 'Gallery',
-                  color: const Color(0xFF0EA5E9),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    final pickedFiles = await ImagePicker()
-                        .pickMultiImage(
-                      imageQuality: 70,
-                      maxWidth: 1920,
-                      maxHeight: 1920,
-                    );
-                    if (pickedFiles.isEmpty) return;
-                    final files = pickedFiles.take(10).toList();
-                    setState(() => _isSending = true);
-                    try {
-                      for (final xfile in files) {
-                        final compressed = await MediaCompressor
-                            .compressImage(xfile.path);
-                        await _sendMediaMessage(compressed, 'image');
-                      }
-                    } finally {
-                      if (mounted) setState(() => _isSending = false);
-                    }
-                  },
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.white24,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
-                _attachOption(
-                  icon: Icons.camera_alt_rounded,
-                  label: 'Camera',
-                  color: const Color(0xFF22D3EE),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    final file = await ImagePicker().pickImage(
-                        source: ImageSource.camera,
-                        imageQuality: 70);
-                    if (file != null) {
-                      final compressed = await MediaCompressor
-                          .compressImage(file.path);
-                      _sendMediaMessage(compressed, 'image');
-                    }
-                  },
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _attachOption(
+                      icon: Icons.photo_library_rounded,
+                      label: 'Gallery',
+                      color: const Color(0xFF0EA5E9),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        final pickedFiles = await ImagePicker().pickMultiImage(
+                          imageQuality: 70,
+                          maxWidth: 1920,
+                          maxHeight: 1920,
+                        );
+                        if (pickedFiles.isEmpty) return;
+                        final files = pickedFiles.take(10).toList();
+                        setState(() => _isSending = true);
+                        try {
+                          for (final xfile in files) {
+                            final compressed =
+                                await MediaCompressor.compressImage(xfile.path);
+                            await _sendMediaMessage(compressed, 'image');
+                          }
+                        } finally {
+                          if (mounted) setState(() => _isSending = false);
+                        }
+                      },
+                    ),
+                    _attachOption(
+                      icon: Icons.camera_alt_rounded,
+                      label: 'Camera',
+                      color: const Color(0xFF22D3EE),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        final file = await ImagePicker().pickImage(
+                          source: ImageSource.camera,
+                          imageQuality: 70,
+                        );
+                        if (file != null) {
+                          final compressed =
+                              await MediaCompressor.compressImage(file.path);
+                          _sendMediaMessage(compressed, 'image');
+                        }
+                      },
+                    ),
+                    _attachOption(
+                      icon: Icons.videocam_rounded,
+                      label: 'Video',
+                      color: const Color(0xFF8B5CF6),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        final file = await ImagePicker().pickVideo(
+                          source: ImageSource.gallery,
+                          maxDuration: const Duration(seconds: 30),
+                        );
+                        if (file != null) {
+                          _sendVideoMessage(File(file.path));
+                        }
+                      },
+                    ),
+                    _attachOption(
+                      icon: Icons.insert_drive_file_rounded,
+                      label: 'File',
+                      color: const Color(0xFFF59E0B),
+                      onTap: () async {
+                        Navigator.pop(ctx);
+                        final result = await FilePicker.platform.pickFiles(
+                          type: FileType.any,
+                        );
+                        if (result != null &&
+                            result.files.single.path != null) {
+                          _sendMediaMessage(
+                            File(result.files.single.path!),
+                            'file',
+                            fileName: result.files.single.name,
+                          );
+                        }
+                      },
+                    ),
+                    _attachOption(
+                      icon: Icons.poll_rounded,
+                      label: 'Poll',
+                      color: const Color(0xFF10B981),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        _showCreatePollSheet();
+                      },
+                    ),
+                  ],
                 ),
-                _attachOption(
-                  icon: Icons.videocam_rounded,
-                  label: 'Video',
-                  color: const Color(0xFF8B5CF6),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    final file = await ImagePicker().pickVideo(
-                      source: ImageSource.gallery,
-                      maxDuration: const Duration(seconds: 30),
-                    );
-                    if (file != null) {
-                      _sendVideoMessage(File(file.path));
-                    }
-                  },
-                ),
-                _attachOption(
-                  icon: Icons.insert_drive_file_rounded,
-                  label: 'File',
-                  color: const Color(0xFFF59E0B),
-                  onTap: () async {
-                    Navigator.pop(ctx);
-                    final result = await FilePicker.platform
-                        .pickFiles(type: FileType.any);
-                    if (result != null &&
-                        result.files.single.path != null) {
-                      _sendMediaMessage(
-                        File(result.files.single.path!),
-                        'file',
-                        fileName:
-                            result.files.single.name,
-                      );
-                    }
-                  },
-                ),
-                _attachOption(
-                  icon: Icons.poll_rounded,
-                  label: 'Poll',
-                  color: const Color(0xFF10B981),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    _showCreatePollSheet();
-                  },
-                ),
+                const SizedBox(height: 24),
               ],
             ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -1172,16 +1258,17 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 8),
-          Text(label,
-              style: AppTextStyles.caption
-                  .copyWith(fontSize: 11)),
+          Text(label, style: AppTextStyles.caption.copyWith(fontSize: 11)),
         ],
       ),
     );
   }
 
-  Future<void> _sendMediaMessage(File file, String type,
-      {String? fileName}) async {
+  Future<void> _sendMediaMessage(
+    File file,
+    String type, {
+    String? fileName,
+  }) async {
     setState(() => _isSending = true);
     try {
       String? url;
@@ -1208,7 +1295,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         return;
       }
 
-      await ref.read(groupServiceProvider).sendGroupMessage(
+      await ref
+          .read(groupServiceProvider)
+          .sendGroupMessage(
             groupId: widget.groupId,
             text: fileName ?? '[$type]',
             type: type,
@@ -1238,32 +1327,105 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       context: context,
       backgroundColor: Colors.transparent,
       isScrollControlled: true,
-      builder: (_) => GifPickerSheet(
-        onGifSelected: (gifUrl, previewUrl) async {
-          setState(() => _isSending = true);
-          try {
-            await ref.read(groupServiceProvider).sendGroupMessage(
-              groupId: widget.groupId,
-              text: '',
-              type: 'gif',
-              mediaUrl: gifUrl,
-            );
-            _scrollToBottom();
-          } catch (e) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('Failed to send GIF: $e'),
-                  backgroundColor: AppColors.errorRed,
-                ),
-              );
-            }
-          } finally {
-            if (mounted) setState(() => _isSending = false);
-          }
-        },
-      ),
+      builder:
+          (_) => GifPickerSheet(
+            onGifSelected: (gifUrl, previewUrl) async {
+              setState(() => _isSending = true);
+              try {
+                await ref
+                    .read(groupServiceProvider)
+                    .sendGroupMessage(
+                      groupId: widget.groupId,
+                      text: '',
+                      type: 'gif',
+                      mediaUrl: gifUrl,
+                    );
+                _scrollToBottom();
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to send GIF: $e'),
+                      backgroundColor: AppColors.errorRed,
+                    ),
+                  );
+                }
+              } finally {
+                if (mounted) setState(() => _isSending = false);
+              }
+            },
+          ),
     );
+  }
+
+  // ── Phase 3: Circular Video Message Upload ───────────────
+  Future<void> _sendCircularVideoMessage(
+    String filePath,
+    Duration duration,
+  ) async {
+    setState(() => _isSending = true);
+    try {
+      final videoFile = File(filePath);
+      final chatService = ref.read(chatServiceProvider);
+
+      // Upload circular video to Cloudinary
+      final videoUrl = await CloudinaryService.uploadVideo(videoFile);
+      if (videoUrl == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Circular video upload failed'),
+              backgroundColor: AppColors.errorRed,
+            ),
+          );
+        }
+        return;
+      }
+
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .collection('messages')
+          .add({
+            'senderId': chatService.myUid,
+            'type': 'circular_video',
+            'mediaUrl': videoUrl,
+            'duration': duration.inSeconds,
+            'text': null,
+            'createdAt': FieldValue.serverTimestamp(),
+            'isDeleted': false,
+            'isEdited': false,
+            'isPinned': false,
+            'isStarred': false,
+            'isForwarded': false,
+            'reactions': {},
+            'seenBy': [chatService.myUid],
+            'deletedFor': [],
+            'starredBy': [],
+          });
+
+      // Update last message preview
+      await FirebaseService.firestore
+          .collection('groups')
+          .doc(widget.groupId)
+          .update({
+            'lastMessage': '🎥 Circular video',
+            'lastMessageTimestamp': FieldValue.serverTimestamp(),
+          });
+
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send circular video: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
   }
 
   // ── Phase 2: Voice Message Upload ───────────────────────
@@ -1294,35 +1456,35 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           .doc(widget.groupId)
           .collection('messages')
           .add({
-        'senderId': myUid,
-        'type': 'voice',
-        'mediaUrl': url,
-        'duration': duration.inSeconds,
-        'waveformData': waveformData,
-        'text': null,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isDeleted': false,
-        'isEdited': false,
-        'isPinned': false,
-        'isStarred': false,
-        'isForwarded': false,
-        'reactions': {},
-        'seenBy': [myUid],
-        'deletedFor': [],
-        'starredBy': [],
-      });
+            'senderId': myUid,
+            'type': 'voice',
+            'mediaUrl': url,
+            'duration': duration.inSeconds,
+            'waveformData': waveformData,
+            'text': null,
+            'createdAt': FieldValue.serverTimestamp(),
+            'isDeleted': false,
+            'isEdited': false,
+            'isPinned': false,
+            'isStarred': false,
+            'isForwarded': false,
+            'reactions': {},
+            'seenBy': [myUid],
+            'deletedFor': [],
+            'starredBy': [],
+          });
 
       await FirebaseService.firestore
           .collection('groups')
           .doc(widget.groupId)
           .update({
-        'lastMessage': {
-          'text': '🎙️ Voice message',
-          'senderId': myUid,
-          'timestamp': FieldValue.serverTimestamp(),
-          'type': 'voice',
-        },
-      });
+            'lastMessage': {
+              'text': '🎙️ Voice message',
+              'senderId': myUid,
+              'timestamp': FieldValue.serverTimestamp(),
+              'type': 'voice',
+            },
+          });
 
       _scrollToBottom();
     } catch (e) {
@@ -1354,8 +1516,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           quality: 75,
         );
         if (thumbnailPath != null) {
-          thumbUrl = await CloudinaryService.uploadImage(
-              File(thumbnailPath));
+          thumbUrl = await CloudinaryService.uploadImage(File(thumbnailPath));
         }
       } catch (_) {}
 
@@ -1378,34 +1539,34 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           .doc(widget.groupId)
           .collection('messages')
           .add({
-        'senderId': myUid,
-        'type': 'video',
-        'mediaUrl': videoUrl,
-        'thumbnailUrl': thumbUrl,
-        'text': null,
-        'createdAt': FieldValue.serverTimestamp(),
-        'isDeleted': false,
-        'isEdited': false,
-        'isPinned': false,
-        'isStarred': false,
-        'isForwarded': false,
-        'reactions': {},
-        'seenBy': [myUid],
-        'deletedFor': [],
-        'starredBy': [],
-      });
+            'senderId': myUid,
+            'type': 'video',
+            'mediaUrl': videoUrl,
+            'thumbnailUrl': thumbUrl,
+            'text': null,
+            'createdAt': FieldValue.serverTimestamp(),
+            'isDeleted': false,
+            'isEdited': false,
+            'isPinned': false,
+            'isStarred': false,
+            'isForwarded': false,
+            'reactions': {},
+            'seenBy': [myUid],
+            'deletedFor': [],
+            'starredBy': [],
+          });
 
       await FirebaseService.firestore
           .collection('groups')
           .doc(widget.groupId)
           .update({
-        'lastMessage': {
-          'text': '🎬 Video',
-          'senderId': myUid,
-          'timestamp': FieldValue.serverTimestamp(),
-          'type': 'video',
-        },
-      });
+            'lastMessage': {
+              'text': '🎬 Video',
+              'senderId': myUid,
+              'timestamp': FieldValue.serverTimestamp(),
+              'type': 'video',
+            },
+          });
 
       _scrollToBottom();
     } catch (e) {
@@ -1432,15 +1593,17 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => CreatePollSheet(
-        onPollCreated: (question, options) => _sendPollMessage(question, options),
-      ),
+      builder:
+          (_) => CreatePollSheet(
+            onPollCreated:
+                (question, options) => _sendPollMessage(question, options),
+          ),
     );
   }
 
   Future<void> _sendPollMessage(String question, List<String> options) async {
     setState(() => _isSending = true);
-    
+
     try {
       final myUid = ref.read(groupServiceProvider).myUid;
       final poll = PollModel(
@@ -1456,34 +1619,34 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           .doc(widget.groupId)
           .collection('messages')
           .add({
-        'senderId': myUid,
-        'type': 'poll',
-        'text': null,
-        'pollData': poll.toMap(),
-        'createdAt': FieldValue.serverTimestamp(),
-        'isDeleted': false,
-        'isEdited': false,
-        'isPinned': false,
-        'isStarred': false,
-        'isForwarded': false,
-        'reactions': {},
-        'seenBy': [myUid],
-        'deletedFor': [],
-        'starredBy': [],
-      });
+            'senderId': myUid,
+            'type': 'poll',
+            'text': null,
+            'pollData': poll.toMap(),
+            'createdAt': FieldValue.serverTimestamp(),
+            'isDeleted': false,
+            'isEdited': false,
+            'isPinned': false,
+            'isStarred': false,
+            'isForwarded': false,
+            'reactions': {},
+            'seenBy': [myUid],
+            'deletedFor': [],
+            'starredBy': [],
+          });
 
       await FirebaseService.firestore
           .collection('groups')
           .doc(widget.groupId)
           .update({
-        'lastMessage': {
-          'text': '📊 Poll: $question',
-          'senderId': myUid,
-          'timestamp': FieldValue.serverTimestamp(),
-          'type': 'poll',
-        },
-      });
-      
+            'lastMessage': {
+              'text': '📊 Poll: $question',
+              'senderId': myUid,
+              'timestamp': FieldValue.serverTimestamp(),
+              'type': 'poll',
+            },
+          });
+
       _scrollToBottom();
     } catch (e) {
       if (mounted) {

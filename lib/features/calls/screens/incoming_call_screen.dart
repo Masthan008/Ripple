@@ -4,12 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/firebase_service.dart';
-import '../../../core/utils/env.dart';
-import '../../../shared/widgets/aqua_avatar.dart';
 import 'daily_call_screen.dart';
 
 /// Incoming call screen — shown when a call notification is received.

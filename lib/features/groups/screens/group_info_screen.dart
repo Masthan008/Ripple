@@ -1118,7 +1118,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: SelectableText(
-                  inviteLink!,
+                  inviteLink,
                   style: AppTextStyles.caption.copyWith(
                     color: AppColors.aquaCyan,
                     fontSize: 12,
@@ -1136,7 +1136,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                   icon: Icons.copy_rounded,
                   label: 'Copy',
                   onTap: () {
-                    Clipboard.setData(ClipboardData(text: inviteLink!));
+                    Clipboard.setData(ClipboardData(text: inviteLink));
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Link copied! 📋')),
                     );

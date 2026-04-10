@@ -37,8 +37,9 @@ class _FloatingParticlesState extends State<FloatingParticles>
       final data = _ParticleData(
         controller: controller,
         xPosition: _random.nextDouble(),
-        size: 3 + _random.nextDouble() * 5,
-        delay: _random.nextDouble() * 3,
+        size: 2 + _random.nextDouble() * 6, // More varied sizes
+        delay: _random.nextDouble() * 5, // More spread out
+        speed: 0.8 + _random.nextDouble() * 0.7, // Varied speeds
       );
 
       // Start with staggered delays
@@ -69,22 +70,24 @@ class _FloatingParticlesState extends State<FloatingParticles>
             animation: particle.controller,
             builder: (_, __) {
               final progress = particle.controller.value;
-              // Float from bottom to top
-              final yPosition = 1.0 - progress;
+              // Float from bottom to top with slight horizontal drift
+              final yPosition = 1.1 - (progress * 1.2);
+              final drift = sin(progress * pi * 2) * 0.02;
+              final xPos = (particle.xPosition + drift).clamp(0.0, 1.0);
+
               // Opacity: fade in → stay → fade out
               double opacity;
-              if (progress < 0.1) {
-                opacity = progress / 0.1;
-              } else if (progress > 0.9) {
-                opacity = (1.0 - progress) / 0.1;
+              if (progress < 0.15) {
+                opacity = progress / 0.15;
+              } else if (progress > 0.85) {
+                opacity = (1.0 - progress) / 0.15;
               } else {
                 opacity = 1.0;
               }
-              opacity *= 0.6;
+              opacity *= 0.4; // Softer particles
 
               return Positioned(
-                left: particle.xPosition *
-                    (MediaQuery.of(context).size.width - particle.size),
+                left: xPos * MediaQuery.of(context).size.width,
                 top: yPosition * MediaQuery.of(context).size.height,
                 child: Container(
                   width: particle.size,
@@ -101,6 +104,7 @@ class _FloatingParticlesState extends State<FloatingParticles>
                       BoxShadow(
                         color: widget.color.withValues(alpha: opacity * 0.5),
                         blurRadius: particle.size * 2,
+                        spreadRadius: 1,
                       ),
                     ],
                   ),
@@ -119,11 +123,13 @@ class _ParticleData {
   final double xPosition;
   final double size;
   final double delay;
+  final double speed;
 
   _ParticleData({
     required this.controller,
     required this.xPosition,
     required this.size,
     required this.delay,
+    required this.speed,
   });
 }

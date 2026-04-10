@@ -5,12 +5,15 @@ import 'package:flutter/material.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/ai_service.dart';
 import '../../../core/utils/haptic_feedback.dart';
+import '../../../core/utils/l10n.dart';
 
 /// Voice message bubble with play/pause, waveform progress, and duration display
-class VoiceMessageBubble extends StatefulWidget {
+class VoiceMessageBubble extends ConsumerStatefulWidget {
   final String audioUrl;
   final int durationSeconds;
   final List<double> waveformData;
@@ -25,10 +28,10 @@ class VoiceMessageBubble extends StatefulWidget {
   });
 
   @override
-  State<VoiceMessageBubble> createState() => _VoiceMessageBubbleState();
+  ConsumerState<VoiceMessageBubble> createState() => _VoiceMessageBubbleState();
 }
 
-class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
+class _VoiceMessageBubbleState extends ConsumerState<VoiceMessageBubble> {
   final _player = AudioPlayer();
   bool _isPlaying = false;
   Duration _position = Duration.zero;
@@ -67,8 +70,10 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
   Future<void> _togglePlay() async {
     try {
       if (_isPlaying) {
+        AppHaptics.lightTap();
         await _player.pause();
       } else {
+        AppHaptics.mediumTap();
         if (_player.audioSource == null) {
           await _player.setUrl(widget.audioUrl);
         }
@@ -128,7 +133,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
       if (mounted) {
         setState(() {
           _isTranscribing = false;
-          _transcribeError = 'Failed to transcribe';
+          _transcribeError = L10n.s(ref, 'transcribeFailed');
         });
       }
     }
@@ -139,8 +144,7 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
     final progress =
         _total.inSeconds > 0 ? _position.inSeconds / _total.inSeconds : 0.0;
 
-    final contentColor =
-        widget.isMyMessage ? Colors.white : AppColors.aquaCore;
+    final contentColor = widget.isMyMessage ? Colors.white : AppColors.aquaCore;
 
     final audioRow = SizedBox(
       width: 240,
@@ -160,11 +164,9 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                 _hasError
                     ? Icons.error_outline_rounded
                     : _isPlaying
-                        ? Icons.pause_rounded
-                        : Icons.play_arrow_rounded,
-                color: widget.isMyMessage
-                    ? AppColors.aquaCore
-                    : Colors.white,
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+                color: widget.isMyMessage ? AppColors.aquaCore : Colors.white,
                 size: 24,
               ),
             ),
@@ -227,11 +229,14 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                               ),
                             const SizedBox(width: 4),
                             Text(
-                              _isTranscribing ? 'Transcribing...' : 'Transcribe',
+                              _isTranscribing
+                                  ? L10n.s(ref, 'transcribing')
+                                  : L10n.s(ref, 'transcribe'),
                               style: TextStyle(
-                                  color: contentColor.withValues(alpha: 0.7),
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.w600),
+                                color: contentColor.withValues(alpha: 0.7),
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                              ),
                             ),
                           ],
                         ),
@@ -247,9 +252,10 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
 
     if (_transcript != null || _transcribeError != null) {
       return Column(
-        crossAxisAlignment: widget.isMyMessage
-            ? CrossAxisAlignment.end
-            : CrossAxisAlignment.start,
+        crossAxisAlignment:
+            widget.isMyMessage
+                ? CrossAxisAlignment.end
+                : CrossAxisAlignment.start,
         children: [
           audioRow,
           const SizedBox(height: 8),
@@ -258,9 +264,10 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: widget.isMyMessage
-                  ? Colors.white.withValues(alpha: 0.1)
-                  : AppColors.aquaCore.withValues(alpha: 0.1),
+              color:
+                  widget.isMyMessage
+                      ? Colors.white.withValues(alpha: 0.1)
+                      : AppColors.aquaCore.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Row(
@@ -272,18 +279,20 @@ class _VoiceMessageBubbleState extends State<VoiceMessageBubble> {
                       ? Icons.error_outline
                       : Icons.format_quote_rounded,
                   size: 16,
-                  color: _transcribeError != null
-                      ? AppColors.errorRed
-                      : contentColor.withValues(alpha: 0.7),
+                  color:
+                      _transcribeError != null
+                          ? AppColors.errorRed
+                          : contentColor.withValues(alpha: 0.7),
                 ),
                 const SizedBox(width: 8),
                 Flexible(
                   child: Text(
                     _transcribeError ?? _transcript!,
                     style: TextStyle(
-                      color: _transcribeError != null
-                          ? AppColors.errorRed
-                          : contentColor.withValues(alpha: 0.9),
+                      color:
+                          _transcribeError != null
+                              ? AppColors.errorRed
+                              : contentColor.withValues(alpha: 0.9),
                       fontSize: 13,
                       fontStyle: FontStyle.italic,
                     ),
@@ -321,9 +330,19 @@ class _PlaybackWaveformPainter extends CustomPainter {
       for (int i = 0; i < 30; i++) {
         final x = i * (size.width / 30);
         final h =
-            (i % 3 == 0 ? 0.8 : i % 2 == 0 ? 0.5 : 0.3) * size.height;
-        _drawBar(canvas, x, h, size.height,
-            i / 30 < progress ? activeColor : inactiveColor);
+            (i % 3 == 0
+                ? 0.8
+                : i % 2 == 0
+                ? 0.5
+                : 0.3) *
+            size.height;
+        _drawBar(
+          canvas,
+          x,
+          h,
+          size.height,
+          i / 30 < progress ? activeColor : inactiveColor,
+        );
       }
       return;
     }
@@ -332,17 +351,31 @@ class _PlaybackWaveformPainter extends CustomPainter {
     for (int i = 0; i < amplitudes.length; i++) {
       final x = i * barWidth;
       final h = (amplitudes[i] * size.height).clamp(2.0, size.height);
-      _drawBar(canvas, x, h, size.height,
-          i / amplitudes.length < progress ? activeColor : inactiveColor);
+      _drawBar(
+        canvas,
+        x,
+        h,
+        size.height,
+        i / amplitudes.length < progress ? activeColor : inactiveColor,
+      );
     }
   }
 
-  void _drawBar(
-      Canvas canvas, double x, double h, double totalH, Color color) {
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
+  void _drawBar(Canvas canvas, double x, double h, double totalH, Color color) {
+    final paint =
+        Paint()
+          ..color = color
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round;
+    // Add glowing shadow to active bars
+    if (color == activeColor) {
+      canvas.drawRect(
+        Rect.fromLTWH(x - 1, (totalH - h) / 2, 4, h),
+        Paint()
+          ..color = activeColor.withOpacity(0.1)
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2),
+      );
+    }
     final y = (totalH - h) / 2;
     canvas.drawLine(Offset(x, y), Offset(x, y + h), paint);
   }

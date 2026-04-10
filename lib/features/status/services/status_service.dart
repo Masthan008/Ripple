@@ -14,19 +14,17 @@ class StatusService {
     required String type,
     String? mediaUrl,
     String? text,
+    String? aiCaption,
     List<String>? gradientColors,
     String? mood,
     String privacy = 'friends',
   }) async {
     final user = _auth.currentUser!;
-    final userDoc =
-        await _fs.collection('users').doc(user.uid).get();
+    final userDoc = await _fs.collection('users').doc(user.uid).get();
     final userData = userDoc.data() ?? {};
 
     final now = DateTime.now();
-    final expiresAt = Timestamp.fromDate(
-      now.add(const Duration(hours: 24)),
-    );
+    final expiresAt = Timestamp.fromDate(now.add(const Duration(hours: 24)));
     final createdAt = Timestamp.fromDate(now);
 
     await _fs.collection('statuses').add({
@@ -36,6 +34,7 @@ class StatusService {
       'type': type,
       'mediaUrl': mediaUrl,
       'text': text,
+      'aiCaption': aiCaption,
       'gradientColors': gradientColors,
       'mood': mood,
       'viewers': [],
@@ -80,11 +79,7 @@ class StatusService {
 
     await statusRef.update({
       'viewers': FieldValue.arrayUnion([
-        {
-          'uid': uid,
-          'name': viewerName,
-          'viewedAt': Timestamp.now(),
-        }
+        {'uid': uid, 'name': viewerName, 'viewedAt': Timestamp.now()},
       ]),
     });
   }
@@ -101,8 +96,7 @@ class StatusService {
   }
 
   // ── GET FRIENDS STATUSES ──────────────────────────────
-  static Stream<List<StatusModel>> getFriendsStatuses(
-      List<String> friendUids) {
+  static Stream<List<StatusModel>> getFriendsStatuses(List<String> friendUids) {
     if (friendUids.isEmpty) return Stream.value([]);
 
     // Firestore whereIn limit is 30
@@ -116,10 +110,11 @@ class StatusService {
           debugPrint('\u274c getFriendsStatuses stream error: $e');
         })
         .map((snap) {
-          final list = snap.docs
-              .map(StatusModel.fromFirestore)
-              .where((s) => !s.isExpired)
-              .toList();
+          final list =
+              snap.docs
+                  .map(StatusModel.fromFirestore)
+                  .where((s) => !s.isExpired)
+                  .toList();
           list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return list;
         });
@@ -138,10 +133,11 @@ class StatusService {
           debugPrint('\u274c getMyStatuses stream error: $e');
         })
         .map((snap) {
-          final list = snap.docs
-              .map(StatusModel.fromFirestore)
-              .where((s) => !s.isExpired)
-              .toList();
+          final list =
+              snap.docs
+                  .map(StatusModel.fromFirestore)
+                  .where((s) => !s.isExpired)
+                  .toList();
           list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
           return list;
         });
@@ -150,11 +146,12 @@ class StatusService {
   // ── CLEANUP EXPIRED (call on app open) ────────────────
   static Future<void> cleanupExpired() async {
     try {
-      final expired = await _fs
-          .collection('statuses')
-          .where('expiresAt', isLessThan: Timestamp.now())
-          .limit(50)
-          .get();
+      final expired =
+          await _fs
+              .collection('statuses')
+              .where('expiresAt', isLessThan: Timestamp.now())
+              .limit(50)
+              .get();
 
       if (expired.docs.isEmpty) return;
 
@@ -174,13 +171,10 @@ class StatusService {
       final uid = _auth.currentUser?.uid;
       if (uid == null) return;
 
-      final userDoc =
-          await _fs.collection('users').doc(uid).get();
-      final moodExpiry =
-          userDoc.data()?['moodExpiresAt'] as Timestamp?;
+      final userDoc = await _fs.collection('users').doc(uid).get();
+      final moodExpiry = userDoc.data()?['moodExpiresAt'] as Timestamp?;
 
-      if (moodExpiry != null &&
-          DateTime.now().isAfter(moodExpiry.toDate())) {
+      if (moodExpiry != null && DateTime.now().isAfter(moodExpiry.toDate())) {
         await _fs.collection('users').doc(uid).update({
           'currentMood': FieldValue.delete(),
           'moodExpiresAt': FieldValue.delete(),

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/constants/app_colors.dart';
-import '../models/ai_bot_model.dart';
 import '../services/ai_bot_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/ai_chat_screen.dart';

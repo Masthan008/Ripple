@@ -3,22 +3,24 @@ import 'dart:async';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/env.dart';
+import '../../../core/utils/l10n.dart';
 
 /// GIF picker bottom sheet using Giphy API v1
 /// Shows trending GIFs on open, allows search with debounce + infinite scroll
-class GifPickerSheet extends StatefulWidget {
+class GifPickerSheet extends ConsumerStatefulWidget {
   final Function(String gifUrl, String previewUrl) onGifSelected;
 
   const GifPickerSheet({super.key, required this.onGifSelected});
 
   @override
-  State<GifPickerSheet> createState() => _GifPickerSheetState();
+  ConsumerState<GifPickerSheet> createState() => _GifPickerSheetState();
 }
 
-class _GifPickerSheetState extends State<GifPickerSheet> {
+class _GifPickerSheetState extends ConsumerState<GifPickerSheet> {
   final _searchController = TextEditingController();
   final _scrollController = ScrollController();
   List<Map<String, String>> _gifs = [];
@@ -84,8 +86,11 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
       _gifs = [];
     });
     try {
-      final results =
-          await _fetchGiphy(endpoint: 'search', query: query, offset: 0);
+      final results = await _fetchGiphy(
+        endpoint: 'search',
+        query: query,
+        offset: 0,
+      );
       if (mounted) {
         setState(() {
           _gifs = results;
@@ -145,20 +150,24 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
     final data = response.data as Map<String, dynamic>;
     final results = data['data'] as List? ?? [];
 
-    return results.map<Map<String, String>>((item) {
-      final images = item['images'] as Map<String, dynamic>? ?? {};
-      final original = images['original'] as Map<String, dynamic>? ?? {};
-      final display = images['fixed_height'] as Map<String, dynamic>? ?? {};
-      final small = images['fixed_height_small'] as Map<String, dynamic>? ?? {};
+    return results
+        .map<Map<String, String>>((item) {
+          final images = item['images'] as Map<String, dynamic>? ?? {};
+          final original = images['original'] as Map<String, dynamic>? ?? {};
+          final display = images['fixed_height'] as Map<String, dynamic>? ?? {};
+          final small =
+              images['fixed_height_small'] as Map<String, dynamic>? ?? {};
 
-      return {
-        'id': item['id'] as String? ?? '',
-        'title': item['title'] as String? ?? '',
-        'url': original['url'] as String? ?? '',
-        'displayUrl': display['url'] as String? ?? '',
-        'previewUrl': small['url'] as String? ?? '',
-      };
-    }).where((g) => g['url']!.isNotEmpty).toList();
+          return {
+            'id': item['id'] as String? ?? '',
+            'title': item['title'] as String? ?? '',
+            'url': original['url'] as String? ?? '',
+            'displayUrl': display['url'] as String? ?? '',
+            'previewUrl': small['url'] as String? ?? '',
+          };
+        })
+        .where((g) => g['url']!.isNotEmpty)
+        .toList();
   }
 
   @override
@@ -198,8 +207,10 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
                 const Spacer(),
                 // Giphy attribution (required by Terms of Service)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(6),
@@ -225,20 +236,19 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
               controller: _searchController,
               style: const TextStyle(color: Colors.white),
               decoration: InputDecoration(
-                hintText: 'Search GIPHY...',
+                hintText: L10n.s(ref, 'searchGifs'),
                 hintStyle: const TextStyle(color: Colors.white38),
-                prefixIcon:
-                    const Icon(Icons.search, color: AppColors.aquaCore),
-                suffixIcon: _searchController.text.isNotEmpty
-                    ? IconButton(
-                        icon:
-                            const Icon(Icons.clear, color: Colors.white38),
-                        onPressed: () {
-                          _searchController.clear();
-                          _loadTrending();
-                        },
-                      )
-                    : null,
+                prefixIcon: const Icon(Icons.search, color: AppColors.aquaCore),
+                suffixIcon:
+                    _searchController.text.isNotEmpty
+                        ? IconButton(
+                          icon: const Icon(Icons.clear, color: Colors.white38),
+                          onPressed: () {
+                            _searchController.clear();
+                            _loadTrending();
+                          },
+                        )
+                        : null,
                 filled: true,
                 fillColor: Colors.white10,
                 border: OutlineInputBorder(
@@ -261,107 +271,105 @@ class _GifPickerSheetState extends State<GifPickerSheet> {
 
           // Error or loading or grid
           Expanded(
-            child: _errorMsg != null
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text('😕', style: TextStyle(fontSize: 48)),
-                        const SizedBox(height: 12),
-                        Text(
-                          _errorMsg!,
-                          style: const TextStyle(color: Colors.white54),
-                        ),
-                      ],
-                    ),
-                  )
-                : _isLoading
+            child:
+                _errorMsg != null
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('😕', style: TextStyle(fontSize: 48)),
+                          const SizedBox(height: 12),
+                          Text(
+                            _errorMsg!,
+                            style: const TextStyle(color: Colors.white54),
+                          ),
+                        ],
+                      ),
+                    )
+                    : _isLoading
                     ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.aquaCore,
-                          strokeWidth: 2,
-                        ),
-                      )
+                      child: CircularProgressIndicator(
+                        color: AppColors.aquaCore,
+                        strokeWidth: 2,
+                      ),
+                    )
                     : _gifs.isEmpty
-                        ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Text('😕',
-                                    style: TextStyle(fontSize: 48)),
-                                const SizedBox(height: 12),
-                                Text(
-                                  _searchController.text.isEmpty
-                                      ? 'Could not load GIFs'
-                                      : 'No GIFs found for "${_searchController.text}"',
-                                  style: const TextStyle(
-                                      color: Colors.white38),
+                    ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Text('😕', style: TextStyle(fontSize: 48)),
+                          const SizedBox(height: 12),
+                          Text(
+                            L10n.s(ref, 'noGifsFound'),
+                            style: const TextStyle(color: Colors.white38),
+                          ),
+                        ],
+                      ),
+                    )
+                    : GridView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      gridDelegate:
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 3,
+                            crossAxisSpacing: 4,
+                            mainAxisSpacing: 4,
+                            childAspectRatio: 1,
+                          ),
+                      itemCount: _gifs.length + 1,
+                      itemBuilder: (_, i) {
+                        // Loading more indicator at end
+                        if (i == _gifs.length) {
+                          return _isLoadingMore
+                              ? const Center(
+                                child: CircularProgressIndicator(
+                                  color: AppColors.aquaCore,
+                                  strokeWidth: 2,
                                 ),
-                              ],
-                            ),
-                          )
-                        : GridView.builder(
-                            controller: _scrollController,
-                            padding:
-                                const EdgeInsets.symmetric(horizontal: 8),
-                            gridDelegate:
-                                const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 3,
-                              crossAxisSpacing: 4,
-                              mainAxisSpacing: 4,
-                              childAspectRatio: 1,
-                            ),
-                            itemCount: _gifs.length + 1,
-                            itemBuilder: (_, i) {
-                              // Loading more indicator at end
-                              if (i == _gifs.length) {
-                                return _isLoadingMore
-                                    ? const Center(
-                                        child: CircularProgressIndicator(
-                                          color: AppColors.aquaCore,
-                                          strokeWidth: 2,
-                                        ),
-                                      )
-                                    : const SizedBox();
-                              }
+                              )
+                              : const SizedBox();
+                        }
 
-                              final gif = _gifs[i];
-                              return GestureDetector(
-                                onTap: () {
-                                  // Send original URL for full quality,
-                                  // displayUrl for preview in chat
-                                  widget.onGifSelected(
-                                    gif['url']!,
-                                    gif['displayUrl']!,
-                                  );
-                                  Navigator.pop(context);
-                                },
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(8),
-                                  child: CachedNetworkImage(
-                                    imageUrl: gif['displayUrl']!,
-                                    fit: BoxFit.cover,
-                                    placeholder: (_, __) => Container(
-                                      color: Colors.white10,
-                                      child: const Center(
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 1,
-                                          color: AppColors.aquaCore,
-                                        ),
-                                      ),
-                                    ),
-                                    errorWidget: (_, __, ___) => Container(
-                                      color: Colors.white10,
-                                      child: const Icon(
-                                        Icons.gif_rounded,
-                                        color: Colors.white24,
+                        final gif = _gifs[i];
+                        return GestureDetector(
+                          onTap: () {
+                            // Send original URL for full quality,
+                            // displayUrl for preview in chat
+                            widget.onGifSelected(
+                              gif['url']!,
+                              gif['displayUrl']!,
+                            );
+                            Navigator.pop(context);
+                          },
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: CachedNetworkImage(
+                              imageUrl: gif['displayUrl']!,
+                              fit: BoxFit.cover,
+                              placeholder:
+                                  (_, __) => Container(
+                                    color: Colors.white10,
+                                    child: const Center(
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 1,
+                                        color: AppColors.aquaCore,
                                       ),
                                     ),
                                   ),
-                                ),
-                              );
-                            },
+                              errorWidget:
+                                  (_, __, ___) => Container(
+                                    color: Colors.white10,
+                                    child: const Icon(
+                                      Icons.gif_rounded,
+                                      color: Colors.white24,
+                                    ),
+                                  ),
+                            ),
                           ),
+                        );
+                      },
+                    ),
           ),
         ],
       ),

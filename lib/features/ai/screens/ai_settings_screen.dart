@@ -72,7 +72,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             subtitle: const Text('AI suggests replies to messages',
                 style: TextStyle(color: Colors.white54, fontSize: 12)),
             secondary: const Text('✨', style: TextStyle(fontSize: 20)),
-            activeColor: AppColors.aquaCore,
+            activeThumbColor: AppColors.aquaCore,
           ),
           SwitchListTile(
             value: _spamDetectionEnabled,
@@ -85,7 +85,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
             subtitle: const Text('Warns about suspicious messages',
                 style: TextStyle(color: Colors.white54, fontSize: 12)),
             secondary: const Text('🛡️', style: TextStyle(fontSize: 20)),
-            activeColor: AppColors.aquaCore,
+            activeThumbColor: AppColors.aquaCore,
           ),
           _sectionHeader('Translation'),
           SwitchListTile(
@@ -100,7 +100,7 @@ class _AiSettingsScreenState extends State<AiSettingsScreen> {
                 'Auto-translate messages in foreign languages',
                 style: TextStyle(color: Colors.white54, fontSize: 12)),
             secondary: const Text('🌍', style: TextStyle(fontSize: 20)),
-            activeColor: AppColors.aquaCore,
+            activeThumbColor: AppColors.aquaCore,
           ),
           if (_autoTranslateEnabled)
             ListTile(

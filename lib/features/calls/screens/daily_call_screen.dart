@@ -67,26 +67,56 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
   }
 
   Future<void> _sendCallNotification() async {
-    if (widget.otherUserId == null || widget.otherUserId!.isEmpty) return;
-    if (widget.isGroup) return;
-
     try {
-      final userDoc = await FirebaseService.usersCollection
-          .doc(widget.otherUserId)
-          .get();
-      final playerId =
-          userDoc.data()?['oneSignalPlayerId'] as String? ?? '';
-      if (playerId.isEmpty) return;
+      if (widget.isGroup) {
+        // For group calls, notify all group members
+        final callDoc = await FirebaseService.firestore
+            .collection('calls')
+            .doc(widget.callId)
+            .get();
+        final memberIds = List<String>.from(callDoc.data()?['memberIds'] ?? []);
 
-      await NotificationService.sendCallNotification(
-        recipientPlayerId: playerId,
-        callerName: widget.currentUserName,
-        callerUserId: widget.currentUserId,
-        callId: widget.callId,
-        channelName: widget.channelName,
-        callType: widget.isVideo ? 'video' : 'audio',
-        isGroup: widget.isGroup,
-      );
+        for (final memberId in memberIds) {
+          if (memberId == widget.currentUserId) continue; // skip self
+
+          final userDoc = await FirebaseService.usersCollection
+              .doc(memberId)
+              .get();
+          final playerId =
+              userDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+          if (playerId.isEmpty) continue;
+
+          await NotificationService.sendCallNotification(
+            recipientPlayerId: playerId,
+            callerName: widget.currentUserName,
+            callerUserId: widget.currentUserId,
+            callId: widget.callId,
+            channelName: widget.channelName,
+            callType: widget.isVideo ? 'video' : 'audio',
+            isGroup: widget.isGroup,
+          );
+        }
+      } else {
+        // 1-on-1 call notification
+        if (widget.otherUserId == null || widget.otherUserId!.isEmpty) return;
+
+        final userDoc = await FirebaseService.usersCollection
+            .doc(widget.otherUserId)
+            .get();
+        final playerId =
+            userDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+        if (playerId.isEmpty) return;
+
+        await NotificationService.sendCallNotification(
+          recipientPlayerId: playerId,
+          callerName: widget.currentUserName,
+          callerUserId: widget.currentUserId,
+          callId: widget.callId,
+          channelName: widget.channelName,
+          callType: widget.isVideo ? 'video' : 'audio',
+          isGroup: widget.isGroup,
+        );
+      }
     } catch (e) {
       debugPrint('⚠️ Failed to send call notification: $e');
     }
@@ -147,6 +177,11 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
       'showFullscreenButton': 'false',
       'skipMediaPermissionPrompt': 'true',
     };
+
+    // Disable camera for audio-only calls
+    if (!widget.isVideo) {
+      params['startVideoOff'] = 'true';
+    }
 
     final query =
         params.entries.map((e) => '${e.key}=${e.value}').join('&');

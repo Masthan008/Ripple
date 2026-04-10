@@ -11,6 +11,7 @@ class StatusModel {
   final String type; // photo | video | text | mood
   final String? mediaUrl;
   final String? text;
+  final String? aiCaption;
   final List<String>? gradientColors;
   final String? mood; // happy | focused | busy | gaming | vibing
   final List<Map<String, dynamic>> viewers;
@@ -28,6 +29,7 @@ class StatusModel {
     required this.type,
     this.mediaUrl,
     this.text,
+    this.aiCaption,
     this.gradientColors,
     this.mood,
     this.viewers = const [],
@@ -48,41 +50,41 @@ class StatusModel {
       type: data['type'] as String? ?? 'text',
       mediaUrl: data['mediaUrl'] as String?,
       text: data['text'] as String?,
-      gradientColors: data['gradientColors'] != null
-          ? List<String>.from(data['gradientColors'] as List)
-          : null,
+      aiCaption: data['aiCaption'] as String?,
+      gradientColors:
+          data['gradientColors'] != null
+              ? List<String>.from(data['gradientColors'] as List)
+              : null,
       mood: data['mood'] as String?,
-      viewers: (data['viewers'] as List? ?? [])
-          .map((v) => Map<String, dynamic>.from(v as Map))
-          .toList(),
-      reactions:
-          Map<String, String>.from(data['reactions'] as Map? ?? {}),
+      viewers:
+          (data['viewers'] as List? ?? [])
+              .map((v) => Map<String, dynamic>.from(v as Map))
+              .toList(),
+      reactions: Map<String, String>.from(data['reactions'] as Map? ?? {}),
       privacy: data['privacy'] as String? ?? 'friends',
-      customViewers:
-          List<String>.from(data['customViewers'] as List? ?? []),
-      expiresAt:
-          data['expiresAt'] as Timestamp? ?? Timestamp.now(),
-      createdAt:
-          data['createdAt'] as Timestamp? ?? Timestamp.now(),
+      customViewers: List<String>.from(data['customViewers'] as List? ?? []),
+      expiresAt: data['expiresAt'] as Timestamp? ?? Timestamp.now(),
+      createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
     );
   }
 
   Map<String, dynamic> toFirestore() => {
-        'uid': uid,
-        'ownerName': ownerName,
-        'ownerPhoto': ownerPhoto,
-        'type': type,
-        'mediaUrl': mediaUrl,
-        'text': text,
-        'gradientColors': gradientColors,
-        'mood': mood,
-        'viewers': viewers,
-        'reactions': reactions,
-        'privacy': privacy,
-        'customViewers': customViewers,
-        'expiresAt': expiresAt,
-        'createdAt': createdAt,
-      };
+    'uid': uid,
+    'ownerName': ownerName,
+    'ownerPhoto': ownerPhoto,
+    'type': type,
+    'mediaUrl': mediaUrl,
+    'text': text,
+    'aiCaption': aiCaption,
+    'gradientColors': gradientColors,
+    'mood': mood,
+    'viewers': viewers,
+    'reactions': reactions,
+    'privacy': privacy,
+    'customViewers': customViewers,
+    'expiresAt': expiresAt,
+    'createdAt': createdAt,
+  };
 
   bool get isExpired => DateTime.now().isAfter(expiresAt.toDate());
 }

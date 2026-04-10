@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/utils/l10n.dart'; // Add this
 import 'navbar_item_widget.dart';
-import 'navbar_draggable_indicator.dart';
 import 'navbar_background.dart';
 import 'navbar_providers.dart';
 
@@ -33,7 +33,15 @@ class LiquidNavbarWidget extends ConsumerStatefulWidget {
 }
 
 class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
-  static const _labels = ['Chats', 'Status', 'Groups', 'Calls', 'AI', 'Profile'];
+  // Use a method instead of a static list to allow localization
+  List<String> _getLabels(WidgetRef ref) => [
+    L10n.s(ref, 'chats'),
+    'Status', // L10n.s(ref, 'status')
+    L10n.s(ref, 'groups'),
+    L10n.s(ref, 'calls'),
+    L10n.s(ref, 'ai'),
+    L10n.s(ref, 'profile'),
+  ];
 
   static const _activeIcons = [
     Icons.chat_bubble_rounded,
@@ -58,13 +66,14 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
   @override
   void initState() {
     super.initState();
-    _iconKeys = List.generate(_labels.length, (_) => GlobalKey());
+    // Initialize keys based on fixed length
+    _iconKeys = List.generate(6, (_) => GlobalKey());
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final notifier = ref.read(liquidNavbarStateProvider.notifier);
         notifier.initMeasuredPositions(_iconKeys);
-        
+
         // Sync initial external index
         if (notifier.state.currentIndex != widget.currentIndex) {
           notifier.setCurrentIndex(widget.currentIndex);
@@ -88,9 +97,10 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
   Widget build(BuildContext context) {
     final navbarState = ref.watch(liquidNavbarStateProvider);
     final notifier = ref.read(liquidNavbarStateProvider.notifier);
+    final labels = _getLabels(ref); // Get localized labels
 
     final screenWidth = MediaQuery.of(context).size.width;
-    final itemCount = _labels.length;
+    final itemCount = labels.length;
 
     final positions = navbarState.positions;
     final dragCenter = navbarState.draggablePosition;
@@ -99,59 +109,50 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
     final bottomSafeArea = MediaQuery.of(context).padding.bottom;
     final effectiveBottomPad = widget.bottomPadding + bottomSafeArea;
 
-    return SizedBox(
-      width: screenWidth,
+    return Container(
       height: widget.navbarHeight + effectiveBottomPad,
+      padding: EdgeInsets.fromLTRB(
+        widget.horizontalPadding,
+        0,
+        widget.horizontalPadding,
+        effectiveBottomPad,
+      ),
       child: Stack(
-        alignment: Alignment.bottomLeft,
+        clipBehavior: Clip.none,
         children: [
           // Background
           Positioned(
             left: 0,
             right: 0,
-            bottom: effectiveBottomPad,
+            bottom: 0,
             child: LiquidNavbarBackground(
-              width: screenWidth,
+              width: screenWidth - (widget.horizontalPadding * 2),
               height: widget.navbarHeight,
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(itemCount, (i) {
-                  final unread = i < widget.unreadCounts.length ? widget.unreadCounts[i] : 0;
-                  final isProfile = i == 5;
-                  
-                  return LiquidNavbarItemWidget(
-                    key: _iconKeys[i],
-                    icon: Icon(currentIndex == i ? _activeIcons[i] : _inactiveIcons[i]),
-                    label: _labels[i],
-                    isSelected: i == currentIndex,
-                    unreadCount: unread,
-                    isProfileTab: isProfile,
-                    userPhotoUrl: widget.userPhotoUrl,
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    onTap: () {
-                      notifier.setCurrentIndex(i);
-                      widget.onTap(i);
-                    },
+                  final isSelected = currentIndex == i;
+                  return Expanded(
+                    child: LiquidNavbarItemWidget(
+                      key: _iconKeys[i],
+                      label: labels[i],
+                      icon: Icon(
+                        isSelected ? _activeIcons[i] : _inactiveIcons[i],
+                      ),
+                      isSelected: isSelected,
+                      unreadCount: widget.unreadCounts[i],
+                      userPhotoUrl: widget.userPhotoUrl,
+                      isProfileTab: i == 5,
+                      onTap: () {
+                        notifier.setCurrentIndex(i);
+                        widget.onTap(i);
+                      },
+                    ),
                   );
                 }),
               ),
             ),
           ),
-
-          // Draggable indicator
-          if (positions.isNotEmpty)
-            LiquidNavbarDraggableIndicator(
-              position: dragCenter,
-              baseSize: widget.indicatorWidth,
-              itemCount: itemCount,
-              snapPositions: positions,
-              bottomOffset: effectiveBottomPad,
-              onDragUpdate: notifier.setDraggablePosition,
-              onDragEnd: (index) {
-                notifier.setCurrentIndex(index);
-                widget.onTap(index);
-              },
-            ),
         ],
       ),
     );

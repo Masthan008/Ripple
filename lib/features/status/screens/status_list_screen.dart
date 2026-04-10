@@ -1,12 +1,15 @@
+import '../../../core/utils/haptic_feedback.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Add this
 import 'package:intl/intl.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/utils/l10n.dart'; // Add this
 import '../models/mood_config.dart';
 import '../models/status_model.dart';
 import '../services/status_service.dart';
@@ -16,20 +19,21 @@ import 'status_viewer_screen.dart';
 
 /// Status list tab — shows My Status section + friends' recent updates.
 /// Grouped by user, with mood aura rings on avatars.
-class StatusListScreen extends StatefulWidget {
+class StatusListScreen extends ConsumerStatefulWidget {
+  // Change to ConsumerStatefulWidget
   const StatusListScreen({super.key});
 
   @override
-  State<StatusListScreen> createState() => _StatusListScreenState();
+  ConsumerState<StatusListScreen> createState() => _StatusListScreenState();
 }
 
-class _StatusListScreenState extends State<StatusListScreen> {
+class _StatusListScreenState extends ConsumerState<StatusListScreen> {
   final _currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
+      backgroundColor: Colors.transparent, // Let HomeScreen handle background
       body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -39,11 +43,14 @@ class _StatusListScreenState extends State<StatusListScreen> {
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
               child: Row(
                 children: [
-                  Text('Status', style: AppTextStyles.heading),
+                  Text(L10n.s(ref, 'status'), style: AppTextStyles.heading),
                   const Spacer(),
                   IconButton(
-                    icon: const Icon(Icons.more_vert,
-                        color: Colors.white54, size: 22),
+                    icon: const Icon(
+                      Icons.more_vert,
+                      color: Colors.white54,
+                      size: 22,
+                    ),
                     onPressed: () {},
                   ),
                 ],
@@ -68,7 +75,7 @@ class _StatusListScreenState extends State<StatusListScreen> {
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
               child: Text(
-                'Recent updates',
+                L10n.s(ref, 'recentUpdates'),
                 style: TextStyle(
                   color: Colors.white.withValues(alpha: 0.5),
                   fontSize: 13,
@@ -78,7 +85,18 @@ class _StatusListScreenState extends State<StatusListScreen> {
             ),
 
             // Friends statuses list
-            Expanded(child: _buildFriendsStatusList()),
+            Expanded(
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  AppHaptics.mediumTap();
+                  await Future.delayed(const Duration(seconds: 1));
+                  StatusService.cleanupExpired();
+                },
+                color: AppColors.aquaCore,
+                backgroundColor: AppColors.abyssBackground.withOpacity(0.8),
+                child: _buildFriendsStatusList(),
+              ),
+            ),
           ],
         ),
       ),
@@ -103,8 +121,11 @@ class _StatusListScreenState extends State<StatusListScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
             child: Row(
               children: [
-                Icon(Icons.error_outline,
-                    color: Colors.white.withValues(alpha: 0.3), size: 28),
+                Icon(
+                  Icons.error_outline,
+                  color: Colors.white.withValues(alpha: 0.3),
+                  size: 28,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   'Failed to load status',
@@ -120,9 +141,7 @@ class _StatusListScreenState extends State<StatusListScreen> {
         final myStatuses = snapshot.data ?? [];
 
         return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseService.usersCollection
-              .doc(_currentUid)
-              .snapshots(),
+          stream: FirebaseService.usersCollection.doc(_currentUid).snapshots(),
           builder: (context, userSnap) {
             final userData =
                 userSnap.data?.data() as Map<String, dynamic>? ?? {};
@@ -132,27 +151,36 @@ class _StatusListScreenState extends State<StatusListScreen> {
             return InkWell(
               onTap: () {
                 if (myStatuses.isNotEmpty) {
-                  Navigator.of(context).push(MaterialPageRoute(
-                    builder: (_) => StatusViewerScreen(
-                      statuses: myStatuses,
-                      initialIndex: 0,
-                      viewerName: name,
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder:
+                          (_) => StatusViewerScreen(
+                            statuses: myStatuses,
+                            initialIndex: 0,
+                            viewerName: name,
+                          ),
                     ),
-                  ));
+                  );
                 } else {
                   _showCreateStatusSheet();
                 }
               },
               child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 12,
+                ),
                 child: Row(
                   children: [
                     // Avatar with + button
                     Stack(
                       children: [
-                        _buildStatusAvatar(photo, null, 28,
-                            hasUnviewed: myStatuses.isNotEmpty),
+                        _buildStatusAvatar(
+                          photo,
+                          null,
+                          28,
+                          hasUnviewed: myStatuses.isNotEmpty,
+                        ),
                         Positioned(
                           bottom: 0,
                           right: 0,
@@ -167,8 +195,11 @@ class _StatusListScreenState extends State<StatusListScreen> {
                                 width: 2,
                               ),
                             ),
-                            child: const Icon(Icons.add,
-                                size: 14, color: Colors.white),
+                            child: const Icon(
+                              Icons.add,
+                              size: 14,
+                              color: Colors.white,
+                            ),
                           ),
                         ),
                       ],
@@ -178,17 +209,19 @@ class _StatusListScreenState extends State<StatusListScreen> {
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('My Status',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 15,
-                            )),
+                        Text(
+                          L10n.s(ref, 'myStatus'),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 15,
+                          ),
+                        ),
                         const SizedBox(height: 2),
                         Text(
                           myStatuses.isEmpty
-                              ? 'Tap to add status update'
-                              : '${myStatuses.length} update${myStatuses.length > 1 ? "s" : ""}',
+                              ? L10n.s(ref, 'tapToAddStatus')
+                              : '${myStatuses.length} ${L10n.s(ref, 'updates')}',
                           style: TextStyle(
                             color: Colors.white.withValues(alpha: 0.4),
                             fontSize: 12,
@@ -209,31 +242,33 @@ class _StatusListScreenState extends State<StatusListScreen> {
   Widget _buildFriendsStatusList() {
     // Get current user's friends list
     return StreamBuilder<DocumentSnapshot>(
-      stream:
-          FirebaseService.usersCollection.doc(_currentUid).snapshots(),
+      stream: FirebaseService.usersCollection.doc(_currentUid).snapshots(),
       builder: (context, userSnap) {
         if (!userSnap.hasData) {
           return const Center(
             child: CircularProgressIndicator(
-                color: AppColors.aquaCore, strokeWidth: 2),
+              color: AppColors.aquaCore,
+              strokeWidth: 2,
+            ),
           );
         }
 
-        final userData =
-            userSnap.data?.data() as Map<String, dynamic>? ?? {};
-        final friends =
-            List<String>.from(userData['friends'] as List? ?? []);
+        final userData = userSnap.data?.data() as Map<String, dynamic>? ?? {};
+        final friends = List<String>.from(userData['friends'] as List? ?? []);
 
         if (friends.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.circle_notifications_outlined,
-                    color: Colors.white.withValues(alpha: 0.15), size: 64),
+                Icon(
+                  Icons.circle_notifications_outlined,
+                  color: Colors.white.withValues(alpha: 0.15),
+                  size: 64,
+                ),
                 const SizedBox(height: 12),
                 Text(
-                  'No status updates yet',
+                  L10n.s(ref, 'noStatusUpdates'),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.3),
                     fontSize: 14,
@@ -241,7 +276,7 @@ class _StatusListScreenState extends State<StatusListScreen> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Add friends to see their updates',
+                  L10n.s(ref, 'addFriendsToSeeUpdates'),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.2),
                     fontSize: 12,
@@ -256,14 +291,18 @@ class _StatusListScreenState extends State<StatusListScreen> {
           stream: StatusService.getFriendsStatuses(friends),
           builder: (context, statusSnap) {
             if (statusSnap.hasError) {
-              debugPrint('\u274c Friend status stream error: ${statusSnap.error}');
+              debugPrint(
+                '\u274c Friend status stream error: ${statusSnap.error}',
+              );
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline,
-                        color: Colors.white.withValues(alpha: 0.3),
-                        size: 48),
+                    Icon(
+                      Icons.error_outline,
+                      color: Colors.white.withValues(alpha: 0.3),
+                      size: 48,
+                    ),
                     const SizedBox(height: 12),
                     Text(
                       'Failed to load statuses',
@@ -279,7 +318,9 @@ class _StatusListScreenState extends State<StatusListScreen> {
             if (!statusSnap.hasData) {
               return const Center(
                 child: CircularProgressIndicator(
-                    color: AppColors.aquaCore, strokeWidth: 2),
+                  color: AppColors.aquaCore,
+                  strokeWidth: 2,
+                ),
               );
             }
 
@@ -289,12 +330,14 @@ class _StatusListScreenState extends State<StatusListScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.circle_notifications_outlined,
-                        color: Colors.white.withValues(alpha: 0.15),
-                        size: 64),
+                    Icon(
+                      Icons.circle_notifications_outlined,
+                      color: Colors.white.withValues(alpha: 0.15),
+                      size: 64,
+                    ),
                     const SizedBox(height: 12),
                     Text(
-                      'No recent updates',
+                      L10n.s(ref, 'noRecentUpdates'),
                       style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.3),
                         fontSize: 14,
@@ -314,6 +357,9 @@ class _StatusListScreenState extends State<StatusListScreen> {
             final sortedKeys = grouped.keys.toList();
 
             return ListView.builder(
+              physics: const AlwaysScrollableScrollPhysics(
+                parent: BouncingScrollPhysics(),
+              ),
               padding: const EdgeInsets.only(bottom: 80),
               itemCount: sortedKeys.length,
               itemBuilder: (context, i) {
@@ -322,21 +368,21 @@ class _StatusListScreenState extends State<StatusListScreen> {
                 final latest = userStatuses.first;
 
                 // Check if all viewed by current user
-                final allViewed = userStatuses.every((s) => s.viewers
-                    .any((v) => v['uid'] == _currentUid));
+                final allViewed = userStatuses.every(
+                  (s) => s.viewers.any((v) => v['uid'] == _currentUid),
+                );
 
                 // Check for mood status
-                final moodStatus = userStatuses
-                    .where((s) => s.type == 'mood' && s.mood != null)
-                    .toList();
+                final moodStatus =
+                    userStatuses
+                        .where((s) => s.type == 'mood' && s.mood != null)
+                        .toList();
 
                 return _buildStatusListTile(
                   userStatuses: userStatuses,
                   latest: latest,
                   allViewed: allViewed,
-                  mood: moodStatus.isNotEmpty
-                      ? moodStatus.first.mood
-                      : null,
+                  mood: moodStatus.isNotEmpty ? moodStatus.first.mood : null,
                 );
               },
             );
@@ -369,24 +415,31 @@ class _StatusListScreenState extends State<StatusListScreen> {
         ),
       ),
       subtitle: Text(
-        _timeAgo(latest.createdAt),
+        _timeAgo(ref, latest.createdAt),
         style: TextStyle(
           color: Colors.white.withValues(alpha: 0.4),
           fontSize: 12,
         ),
       ),
-      trailing: mood != null
-          ? Text(MoodConfig.getEmoji(mood), style: const TextStyle(fontSize: 20))
-          : null,
+      trailing:
+          mood != null
+              ? Text(
+                MoodConfig.getEmoji(mood),
+                style: const TextStyle(fontSize: 20),
+              )
+              : null,
       onTap: () {
         final userName = FirebaseAuth.instance.currentUser?.displayName ?? '';
-        Navigator.of(context).push(MaterialPageRoute(
-          builder: (_) => StatusViewerScreen(
-            statuses: userStatuses,
-            initialIndex: 0,
-            viewerName: userName,
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder:
+                (_) => StatusViewerScreen(
+                  statuses: userStatuses,
+                  initialIndex: 0,
+                  viewerName: userName,
+                ),
           ),
-        ));
+        );
       },
     );
   }
@@ -402,18 +455,15 @@ class _StatusListScreenState extends State<StatusListScreen> {
       backgroundColor: const Color(0xFF1A2A40),
       backgroundImage:
           photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null,
-      child: photoUrl.isEmpty
-          ? Icon(Icons.person, color: Colors.white38, size: radius)
-          : null,
+      child:
+          photoUrl.isEmpty
+              ? Icon(Icons.person, color: Colors.white38, size: radius)
+              : null,
     );
 
     // Wrap with mood aura if mood is set
     if (mood != null) {
-      return MoodAuraRing(
-        mood: mood,
-        radius: radius,
-        child: avatar,
-      );
+      return MoodAuraRing(mood: mood, radius: radius, child: avatar);
     }
 
     // Status ring (colored if unviewed, grey if all viewed)
@@ -421,17 +471,19 @@ class _StatusListScreenState extends State<StatusListScreen> {
       padding: const EdgeInsets.all(2.5),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
-        gradient: hasUnviewed
-            ? const LinearGradient(
-                colors: [AppColors.aquaCore, AppColors.aquaCyan],
-              )
-            : null,
-        border: hasUnviewed
-            ? null
-            : Border.all(
-                color: Colors.white.withValues(alpha: 0.15),
-                width: 2,
-              ),
+        gradient:
+            hasUnviewed
+                ? const LinearGradient(
+                  colors: [AppColors.aquaCore, AppColors.aquaCyan],
+                )
+                : null,
+        border:
+            hasUnviewed
+                ? null
+                : Border.all(
+                  color: Colors.white.withValues(alpha: 0.15),
+                  width: 2,
+                ),
       ),
       child: Container(
         padding: const EdgeInsets.all(2),
@@ -452,11 +504,11 @@ class _StatusListScreenState extends State<StatusListScreen> {
     );
   }
 
-  String _timeAgo(Timestamp ts) {
+  String _timeAgo(WidgetRef ref, Timestamp ts) {
     final diff = DateTime.now().difference(ts.toDate());
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
-    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inMinutes < 1) return L10n.s(ref, 'justNow');
+    if (diff.inMinutes < 60) return '${diff.inMinutes}${L10n.s(ref, 'mAgo')}';
+    if (diff.inHours < 24) return '${diff.inHours}${L10n.s(ref, 'hAgo')}';
     return DateFormat('MMM d').format(ts.toDate());
   }
 }

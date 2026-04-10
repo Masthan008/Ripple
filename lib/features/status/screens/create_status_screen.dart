@@ -82,9 +82,9 @@ class CreateStatusSheet extends StatelessWidget {
             onTap: () {
               final nav = Navigator.of(context, rootNavigator: true);
               nav.pop();
-              nav.push(MaterialPageRoute(
-                builder: (_) => const _TextStatusEditor(),
-              ));
+              nav.push(
+                MaterialPageRoute(builder: (_) => const _TextStatusEditor()),
+              );
             },
           ),
           _OptionTile(
@@ -112,7 +112,9 @@ class CreateStatusSheet extends StatelessWidget {
   }
 
   static Future<void> _pickAndPostPhoto(
-      BuildContext context, ScaffoldMessengerState scaffold) async {
+    BuildContext context,
+    ScaffoldMessengerState scaffold,
+  ) async {
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
@@ -156,10 +158,7 @@ class CreateStatusSheet extends StatelessWidget {
       if (context.mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => _StatusCaptionEditor(
-              mediaUrl: url,
-              type: 'photo',
-            ),
+            builder: (_) => _StatusCaptionEditor(mediaUrl: url, type: 'photo'),
           ),
         );
       }
@@ -175,7 +174,9 @@ class CreateStatusSheet extends StatelessWidget {
   }
 
   static Future<void> _pickAndPostVideo(
-      BuildContext context, ScaffoldMessengerState scaffold) async {
+    BuildContext context,
+    ScaffoldMessengerState scaffold,
+  ) async {
     try {
       final picker = ImagePicker();
       final picked = await picker.pickVideo(
@@ -202,10 +203,7 @@ class CreateStatusSheet extends StatelessWidget {
       if (context.mounted) {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (_) => _StatusCaptionEditor(
-              mediaUrl: url,
-              type: 'video',
-            ),
+            builder: (_) => _StatusCaptionEditor(mediaUrl: url, type: 'video'),
           ),
         );
       }
@@ -227,10 +225,7 @@ class _StatusCaptionEditor extends StatefulWidget {
   final String mediaUrl;
   final String type; // 'photo' or 'video'
 
-  const _StatusCaptionEditor({
-    required this.mediaUrl,
-    required this.type,
-  });
+  const _StatusCaptionEditor({required this.mediaUrl, required this.type});
 
   @override
   State<_StatusCaptionEditor> createState() => _StatusCaptionEditorState();
@@ -240,6 +235,39 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
   final _captionCtrl = TextEditingController();
   bool _isGenerating = false;
   bool _isPosting = false;
+  String _selectedFilter = 'none';
+
+  final Map<String, ColorFilter> _filters = {
+    'none': const ColorFilter.mode(Colors.transparent, BlendMode.dst),
+    'sea_mist': const ColorFilter.mode(Color(0x33A5F3FC), BlendMode.softLight),
+    'deep_sea': const ColorFilter.mode(Color(0x440C4A6E), BlendMode.multiply),
+    'coral_glow': const ColorFilter.mode(
+      Color(0x33FB7185),
+      BlendMode.softLight,
+    ),
+    'abyss': const ColorFilter.matrix([
+      0.8,
+      0,
+      0,
+      0,
+      -20,
+      0,
+      0.8,
+      0,
+      0,
+      -20,
+      0,
+      0,
+      0.8,
+      0,
+      -20,
+      0,
+      0,
+      0,
+      1,
+      0,
+    ]),
+  };
 
   @override
   void dispose() {
@@ -250,13 +278,13 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
   Future<void> _generateAiCaption() async {
     setState(() => _isGenerating = true);
     AppHaptics.lightTap();
-    
+
     try {
       final caption = await AiService.generateCaption(
         context: 'A ${widget.type} shared as a status update',
         mood: 'fun and casual',
       );
-      
+
       if (mounted) {
         _captionCtrl.text = caption;
         AppHaptics.success();
@@ -264,7 +292,10 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('AI Error: $e'), backgroundColor: AppColors.errorRed),
+          SnackBar(
+            content: Text('AI Error: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
         );
       }
     } finally {
@@ -282,7 +313,10 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
       await StatusService.postStatus(
         type: widget.type,
         mediaUrl: widget.mediaUrl,
-        text: _captionCtrl.text.trim().isNotEmpty ? _captionCtrl.text.trim() : null,
+        text:
+            _captionCtrl.text.trim().isNotEmpty
+                ? _captionCtrl.text.trim()
+                : null,
       );
 
       if (mounted) {
@@ -297,7 +331,10 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.errorRed),
+          SnackBar(
+            content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
         );
       }
     } finally {
@@ -324,8 +361,12 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
                   const Padding(
                     padding: EdgeInsets.only(right: 16),
                     child: SizedBox(
-                      width: 20, height: 20,
-                      child: CircularProgressIndicator(color: AppColors.aquaCore, strokeWidth: 2),
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        color: AppColors.aquaCore,
+                        strokeWidth: 2,
+                      ),
                     ),
                   )
                 else
@@ -333,39 +374,67 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
                     onPressed: _postStatus,
                     style: TextButton.styleFrom(
                       foregroundColor: AppColors.aquaCore,
-                      textStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                      textStyle: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
                     ),
                     child: const Text('Post'),
                   ),
               ],
             ),
-            
+
             // Media Preview
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.all(16),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(16),
-                  child: widget.type == 'photo'
-                      ? Image.network(widget.mediaUrl, fit: BoxFit.contain)
-                      // A real app would use a video player here, but for simplicity we show a placeholder
-                      : Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            Container(color: Colors.white10),
-                            const Icon(Icons.play_circle_fill, size: 64, color: Colors.white54),
-                          ],
-                        ),
+                  child: ColorFiltered(
+                    colorFilter: _filters[_selectedFilter]!,
+                    child:
+                        widget.type == 'photo'
+                            ? Image.network(
+                              widget.mediaUrl,
+                              fit: BoxFit.contain,
+                            )
+                            // A real app would use a video player here, but for simplicity we show a placeholder
+                            : Stack(
+                              alignment: Alignment.center,
+                              children: [
+                                Container(color: Colors.white10),
+                                const Icon(
+                                  Icons.play_circle_fill,
+                                  size: 64,
+                                  color: Colors.white54,
+                                ),
+                              ],
+                            ),
+                  ),
                 ),
               ),
             ),
-            
+
+            // Filter Selector
+            if (widget.type == 'photo')
+              _FilterSelector(
+                onFilterSelected: (f) => setState(() => _selectedFilter = f),
+                selectedFilter: _selectedFilter,
+              ),
+
             // Caption Input
             Container(
-              padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).viewInsets.bottom + 12),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                12,
+                16,
+                MediaQuery.of(context).viewInsets.bottom + 12,
+              ),
               decoration: BoxDecoration(
                 color: const Color(0xFF0A1628),
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
                 border: Border.all(color: Colors.white12),
               ),
               child: Column(
@@ -387,26 +456,9 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
                           ),
                         ),
                       ),
-                      
+
                       // AI Generate Button
-                      GestureDetector(
-                        onTap: _isGenerating ? null : _generateAiCaption,
-                        child: Container(
-                          padding: const EdgeInsets.all(10),
-                          margin: const EdgeInsets.only(left: 8, bottom: 4),
-                          decoration: BoxDecoration(
-                            gradient: AppColors.buttonGradient,
-                            shape: BoxShape.circle,
-                          ),
-                          child: _isGenerating
-                              ? const SizedBox(
-                                  width: 20, height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2, color: Colors.white),
-                                )
-                              : const Icon(Icons.auto_awesome, color: Colors.white, size: 20),
-                        ),
-                      ),
+                      _buildAiButton(),
                     ],
                   ),
                 ],
@@ -417,8 +469,117 @@ class _StatusCaptionEditorState extends State<_StatusCaptionEditor> {
       ),
     );
   }
+
+  Widget _buildAiButton() {
+    return GestureDetector(
+      onTap: _isGenerating ? null : _generateAiCaption,
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        margin: const EdgeInsets.only(left: 8, bottom: 4),
+        decoration: BoxDecoration(
+          gradient: AppColors.buttonGradient,
+          shape: BoxShape.circle,
+        ),
+        child:
+            _isGenerating
+                ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    color: Colors.white,
+                    strokeWidth: 2,
+                  ),
+                )
+                : const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 18,
+                ),
+      ),
+    );
+  }
 }
 
+class _FilterSelector extends StatelessWidget {
+  final Function(String) onFilterSelected;
+  final String selectedFilter;
+
+  const _FilterSelector({
+    required this.onFilterSelected,
+    required this.selectedFilter,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final filters = [
+      {'id': 'none', 'name': 'Normal', 'icon': Icons.panorama_fish_eye_rounded},
+      {'id': 'sea_mist', 'name': 'Sea Mist', 'icon': Icons.waves_rounded},
+      {'id': 'deep_sea', 'name': 'Deep Sea', 'icon': Icons.water_rounded},
+      {
+        'id': 'coral_glow',
+        'name': 'Coral Glow',
+        'icon': Icons.wb_sunny_rounded,
+      },
+      {'id': 'abyss', 'name': 'Abyss', 'icon': Icons.nights_stay_rounded},
+    ];
+
+    return Container(
+      height: 80,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        itemCount: filters.length,
+        itemBuilder: (context, index) {
+          final f = filters[index];
+          final isSelected = selectedFilter == f['id'];
+
+          return GestureDetector(
+            onTap: () {
+              AppHaptics.selectionTick();
+              onFilterSelected(f['id'] as String);
+            },
+            child: Container(
+              width: 70,
+              margin: const EdgeInsets.only(right: 12),
+              decoration: BoxDecoration(
+                color:
+                    isSelected
+                        ? AppColors.aquaCore.withValues(alpha: 0.2)
+                        : Colors.white10,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(
+                  color: isSelected ? AppColors.aquaCore : Colors.transparent,
+                  width: 2,
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    f['icon'] as IconData,
+                    color: isSelected ? AppColors.aquaCore : Colors.white54,
+                    size: 20,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    f['name'] as String,
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : Colors.white54,
+                      fontSize: 10,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.normal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
 
 // ─── Option Tile ──────────────────────────────────────────
 
@@ -441,23 +602,32 @@ class _OptionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading: emoji != null
-          ? Text(emoji!, style: const TextStyle(fontSize: 24))
-          : Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: AppColors.aquaCore.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(12),
+      leading:
+          emoji != null
+              ? Text(emoji!, style: const TextStyle(fontSize: 24))
+              : Container(
+                width: 40,
+                height: 40,
+                decoration: BoxDecoration(
+                  color: AppColors.aquaCore.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: AppColors.aquaCore, size: 22),
               ),
-              child: Icon(icon, color: AppColors.aquaCore, size: 22),
-            ),
-      title: Text(title,
-          style: const TextStyle(
-              color: Colors.white, fontWeight: FontWeight.w600)),
-      subtitle: Text(subtitle,
-          style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.4), fontSize: 12)),
+      title: Text(
+        title,
+        style: const TextStyle(
+          color: Colors.white,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          color: Colors.white.withValues(alpha: 0.4),
+          fontSize: 12,
+        ),
+      ),
       onTap: onTap,
     );
   }
@@ -494,8 +664,7 @@ class _TextStatusEditorState extends State<_TextStatusEditor> {
     final gradient = LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
-      colors:
-          colors.map((c) => Color(int.parse('FF$c', radix: 16))).toList(),
+      colors: colors.map((c) => Color(int.parse('FF$c', radix: 16))).toList(),
     );
 
     return Scaffold(
@@ -503,8 +672,7 @@ class _TextStatusEditorState extends State<_TextStatusEditor> {
         // Tap background to cycle gradient
         onTap: () {
           setState(() {
-            _gradientIndex =
-                (_gradientIndex + 1) % gradientPresets.length;
+            _gradientIndex = (_gradientIndex + 1) % gradientPresets.length;
           });
         },
         child: Container(
@@ -524,9 +692,7 @@ class _TextStatusEditorState extends State<_TextStatusEditor> {
                       autofocus: true,
                       style: TextStyle(
                         color: Colors.white,
-                        fontSize: _textController.text.length > 100
-                            ? 20
-                            : 28,
+                        fontSize: _textController.text.length > 100 ? 20 : 28,
                         fontWeight: FontWeight.bold,
                         shadows: const [
                           Shadow(blurRadius: 8, color: Colors.black45),
@@ -550,7 +716,9 @@ class _TextStatusEditorState extends State<_TextStatusEditor> {
                   right: 0,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 8, vertical: 4),
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
                     child: Row(
                       children: [
                         IconButton(
@@ -563,15 +731,15 @@ class _TextStatusEditorState extends State<_TextStatusEditor> {
                           children: List.generate(
                             gradientPresets.length,
                             (i) => Container(
-                              margin: const EdgeInsets.symmetric(
-                                  horizontal: 2),
+                              margin: const EdgeInsets.symmetric(horizontal: 2),
                               width: i == _gradientIndex ? 10 : 6,
                               height: i == _gradientIndex ? 10 : 6,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: i == _gradientIndex
-                                    ? Colors.white
-                                    : Colors.white38,
+                                color:
+                                    i == _gradientIndex
+                                        ? Colors.white
+                                        : Colors.white38,
                               ),
                             ),
                           ),
@@ -579,27 +747,28 @@ class _TextStatusEditorState extends State<_TextStatusEditor> {
                         const Spacer(),
                         // Post button
                         TextButton(
-                          onPressed: _textController.text.trim().isEmpty ||
-                                  _isPosting
-                              ? null
-                              : _postTextStatus,
-                          child: _isPosting
-                              ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    color: Colors.white,
-                                    strokeWidth: 2,
+                          onPressed:
+                              _textController.text.trim().isEmpty || _isPosting
+                                  ? null
+                                  : _postTextStatus,
+                          child:
+                              _isPosting
+                                  ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      color: Colors.white,
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                  : const Text(
+                                    'Post',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
                                   ),
-                                )
-                              : const Text(
-                                  'Post',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 16,
-                                  ),
-                                ),
                         ),
                       ],
                     ),
@@ -722,49 +891,56 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
             child: Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: MoodConfig.moods.entries.map((entry) {
-                final key = entry.key;
-                final config = entry.value;
-                final isSelected = _selectedMood == key;
-                final colors = MoodConfig.getColors(key);
+              children:
+                  MoodConfig.moods.entries.map((entry) {
+                    final key = entry.key;
+                    final config = entry.value;
+                    final isSelected = _selectedMood == key;
+                    final colors = MoodConfig.getColors(key);
 
-                return GestureDetector(
-                  onTap: () => setState(() => _selectedMood = key),
-                  child: AnimatedContainer(
-                    duration: const Duration(milliseconds: 200),
-                    width: (MediaQuery.of(context).size.width - 56) / 3,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    decoration: BoxDecoration(
-                      color: isSelected
-                          ? colors[0].withValues(alpha: 0.2)
-                          : Colors.white.withValues(alpha: 0.05),
-                      borderRadius: BorderRadius.circular(16),
-                      border: isSelected
-                          ? Border.all(color: colors[0], width: 2)
-                          : Border.all(
-                              color: Colors.white.withValues(alpha: 0.08),
-                            ),
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(config['emoji'] as String,
-                            style: const TextStyle(fontSize: 36)),
-                        const SizedBox(height: 8),
-                        Text(
-                          config['label'] as String,
-                          style: TextStyle(
-                            color: isSelected ? colors[0] : Colors.white70,
-                            fontWeight:
-                                isSelected ? FontWeight.bold : FontWeight.w400,
-                            fontSize: 13,
-                          ),
+                    return GestureDetector(
+                      onTap: () => setState(() => _selectedMood = key),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: (MediaQuery.of(context).size.width - 56) / 3,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        decoration: BoxDecoration(
+                          color:
+                              isSelected
+                                  ? colors[0].withValues(alpha: 0.2)
+                                  : Colors.white.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(16),
+                          border:
+                              isSelected
+                                  ? Border.all(color: colors[0], width: 2)
+                                  : Border.all(
+                                    color: Colors.white.withValues(alpha: 0.08),
+                                  ),
                         ),
-                      ],
-                    ),
-                  ),
-                );
-              }).toList(),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              config['emoji'] as String,
+                              style: const TextStyle(fontSize: 36),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              config['label'] as String,
+                              style: TextStyle(
+                                color: isSelected ? colors[0] : Colors.white70,
+                                fontWeight:
+                                    isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w400,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }).toList(),
             ),
           ),
 
@@ -805,22 +981,23 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
-                  child: _isPosting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                            color: Colors.white,
-                            strokeWidth: 2,
+                  child:
+                      _isPosting
+                          ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                          : Text(
+                            'Set ${MoodConfig.getLabel(_selectedMood!)} Mood',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
                           ),
-                        )
-                      : Text(
-                          'Set ${MoodConfig.getLabel(_selectedMood!)} Mood',
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
                 ),
               ),
             ),
@@ -840,9 +1017,10 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
       await StatusService.postStatus(
         type: 'mood',
         mood: _selectedMood!,
-        text: _textController.text.trim().isEmpty
-            ? null
-            : _textController.text.trim(),
+        text:
+            _textController.text.trim().isEmpty
+                ? null
+                : _textController.text.trim(),
       );
       if (mounted) Navigator.pop(context);
     } catch (e) {

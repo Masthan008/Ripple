@@ -211,6 +211,6 @@ class MessageModel {
   }
 
   bool get isTextMessage => type == 'text' || type == 'emoji';
-  bool get isMediaMessage => type == 'image' || type == 'video';
+  bool get isMediaMessage => type == 'image' || type == 'video' || type == 'circular_video';
   bool get isFileMessage => type == 'file';
 }

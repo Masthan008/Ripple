@@ -4,29 +4,36 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/haptic_feedback.dart';
+import '../../../core/utils/l10n.dart';
 
 /// Global search screen — searches people, chats, messages, media, and links.
 /// Phase 2 upgrade: filter chips, media/link search, functional navigation.
-class GlobalSearchScreen extends StatefulWidget {
+class GlobalSearchScreen extends ConsumerStatefulWidget {
   const GlobalSearchScreen({super.key});
 
   @override
-  State<GlobalSearchScreen> createState() => _GlobalSearchScreenState();
+  ConsumerState<GlobalSearchScreen> createState() => _GlobalSearchScreenState();
 }
 
-class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
+class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
   final _controller = TextEditingController();
   String _query = '';
   bool _isSearching = false;
   Timer? _searchDebounce;
   String _activeFilter = 'All';
 
-  static const _filters = ['All', 'People', 'Messages', 'Media', 'Links'];
+  List<String> _getFilters(WidgetRef ref) => [
+        L10n.s(ref, 'all'),
+        L10n.s(ref, 'people'),
+        L10n.s(ref, 'messages'),
+        L10n.s(ref, 'media'),
+        L10n.s(ref, 'links'),
+      ];
 
   List<Map<String, dynamic>> _peopleResults = [];
   List<Map<String, dynamic>> _chatResults = [];
@@ -48,9 +55,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           controller: _controller,
           autofocus: true,
           style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Search people, chats, messages...',
-            hintStyle: TextStyle(color: Colors.white38),
+          decoration: InputDecoration(
+            hintText: L10n.s(ref, 'searchHint'),
+            hintStyle: const TextStyle(color: Colors.white38),
             border: InputBorder.none,
           ),
           onChanged: (q) {
@@ -81,12 +88,15 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
           // Results
           Expanded(
-            child: _query.length < 2
-                ? _buildSearchSuggestions()
-                : _isSearching
+            child:
+                _query.length < 2
+                    ? _buildSearchSuggestions()
+                    : _isSearching
                     ? const Center(
-                        child: CircularProgressIndicator(
-                            color: AppColors.aquaCore))
+                      child: CircularProgressIndicator(
+                        color: AppColors.aquaCore,
+                      ),
+                    )
                     : _buildResults(),
           ),
         ],
@@ -95,6 +105,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   Widget _buildFilterBar() {
+    final filters = _getFilters(ref);
     return Container(
       height: 48,
       padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -106,26 +117,32 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       ),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        itemCount: _filters.length,
+        itemCount: filters.length,
         separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (_, i) {
-          final filter = _filters[i];
-          final isActive = _activeFilter == filter;
-          final count = _getFilterCount(filter);
+          final filterText = filters[i];
+          final filterValue =
+              i == 0 ? 'All' : ['People', 'Messages', 'Media', 'Links'][i - 1];
+          final isActive = _activeFilter == filterValue;
+          final count = _getFilterCount(filterValue);
           return GestureDetector(
             onTap: () {
               AppHaptics.selectionTick();
-              setState(() => _activeFilter = filter);
+              setState(() => _activeFilter = filterValue);
             },
             child: Center(
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 200),
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(20),
-                  color: isActive
-                      ? AppColors.aquaCore.withValues(alpha: 0.2)
-                      : Colors.white.withValues(alpha: 0.06),
+                  color:
+                      isActive
+                          ? AppColors.aquaCore.withValues(alpha: 0.2)
+                          : Colors.white.withValues(alpha: 0.06),
                   border: Border.all(
                     color: isActive ? AppColors.aquaCore : Colors.transparent,
                   ),
@@ -134,27 +151,33 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      filter,
+                      filterText,
                       style: TextStyle(
                         color: isActive ? AppColors.aquaCore : Colors.white54,
                         fontSize: 13,
-                        fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
+                        fontWeight:
+                            isActive ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),
                     if (count > 0) ...[
                       const SizedBox(width: 6),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 6,
+                          vertical: 1,
+                        ),
                         decoration: BoxDecoration(
-                          color: isActive
-                              ? AppColors.aquaCore.withValues(alpha: 0.3)
-                              : Colors.white12,
+                          color:
+                              isActive
+                                  ? AppColors.aquaCore.withValues(alpha: 0.3)
+                                  : Colors.white12,
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           '$count',
                           style: TextStyle(
-                            color: isActive ? AppColors.aquaCore : Colors.white38,
+                            color:
+                                isActive ? AppColors.aquaCore : Colors.white38,
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
                           ),
@@ -173,11 +196,16 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   int _getFilterCount(String filter) {
     switch (filter) {
-      case 'People': return _peopleResults.length;
-      case 'Messages': return _messageResults.length;
-      case 'Media': return _mediaResults.length;
-      case 'Links': return _linkResults.length;
-      default: return 0;
+      case 'People':
+        return _peopleResults.length;
+      case 'Messages':
+        return _messageResults.length;
+      case 'Media':
+        return _mediaResults.length;
+      case 'Links':
+        return _linkResults.length;
+      default:
+        return 0;
     }
   }
 
@@ -186,18 +214,26 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.search_rounded, size: 64,
-              color: Colors.white.withValues(alpha: 0.08)),
+          Icon(
+            Icons.search_rounded,
+            size: 64,
+            color: Colors.white.withValues(alpha: 0.08),
+          ),
           const SizedBox(height: 16),
-          const Text('Search Ripple',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold)),
+          Text(
+            L10n.s(ref, 'searchRipple'),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
           const SizedBox(height: 8),
-          const Text('Find people, chats, messages,\nmedia & links',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.white38)),
+          Text(
+            L10n.s(ref, 'searchSuggestions'),
+            textAlign: TextAlign.center,
+            style: const TextStyle(color: Colors.white38),
+          ),
         ],
       ),
     );
@@ -209,7 +245,8 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     final showMedia = _activeFilter == 'All' || _activeFilter == 'Media';
     final showLinks = _activeFilter == 'All' || _activeFilter == 'Links';
 
-    final hasAny = (showPeople && _peopleResults.isNotEmpty) ||
+    final hasAny =
+        (showPeople && _peopleResults.isNotEmpty) ||
         (showMessages && _messageResults.isNotEmpty) ||
         (showMedia && _mediaResults.isNotEmpty) ||
         (showLinks && _linkResults.isNotEmpty);
@@ -221,8 +258,10 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           children: [
             const Text('😕', style: TextStyle(fontSize: 48)),
             const SizedBox(height: 12),
-            Text('No results for "$_query"',
-                style: const TextStyle(color: Colors.white54)),
+            Text(
+              '${L10n.s(ref, 'noResults')} "$_query"',
+              style: const TextStyle(color: Colors.white54),
+            ),
           ],
         ),
       );
@@ -232,25 +271,25 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       children: [
         // PEOPLE section
         if (showPeople && _peopleResults.isNotEmpty) ...[
-          _sectionHeader('People', Icons.person_rounded),
+          _sectionHeader(L10n.s(ref, 'people'), Icons.person_rounded),
           ..._peopleResults.map(_buildPersonTile),
         ],
 
         // MESSAGES section
         if (showMessages && _messageResults.isNotEmpty) ...[
-          _sectionHeader('Messages', Icons.chat_rounded),
+          _sectionHeader(L10n.s(ref, 'messages'), Icons.chat_rounded),
           ..._messageResults.map(_buildMessageTile),
         ],
 
         // MEDIA section
         if (showMedia && _mediaResults.isNotEmpty) ...[
-          _sectionHeader('Media', Icons.photo_library_rounded),
+          _sectionHeader(L10n.s(ref, 'media'), Icons.photo_library_rounded),
           _buildMediaGrid(),
         ],
 
         // LINKS section
         if (showLinks && _linkResults.isNotEmpty) ...[
-          _sectionHeader('Links', Icons.link_rounded),
+          _sectionHeader(L10n.s(ref, 'links'), Icons.link_rounded),
           ..._linkResults.map(_buildLinkTile),
         ],
 
@@ -264,19 +303,29 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: const Color(0xFF1A2A40),
-        backgroundImage: photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null,
-        child: photoUrl.isEmpty
-            ? Text(
-                (user['name'] as String? ?? '?')[0].toUpperCase(),
-                style: const TextStyle(color: Colors.white),
-              )
-            : null,
+        backgroundImage:
+            photoUrl.isNotEmpty ? CachedNetworkImageProvider(photoUrl) : null,
+        child:
+            photoUrl.isEmpty
+                ? Text(
+                  (user['name'] as String? ?? '?')[0].toUpperCase(),
+                  style: const TextStyle(color: Colors.white),
+                )
+                : null,
       ),
-      title: Text(user['name'] as String? ?? '',
-          style: const TextStyle(color: Colors.white)),
-      subtitle: Text('@${user['username'] ?? ''}',
-          style: const TextStyle(color: Colors.white54, fontSize: 13)),
-      trailing: const Icon(Icons.chevron_right, color: Colors.white24, size: 18),
+      title: Text(
+        user['name'] as String? ?? '',
+        style: const TextStyle(color: Colors.white),
+      ),
+      subtitle: Text(
+        '@${user['username'] ?? ''}',
+        style: const TextStyle(color: Colors.white54, fontSize: 13),
+      ),
+      trailing: const Icon(
+        Icons.chevron_right,
+        color: Colors.white24,
+        size: 18,
+      ),
       onTap: () {
         final uid = user['uid'] as String? ?? '';
         if (uid.isNotEmpty) {
@@ -290,29 +339,39 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   }
 
   Widget _buildMessageTile(Map<String, dynamic> msg) {
-    final senderPhoto = msg['senderPhoto'] as String? ?? '';
+    final partnerPhoto = msg['partnerPhoto'] as String? ?? '';
+    final partnerName = msg['partnerName'] as String? ?? 'User';
     return ListTile(
       leading: CircleAvatar(
         backgroundColor: const Color(0xFF1A2A40),
-        backgroundImage: senderPhoto.isNotEmpty ? CachedNetworkImageProvider(senderPhoto) : null,
-        child: senderPhoto.isEmpty
-            ? Text(
-                (msg['senderName'] as String? ?? '?')[0].toUpperCase(),
-                style: const TextStyle(color: Colors.white),
-              )
-            : null,
+        backgroundImage:
+            partnerPhoto.isNotEmpty
+                ? CachedNetworkImageProvider(partnerPhoto)
+                : null,
+        child:
+            partnerPhoto.isEmpty
+                ? Text(
+                  partnerName[0].toUpperCase(),
+                  style: const TextStyle(color: Colors.white),
+                )
+                : null,
       ),
-      title: Text(msg['senderName'] as String? ?? '',
-          style: const TextStyle(color: Colors.white)),
-      subtitle: _HighlightedText(text: msg['text'] as String? ?? '', query: _query),
+      title: Text(partnerName, style: const TextStyle(color: Colors.white)),
+      subtitle: _HighlightedText(
+        text: msg['text'] as String? ?? '',
+        query: _query,
+      ),
       trailing: Text(
         _timeAgo(msg['createdAt']),
         style: const TextStyle(color: Colors.white38, fontSize: 11),
       ),
       onTap: () {
         final chatId = msg['chatId'] as String? ?? '';
-        if (chatId.isNotEmpty) {
-          GoRouter.of(context).push('/chat?chatId=$chatId');
+        final partnerUid = msg['partnerUid'] as String? ?? '';
+        if (chatId.isNotEmpty && partnerUid.isNotEmpty) {
+          GoRouter.of(context).push(
+            '/chat?chatId=$chatId&partnerUid=$partnerUid&partnerName=${Uri.encodeComponent(partnerName)}&partnerPhoto=${Uri.encodeComponent(partnerPhoto)}',
+          );
         }
       },
     );
@@ -337,8 +396,13 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           return GestureDetector(
             onTap: () {
               final chatId = media['chatId'] as String? ?? '';
-              if (chatId.isNotEmpty) {
-                GoRouter.of(context).push('/chat?chatId=$chatId');
+              final partnerUid = media['partnerUid'] as String? ?? '';
+              final partnerName = media['partnerName'] as String? ?? 'User';
+              final partnerPhoto = media['partnerPhoto'] as String? ?? '';
+              if (chatId.isNotEmpty && partnerUid.isNotEmpty) {
+                GoRouter.of(context).push(
+                  '/chat?chatId=$chatId&partnerUid=$partnerUid&partnerName=${Uri.encodeComponent(partnerName)}&partnerPhoto=${Uri.encodeComponent(partnerPhoto)}',
+                );
               }
             },
             child: ClipRRect(
@@ -349,18 +413,25 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                   CachedNetworkImage(
                     imageUrl: (media['thumbnailUrl'] as String?) ?? url,
                     fit: BoxFit.cover,
-                    placeholder: (_, __) => Container(
-                      color: AppColors.glassPanel,
-                      child: const Center(
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: AppColors.aquaCore),
-                      ),
-                    ),
-                    errorWidget: (_, __, ___) => Container(
-                      color: AppColors.glassPanel,
-                      child: const Icon(Icons.broken_image,
-                          color: Colors.white24, size: 24),
-                    ),
+                    placeholder:
+                        (_, __) => Container(
+                          color: AppColors.glassPanel,
+                          child: const Center(
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppColors.aquaCore,
+                            ),
+                          ),
+                        ),
+                    errorWidget:
+                        (_, __, ___) => Container(
+                          color: AppColors.glassPanel,
+                          child: const Icon(
+                            Icons.broken_image,
+                            color: Colors.white24,
+                            size: 24,
+                          ),
+                        ),
                   ),
                   if (isVideo)
                     Center(
@@ -371,8 +442,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
                           shape: BoxShape.circle,
                           color: Colors.black.withValues(alpha: 0.6),
                         ),
-                        child: const Icon(Icons.play_arrow_rounded,
-                            color: Colors.white, size: 20),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.white,
+                          size: 20,
+                        ),
                       ),
                     ),
                 ],
@@ -387,6 +461,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
   Widget _buildLinkTile(Map<String, dynamic> msg) {
     final text = msg['text'] as String? ?? '';
     final url = _extractUrl(text) ?? text;
+    final partnerName = msg['partnerName'] as String? ?? 'User';
     return ListTile(
       leading: Container(
         width: 40,
@@ -395,7 +470,11 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
           color: AppColors.aquaCore.withValues(alpha: 0.15),
           borderRadius: BorderRadius.circular(10),
         ),
-        child: const Icon(Icons.link_rounded, color: AppColors.aquaCore, size: 20),
+        child: const Icon(
+          Icons.link_rounded,
+          color: AppColors.aquaCore,
+          size: 20,
+        ),
       ),
       title: Text(
         url,
@@ -408,7 +487,7 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         ),
       ),
       subtitle: Text(
-        'from ${msg['senderName'] ?? 'unknown'}',
+        'from $partnerName',
         style: const TextStyle(color: Colors.white38, fontSize: 11),
       ),
       trailing: Text(
@@ -417,8 +496,12 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       ),
       onTap: () {
         final chatId = msg['chatId'] as String? ?? '';
-        if (chatId.isNotEmpty) {
-          GoRouter.of(context).push('/chat?chatId=$chatId');
+        final partnerUid = msg['partnerUid'] as String? ?? '';
+        final partnerPhoto = msg['partnerPhoto'] as String? ?? '';
+        if (chatId.isNotEmpty && partnerUid.isNotEmpty) {
+          GoRouter.of(context).push(
+            '/chat?chatId=$chatId&partnerUid=$partnerUid&partnerName=${Uri.encodeComponent(partnerName)}&partnerPhoto=${Uri.encodeComponent(partnerPhoto)}',
+          );
         }
       },
     );
@@ -431,12 +514,15 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
         children: [
           Icon(icon, color: AppColors.aquaCore, size: 16),
           const SizedBox(width: 8),
-          Text(title,
-              style: TextStyle(
-                  color: AppColors.aquaCore,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 0.5)),
+          Text(
+            title,
+            style: TextStyle(
+              color: AppColors.aquaCore,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
+          ),
         ],
       ),
     );
@@ -463,21 +549,24 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
 
   Future<void> _searchPeople(String query) async {
     try {
-      final snap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('name', isGreaterThanOrEqualTo: query)
-          .where('name', isLessThanOrEqualTo: '$query\uf8ff')
-          .limit(5)
-          .get();
+      final snap =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .where('name', isGreaterThanOrEqualTo: query)
+              .where('name', isLessThanOrEqualTo: '$query\uf8ff')
+              .limit(5)
+              .get();
 
-      final usernameSnap = await FirebaseFirestore.instance
-          .collection('users')
-          .where('username',
-              isGreaterThanOrEqualTo: query.toLowerCase())
-          .where('username',
-              isLessThanOrEqualTo: '${query.toLowerCase()}\uf8ff')
-          .limit(5)
-          .get();
+      final usernameSnap =
+          await FirebaseFirestore.instance
+              .collection('users')
+              .where('username', isGreaterThanOrEqualTo: query.toLowerCase())
+              .where(
+                'username',
+                isLessThanOrEqualTo: '${query.toLowerCase()}\uf8ff',
+              )
+              .limit(5)
+              .get();
 
       // Merge + deduplicate
       final seen = <String>{};
@@ -499,45 +588,55 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       final q = query.toLowerCase();
       final results = <Map<String, dynamic>>[];
 
-      final chatsSnap = await FirebaseFirestore.instance
-          .collection('chats')
-          .where('participants', arrayContains: uid)
-          .limit(20)
-          .get();
+      final chatsSnap =
+          await FirebaseFirestore.instance
+              .collection('chats')
+              .where('participants', arrayContains: uid)
+              .limit(20)
+              .get();
 
       for (final chat in chatsSnap.docs) {
-        final msgsSnap = await FirebaseFirestore.instance
-            .collection('chats')
-            .doc(chat.id)
-            .collection('messages')
-            .orderBy('createdAt', descending: true)
-            .limit(50)
-            .get();
+        final participants = List<String>.from(
+          chat.data()['participants'] ?? [],
+        );
+        final partnerUid = participants.firstWhere(
+          (id) => id != uid,
+          orElse: () => '',
+        );
+        if (partnerUid.isEmpty) continue;
+
+        // Fetch partner info once per chat
+        String partnerName = 'User';
+        String partnerPhoto = '';
+        try {
+          final partnerDoc =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(partnerUid)
+                  .get();
+          partnerName = partnerDoc.data()?['name'] as String? ?? 'User';
+          partnerPhoto = partnerDoc.data()?['photoUrl'] as String? ?? '';
+        } catch (_) {}
+
+        final msgsSnap =
+            await FirebaseFirestore.instance
+                .collection('chats')
+                .doc(chat.id)
+                .collection('messages')
+                .orderBy('createdAt', descending: true)
+                .limit(50)
+                .get();
 
         for (final msg in msgsSnap.docs) {
-          final text =
-              (msg.data()['text'] as String? ?? '').toLowerCase();
+          final text = (msg.data()['text'] as String? ?? '').toLowerCase();
           if (text.contains(q)) {
-            // Fetch sender info so avatar/name display correctly
-            final senderId = msg.data()['senderId'] as String? ?? '';
-            String senderName = 'User';
-            String senderPhoto = '';
-            if (senderId.isNotEmpty) {
-              try {
-                final senderDoc = await FirebaseFirestore.instance
-                    .collection('users')
-                    .doc(senderId)
-                    .get();
-                senderName = senderDoc.data()?['name'] as String? ?? 'User';
-                senderPhoto = senderDoc.data()?['photoUrl'] as String? ?? '';
-              } catch (_) {}
-            }
             results.add({
               ...msg.data(),
               'messageId': msg.id,
               'chatId': chat.id,
-              'senderName': senderName,
-              'senderPhoto': senderPhoto,
+              'partnerUid': partnerUid,
+              'partnerName': partnerName,
+              'partnerPhoto': partnerPhoto,
             });
           }
         }
@@ -553,27 +652,54 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final results = <Map<String, dynamic>>[];
 
-      final chatsSnap = await FirebaseFirestore.instance
-          .collection('chats')
-          .where('participants', arrayContains: uid)
-          .limit(20)
-          .get();
+      final chatsSnap =
+          await FirebaseFirestore.instance
+              .collection('chats')
+              .where('participants', arrayContains: uid)
+              .limit(20)
+              .get();
 
       for (final chat in chatsSnap.docs) {
-        final msgsSnap = await FirebaseFirestore.instance
-            .collection('chats')
-            .doc(chat.id)
-            .collection('messages')
-            .where('type', whereIn: ['image', 'video'])
-            .orderBy('createdAt', descending: true)
-            .limit(15)
-            .get();
+        final participants = List<String>.from(
+          chat.data()['participants'] ?? [],
+        );
+        final partnerUid = participants.firstWhere(
+          (id) => id != uid,
+          orElse: () => '',
+        );
+        if (partnerUid.isEmpty) continue;
+
+        // Fetch partner info once per chat
+        String partnerName = 'User';
+        String partnerPhoto = '';
+        try {
+          final partnerDoc =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(partnerUid)
+                  .get();
+          partnerName = partnerDoc.data()?['name'] as String? ?? 'User';
+          partnerPhoto = partnerDoc.data()?['photoUrl'] as String? ?? '';
+        } catch (_) {}
+
+        final msgsSnap =
+            await FirebaseFirestore.instance
+                .collection('chats')
+                .doc(chat.id)
+                .collection('messages')
+                .where('type', whereIn: ['image', 'video'])
+                .orderBy('createdAt', descending: true)
+                .limit(15)
+                .get();
 
         for (final msg in msgsSnap.docs) {
           results.add({
             ...msg.data(),
             'messageId': msg.id,
             'chatId': chat.id,
+            'partnerUid': partnerUid,
+            'partnerName': partnerName,
+            'partnerPhoto': partnerPhoto,
           });
         }
         if (results.length >= 20) break;
@@ -588,21 +714,45 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
       final uid = FirebaseAuth.instance.currentUser!.uid;
       final results = <Map<String, dynamic>>[];
 
-      final chatsSnap = await FirebaseFirestore.instance
-          .collection('chats')
-          .where('participants', arrayContains: uid)
-          .limit(20)
-          .get();
+      final chatsSnap =
+          await FirebaseFirestore.instance
+              .collection('chats')
+              .where('participants', arrayContains: uid)
+              .limit(20)
+              .get();
 
       for (final chat in chatsSnap.docs) {
-        final msgsSnap = await FirebaseFirestore.instance
-            .collection('chats')
-            .doc(chat.id)
-            .collection('messages')
-            .where('type', isEqualTo: 'text')
-            .orderBy('createdAt', descending: true)
-            .limit(50)
-            .get();
+        final participants = List<String>.from(
+          chat.data()['participants'] ?? [],
+        );
+        final partnerUid = participants.firstWhere(
+          (id) => id != uid,
+          orElse: () => '',
+        );
+        if (partnerUid.isEmpty) continue;
+
+        // Fetch partner info
+        String partnerName = 'User';
+        String partnerPhoto = '';
+        try {
+          final partnerDoc =
+              await FirebaseFirestore.instance
+                  .collection('users')
+                  .doc(partnerUid)
+                  .get();
+          partnerName = partnerDoc.data()?['name'] as String? ?? 'User';
+          partnerPhoto = partnerDoc.data()?['photoUrl'] as String? ?? '';
+        } catch (_) {}
+
+        final msgsSnap =
+            await FirebaseFirestore.instance
+                .collection('chats')
+                .doc(chat.id)
+                .collection('messages')
+                .where('type', isEqualTo: 'text')
+                .orderBy('createdAt', descending: true)
+                .limit(50)
+                .get();
 
         for (final msg in msgsSnap.docs) {
           final text = msg.data()['text'] as String? ?? '';
@@ -611,6 +761,9 @@ class _GlobalSearchScreenState extends State<GlobalSearchScreen> {
               ...msg.data(),
               'messageId': msg.id,
               'chatId': chat.id,
+              'partnerUid': partnerUid,
+              'partnerName': partnerName,
+              'partnerPhoto': partnerPhoto,
             });
           }
         }
@@ -677,31 +830,37 @@ class _HighlightedText extends StatelessWidget {
     final lower = text.toLowerCase();
     final idx = lower.indexOf(query.toLowerCase());
     if (idx == -1) {
-      return Text(text,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Colors.white54));
+      return Text(
+        text,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(color: Colors.white54),
+      );
     }
 
     return RichText(
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      text: TextSpan(children: [
-        TextSpan(
+      text: TextSpan(
+        children: [
+          TextSpan(
             text: text.substring(0, idx),
-            style: const TextStyle(color: Colors.white54)),
-        TextSpan(
-          text: text.substring(idx, idx + query.length),
-          style: TextStyle(
-            color: AppColors.aquaCore,
-            fontWeight: FontWeight.bold,
-            backgroundColor: AppColors.aquaCore.withValues(alpha: 0.15),
+            style: const TextStyle(color: Colors.white54),
           ),
-        ),
-        TextSpan(
+          TextSpan(
+            text: text.substring(idx, idx + query.length),
+            style: TextStyle(
+              color: AppColors.aquaCore,
+              fontWeight: FontWeight.bold,
+              backgroundColor: AppColors.aquaCore.withValues(alpha: 0.15),
+            ),
+          ),
+          TextSpan(
             text: text.substring(idx + query.length),
-            style: const TextStyle(color: Colors.white54)),
-      ]),
+            style: const TextStyle(color: Colors.white54),
+          ),
+        ],
+      ),
     );
   }
 }

@@ -1,7 +1,7 @@
+import 'package:flutter/material.dart';
+import '../../../core/utils/haptic_feedback.dart';
 import 'dart:async';
 import 'dart:io';
-
-import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:record/record.dart';
@@ -12,7 +12,7 @@ import '../../../core/constants/app_colors.dart';
 /// Shows pulsing red dot, duration timer, waveform, and slide-to-cancel hint
 class VoiceRecorderWidget extends StatefulWidget {
   final Function(String filePath, Duration duration, List<double> waveformData)
-      onRecordingComplete;
+  onRecordingComplete;
   final VoidCallback onCancelled;
 
   const VoiceRecorderWidget({
@@ -54,6 +54,7 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
         return;
       }
 
+      AppHaptics.mediumTap();
       final dir = await getTemporaryDirectory();
       _recordingPath =
           '${dir.path}/voice_${DateTime.now().millisecondsSinceEpoch}.m4a';
@@ -70,8 +71,7 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
       _isRecording = true;
 
       // Duration timer
-      _durationTimer =
-          Timer.periodic(const Duration(seconds: 1), (_) {
+      _durationTimer = Timer.periodic(const Duration(seconds: 1), (_) {
         if (mounted) {
           setState(() {
             _recordingDuration += const Duration(seconds: 1);
@@ -83,8 +83,9 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
       });
 
       // Amplitude sampling for waveform
-      _amplitudeTimer =
-          Timer.periodic(const Duration(milliseconds: 100), (_) async {
+      _amplitudeTimer = Timer.periodic(const Duration(milliseconds: 100), (
+        _,
+      ) async {
         try {
           final amp = await _audioRecorder.getAmplitude();
           if (mounted) {
@@ -106,6 +107,7 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     if (!_isRecording) return;
     _isRecording = false;
 
+    AppHaptics.success();
     _durationTimer?.cancel();
     _amplitudeTimer?.cancel();
 
@@ -129,6 +131,7 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
     if (!_isRecording) return;
     _isRecording = false;
 
+    AppHaptics.heavyTap();
     _durationTimer?.cancel();
     _amplitudeTimer?.cancel();
 
@@ -166,27 +169,26 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
       padding: const EdgeInsets.symmetric(horizontal: 16),
       decoration: const BoxDecoration(
         color: Color(0xFF0A1628),
-        border: Border(
-          top: BorderSide(color: Colors.white12),
-        ),
+        border: Border(top: BorderSide(color: Colors.white12)),
       ),
       child: Row(
         children: [
           // Pulsing red dot
           AnimatedBuilder(
             animation: _pulseController,
-            builder: (_, __) => Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Color.lerp(
-                  Colors.red,
-                  Colors.red.withValues(alpha: 0.3),
-                  _pulseController.value,
+            builder:
+                (_, __) => Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Color.lerp(
+                      Colors.red,
+                      Colors.red.withValues(alpha: 0.3),
+                      _pulseController.value,
+                    ),
+                  ),
                 ),
-              ),
-            ),
           ),
           const SizedBox(width: 8),
 
@@ -203,12 +205,13 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
 
           // Waveform visualization
           Expanded(
-            child: _waveformAmplitudes.isEmpty
-                ? const SizedBox()
-                : CustomPaint(
-                    painter: _WaveformPainter(_waveformAmplitudes),
-                    size: const Size(double.infinity, 32),
-                  ),
+            child:
+                _waveformAmplitudes.isEmpty
+                    ? const SizedBox()
+                    : CustomPaint(
+                      painter: _WaveformPainter(_waveformAmplitudes),
+                      size: const Size(double.infinity, 32),
+                    ),
           ),
 
           const SizedBox(width: 8),
@@ -245,10 +248,7 @@ class VoiceRecorderWidgetState extends State<VoiceRecorderWidget>
                 ),
                 shape: BoxShape.circle,
                 boxShadow: [
-                  BoxShadow(
-                    color: Color(0x550EA5E9),
-                    blurRadius: 10,
-                  ),
+                  BoxShadow(color: Color(0x550EA5E9), blurRadius: 10),
                 ],
               ),
               child: const Icon(
@@ -271,27 +271,36 @@ class _WaveformPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = AppColors.aquaCore
-      ..strokeWidth = 2
-      ..strokeCap = StrokeCap.round;
+    final paint =
+        Paint()
+          ..color = AppColors.aquaCore
+          ..strokeWidth = 2
+          ..strokeCap = StrokeCap.round;
+
+    final glowPaint =
+        Paint()
+          ..color = AppColors.aquaCore.withValues(alpha: 0.3)
+          ..strokeWidth = 4
+          ..strokeCap = StrokeCap.round
+          ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2);
 
     const barWidth = 3.0;
     const gap = 2.0;
     final maxBars = (size.width / (barWidth + gap)).floor();
-    final displayAmps = amplitudes.length > maxBars
-        ? amplitudes.sublist(amplitudes.length - maxBars)
-        : amplitudes;
+    final displayAmps =
+        amplitudes.length > maxBars
+            ? amplitudes.sublist(amplitudes.length - maxBars)
+            : amplitudes;
 
     for (int i = 0; i < displayAmps.length; i++) {
       final x = i * (barWidth + gap);
       final barHeight = (displayAmps[i] * size.height).clamp(2.0, size.height);
       final y = (size.height - barHeight) / 2;
-      canvas.drawLine(
-        Offset(x, y),
-        Offset(x, y + barHeight),
-        paint,
-      );
+
+      // Draw glow first
+      canvas.drawLine(Offset(x, y), Offset(x, y + barHeight), glowPaint);
+      // Draw core bar
+      canvas.drawLine(Offset(x, y), Offset(x, y + barHeight), paint);
     }
   }
 

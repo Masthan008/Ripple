@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/l10n.dart'; // Add this
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
@@ -15,9 +16,9 @@ import 'edit_profile_screen.dart';
 import 'qr_code_screen.dart';
 import 'account_security_screen.dart';
 import 'notifications_settings_screen.dart';
-import 'privacy_screen.dart';
 import 'appearance_screen.dart';
 import 'language_screen.dart';
+import '../providers/settings_provider.dart'; // Add this
 import 'storage_usage_screen.dart';
 import 'data_usage_screen.dart';
 import 'help_screen.dart';
@@ -60,29 +61,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
     return SafeArea(
       child: user.when(
-        loading: () => const Center(
-          child: CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
-          ),
-        ),
-        error: (e, _) => Center(
-          child: Text('Error: $e', style: AppTextStyles.caption),
-        ),
+        loading:
+            () => const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
+              ),
+            ),
+        error:
+            (e, _) =>
+                Center(child: Text('Error: $e', style: AppTextStyles.caption)),
         data: (u) {
           if (u == null) {
             return Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.person_outline_rounded,
-                      color: AppColors.aquaCore.withValues(alpha: 0.3),
-                      size: 80),
+                  Icon(
+                    Icons.person_outline_rounded,
+                    color: AppColors.aquaCore.withValues(alpha: 0.3),
+                    size: 80,
+                  ),
                   const SizedBox(height: 16),
-                  Text('Complete your profile',
-                      style: AppTextStyles.heading.copyWith(fontSize: 20)),
+                  Text(
+                    'Complete your profile',
+                    style: AppTextStyles.heading.copyWith(fontSize: 20),
+                  ),
                   const SizedBox(height: 8),
-                  Text('Set up your name and photo to get started',
-                      style: AppTextStyles.caption),
+                  Text(
+                    'Set up your name and photo to get started',
+                    style: AppTextStyles.caption,
+                  ),
                   const SizedBox(height: 24),
                   SizedBox(
                     width: 200,
@@ -93,11 +101,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: ElevatedButton(
-                        onPressed: () => Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const EditProfileScreen(),
-                          ),
-                        ),
+                        onPressed:
+                            () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const EditProfileScreen(),
+                              ),
+                            ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
                           shadowColor: Colors.transparent,
@@ -105,8 +114,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             borderRadius: BorderRadius.circular(14),
                           ),
                         ),
-                        child: Text('Set Up Profile',
-                            style: AppTextStyles.button),
+                        child: Text(
+                          'Set Up Profile',
+                          style: AppTextStyles.button,
+                        ),
                       ),
                     ),
                   ),
@@ -126,7 +137,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   // Header
                   Align(
                     alignment: Alignment.centerLeft,
-                    child: Text('Profile', style: AppTextStyles.heading),
+                    child: Text(
+                      L10n.s(ref, 'profile'),
+                      style: AppTextStyles.heading,
+                    ),
                   ),
 
                   const SizedBox(height: 16),
@@ -163,8 +177,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             width: 3,
                           ),
                         ),
-                        child: const Icon(Icons.camera_alt_rounded,
-                            color: Colors.white, size: 14),
+                        child: const Icon(
+                          Icons.camera_alt_rounded,
+                          color: Colors.white,
+                          size: 14,
+                        ),
                       ),
                     ],
                   ),
@@ -184,25 +201,36 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       const SizedBox(width: 8),
                       // Ripple Score
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
-                          color: SocialService.getRippleRankColor(u.rippleScore).withOpacity(0.15),
+                          color: SocialService.getRippleRankColor(
+                            u.rippleScore,
+                          ).withOpacity(0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                             Text(SocialService.getRippleRank(u.rippleScore),
+                            Text(
+                              SocialService.getRippleRank(u.rippleScore),
                               style: TextStyle(
-                                color: SocialService.getRippleRankColor(u.rippleScore),
+                                color: SocialService.getRippleRankColor(
+                                  u.rippleScore,
+                                ),
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
                             const SizedBox(width: 4),
-                            Text(u.rippleScore.toString(),
+                            Text(
+                              u.rippleScore.toString(),
                               style: TextStyle(
-                                color: SocialService.getRippleRankColor(u.rippleScore),
+                                color: SocialService.getRippleRankColor(
+                                  u.rippleScore,
+                                ),
                                 fontSize: 10,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -218,7 +246,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   // Online status badge
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 4),
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: AppColors.aquaCore.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(20),
@@ -230,20 +260,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           width: 8,
                           height: 8,
                           decoration: BoxDecoration(
-                            color: u.isOnline
-                                ? AppColors.onlineGreen
-                                : AppColors.textMuted,
+                            color:
+                                u.isOnline
+                                    ? AppColors.onlineGreen
+                                    : AppColors.textMuted,
                             shape: BoxShape.circle,
                           ),
                         ),
                         const SizedBox(width: 6),
                         Text(
-                          u.isOnline ? 'Online' : 'Offline',
+                          u.isOnline
+                              ? L10n.s(ref, 'online')
+                              : L10n.s(ref, 'offline'),
                           style: AppTextStyles.caption.copyWith(
                             fontSize: 11,
-                            color: u.isOnline
-                                ? AppColors.onlineGreen
-                                : AppColors.textMuted,
+                            color:
+                                u.isOnline
+                                    ? AppColors.onlineGreen
+                                    : AppColors.textMuted,
                           ),
                         ),
                       ],
@@ -256,34 +290,34 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   const SizedBox(height: 24),
 
                   // ─── Social & Activity Section ────────────
-                  _SectionHeader(title: 'Social & Activity'),
+                  _SectionHeader(title: L10n.s(ref, 'socialAndActivity')),
                   const SizedBox(height: 8),
 
                   _SettingsTile(
                     icon: Icons.emoji_events_rounded,
-                    title: 'Leaderboard',
-                    subtitle: 'See how you rank among friends',
+                    title: L10n.s(ref, 'leaderboard'),
+                    subtitle: L10n.s(ref, 'leaderboardDesc'),
                     iconColor: Colors.amber,
                     onTap: () => context.push('/leaderboard'),
                   ),
                   _SettingsTile(
                     icon: Icons.people_alt_rounded,
-                    title: 'Friend Suggestions',
-                    subtitle: 'People you may know',
+                    title: L10n.s(ref, 'friendSuggestions'),
+                    subtitle: L10n.s(ref, 'friendSuggestionsDesc'),
                     iconColor: AppColors.aquaCore,
                     onTap: () => context.push('/friend-suggestions'),
                   ),
                   _SettingsTile(
                     icon: Icons.local_fire_department_rounded,
-                    title: 'Activity Feed',
-                    subtitle: 'Recent updates from friends',
+                    title: L10n.s(ref, 'activityFeed'),
+                    subtitle: L10n.s(ref, 'activityFeedDesc'),
                     iconColor: Colors.orange,
                     onTap: () => context.push('/activity-feed'),
                   ),
                   _SettingsTile(
                     icon: Icons.visibility_rounded,
-                    title: 'Profile Visitors',
-                    subtitle: 'See who viewed your profile',
+                    title: L10n.s(ref, 'profileVisitors'),
+                    subtitle: L10n.s(ref, 'profileVisitorsDesc'),
                     iconColor: Colors.purple,
                     onTap: () => context.push('/profile-visitors'),
                   ),
@@ -291,45 +325,65 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   const SizedBox(height: 20),
 
                   // ─── Account Section ──────────────────────
-                  _SectionHeader(title: 'Account'),
+                  _SectionHeader(title: L10n.s(ref, 'account')),
                   const SizedBox(height: 8),
 
                   _SettingsTile(
                     icon: Icons.person_outline_rounded,
-                    title: 'Edit Profile',
-                    subtitle: 'Change name, bio, photo',
+                    title: L10n.s(ref, 'editProfile'),
+                    subtitle: L10n.s(ref, 'editProfileDesc'),
                     iconColor: AppColors.aquaCore,
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const EditProfileScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const EditProfileScreen(),
+                          ),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.qr_code_rounded,
-                    title: 'QR Code',
-                    subtitle: 'Share your profile',
+                    title: L10n.s(ref, 'qrCode'),
+                    subtitle: L10n.s(ref, 'qrCodeDesc'),
                     iconColor: const Color(0xFF9C27B0),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const QrCodeScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const QrCodeScreen(),
+                          ),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.shield_outlined,
-                    title: 'Account Security',
-                    subtitle: 'Password, 2FA',
+                    title: L10n.s(ref, 'accountSecurity'),
+                    subtitle: L10n.s(ref, 'accountSecurityDesc'),
                     iconColor: const Color(0xFFFF9800),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const AccountSecurityScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AccountSecurityScreen(),
+                          ),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.bookmark_rounded,
-                    title: 'Saved Messages',
-                    subtitle: 'View your starred messages',
+                    title: L10n.s(ref, 'savedMessages'),
+                    subtitle: L10n.s(ref, 'savedMessagesDesc'),
                     iconColor: Colors.amber,
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const SavedMessagesScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SavedMessagesScreen(),
+                          ),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.smart_toy_rounded,
-                    title: 'AI Features',
-                    subtitle: 'Smart replies, translate, compose',
+                    title: L10n.s(ref, 'aiFeatures'),
+                    subtitle: L10n.s(ref, 'aiFeaturesDesc'),
                     iconColor: AppColors.aquaCore,
                     onTap: () => context.push('/ai-settings'),
                   ),
@@ -337,101 +391,138 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   const SizedBox(height: 20),
 
                   // ─── Preferences Section ──────────────────
-                  _SectionHeader(title: 'Preferences'),
+                  _SectionHeader(title: L10n.s(ref, 'preferences')),
                   const SizedBox(height: 8),
 
                   _SettingsTile(
                     icon: Icons.notifications_outlined,
-                    title: 'Notifications',
-                    subtitle: 'Push notifications, sounds',
+                    title: L10n.s(ref, 'notifications'),
+                    subtitle: L10n.s(ref, 'notificationsDesc'),
                     iconColor: const Color(0xFF2196F3),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const NotificationsSettingsScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const NotificationsSettingsScreen(),
+                          ),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.lock_outline_rounded,
-                    title: 'Privacy & Security',
-                    subtitle: 'Stealth mode, chat lock, visibility',
+                    title: L10n.s(ref, 'privacyAndSecurity'),
+                    subtitle: L10n.s(ref, 'privacyAndSecurityDesc'),
                     iconColor: const Color(0xFF4CAF50),
                     onTap: () => context.push('/privacy-settings'),
                   ),
                   _SettingsTile(
                     icon: Icons.color_lens_outlined,
-                    title: 'Appearance',
-                    subtitle: 'Theme, chat bubbles, font size',
+                    title: L10n.s(ref, 'appearance'),
+                    subtitle: L10n.s(ref, 'appearanceDesc'),
                     iconColor: const Color(0xFFE91E63),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const AppearanceScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AppearanceScreen(),
+                          ),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.language_rounded,
-                    title: 'Language',
-                    subtitle: 'English',
+                    title: L10n.s(ref, 'language'),
+                    subtitle: ref.watch(languageProvider),
                     iconColor: const Color(0xFF009688),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const LanguageScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LanguageScreen(),
+                          ),
+                        ),
                   ),
 
                   const SizedBox(height: 20),
 
                   // ─── Storage Section ──────────────────────
-                  _SectionHeader(title: 'Storage & Data'),
+                  _SectionHeader(title: L10n.s(ref, 'storageAndData')),
                   const SizedBox(height: 8),
 
                   _SettingsTile(
                     icon: Icons.storage_rounded,
-                    title: 'Storage Usage',
-                    subtitle: 'Manage cache, media',
+                    title: L10n.s(ref, 'storageUsage'),
+                    subtitle: L10n.s(ref, 'storageUsageDesc'),
                     iconColor: const Color(0xFF795548),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const StorageUsageScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const StorageUsageScreen(),
+                          ),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.cloud_download_outlined,
-                    title: 'Data Usage',
-                    subtitle: 'Auto-download, quality',
+                    title: L10n.s(ref, 'dataUsage'),
+                    subtitle: L10n.s(ref, 'dataUsageDesc'),
                     iconColor: const Color(0xFF607D8B),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const DataUsageScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const DataUsageScreen(),
+                          ),
+                        ),
                   ),
 
                   const SizedBox(height: 20),
 
                   // ─── Support Section ──────────────────────
-                  _SectionHeader(title: 'Support'),
+                  _SectionHeader(title: L10n.s(ref, 'support')),
                   const SizedBox(height: 8),
 
                   _SettingsTile(
                     icon: Icons.help_outline_rounded,
-                    title: 'Help & FAQ',
-                    subtitle: 'Get help, report issues',
+                    title: L10n.s(ref, 'helpFaq'),
+                    subtitle: L10n.s(ref, 'helpFaqDesc'),
                     iconColor: const Color(0xFF3F51B5),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const HelpScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const HelpScreen()),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.info_outline_rounded,
-                    title: 'About Ripple',
-                    subtitle: 'Version, licenses, terms',
+                    title: L10n.s(ref, 'aboutRipple'),
+                    subtitle: L10n.s(ref, 'aboutRippleDesc'),
                     iconColor: AppColors.aquaCyan,
-                    onTap: () => Navigator.push(context, MaterialPageRoute(
-                        builder: (_) => const AboutScreen())),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AboutScreen(),
+                          ),
+                        ),
                   ),
                   _SettingsTile(
                     icon: Icons.star_outline_rounded,
-                    title: 'Rate Us',
-                    subtitle: 'Love Ripple? Rate us!',
+                    title: L10n.s(ref, 'rateUs'),
+                    subtitle: L10n.s(ref, 'rateUsDesc'),
                     iconColor: const Color(0xFFFFC107),
                     onTap: () async {
-                      final url = Platform.isAndroid
-                          ? 'market://details?id=com.yourcompany.ripple'
-                          : 'https://apps.apple.com/app/idYOUR_APP_ID';
+                      final url =
+                          Platform.isAndroid
+                              ? 'market://details?id=com.yourcompany.ripple'
+                              : 'https://apps.apple.com/app/idYOUR_APP_ID';
                       try {
                         await launchUrl(Uri.parse(url));
                       } catch (_) {
                         if (Platform.isAndroid) {
-                          await launchUrl(Uri.parse(
-                              'https://play.google.com/store/apps/details?id=com.yourcompany.ripple'));
+                          await launchUrl(
+                            Uri.parse(
+                              'https://play.google.com/store/apps/details?id=com.yourcompany.ripple',
+                            ),
+                          );
                         }
                       }
                     },
@@ -444,33 +535,41 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     onTap: () async {
                       final confirmed = await showDialog<bool>(
                         context: context,
-                        builder: (ctx) => AlertDialog(
-                          backgroundColor: const Color(0xFF0D1B2A),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          title: Text('Sign Out?',
-                              style: AppTextStyles.body
-                                  .copyWith(fontWeight: FontWeight.w600)),
-                          content: Text(
-                            'Are you sure you want to sign out?',
-                            style: AppTextStyles.caption,
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, false),
-                              child: Text('Cancel',
-                                  style: TextStyle(
-                                      color: AppColors.textMuted)),
+                        builder:
+                            (ctx) => AlertDialog(
+                              backgroundColor: const Color(0xFF0D1B2A),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
+                              title: Text(
+                                L10n.s(ref, 'signOutTitle'),
+                                style: AppTextStyles.body.copyWith(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              content: Text(
+                                L10n.s(ref, 'confirmSignOut'),
+                                style: AppTextStyles.caption,
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, false),
+                                  child: Text(
+                                    L10n.s(ref, 'cancel'),
+                                    style: TextStyle(
+                                      color: AppColors.textMuted,
+                                    ),
+                                  ),
+                                ),
+                                TextButton(
+                                  onPressed: () => Navigator.pop(ctx, true),
+                                  child: Text(
+                                    L10n.s(ref, 'signOut'),
+                                    style: TextStyle(color: AppColors.errorRed),
+                                  ),
+                                ),
+                              ],
                             ),
-                            TextButton(
-                              onPressed: () => Navigator.pop(ctx, true),
-                              child: Text('Sign Out',
-                                  style:
-                                      TextStyle(color: AppColors.errorRed)),
-                            ),
-                          ],
-                        ),
                       );
                       if (confirmed == true && mounted) {
                         final authService = ref.read(authServiceProvider);
@@ -492,13 +591,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.logout_rounded,
-                                color: AppColors.errorRed, size: 18),
+                            Icon(
+                              Icons.logout_rounded,
+                              color: AppColors.errorRed,
+                              size: 18,
+                            ),
                             const SizedBox(width: 8),
                             Text(
-                              'Sign Out',
-                              style: AppTextStyles.button
-                                  .copyWith(color: AppColors.errorRed),
+                              L10n.s(ref, 'signOut'),
+                              style: AppTextStyles.button.copyWith(
+                                color: AppColors.errorRed,
+                              ),
                             ),
                           ],
                         ),
@@ -511,8 +614,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   // App version
                   Text(
                     'Ripple v1.0.0 • Made with 💙',
-                    style: AppTextStyles.caption
-                        .copyWith(color: AppColors.textMuted, fontSize: 10),
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.textMuted,
+                      fontSize: 10,
+                    ),
                   ),
                   const SizedBox(height: 32),
                 ],
@@ -588,16 +693,23 @@ class _SettingsTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: AppTextStyles.body.copyWith(fontSize: 14)),
+                    Text(
+                      title,
+                      style: AppTextStyles.body.copyWith(fontSize: 14),
+                    ),
                     const SizedBox(height: 2),
-                    Text(subtitle,
-                        style: AppTextStyles.caption.copyWith(fontSize: 11)),
+                    Text(
+                      subtitle,
+                      style: AppTextStyles.caption.copyWith(fontSize: 11),
+                    ),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right_rounded,
-                  color: AppColors.textMuted, size: 20),
+              Icon(
+                Icons.chevron_right_rounded,
+                color: AppColors.textMuted,
+                size: 20,
+              ),
             ],
           ),
         ),

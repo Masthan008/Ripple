@@ -10,7 +10,6 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/google_logo.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
 import '../providers/auth_provider.dart';
-import 'register_screen.dart';
 
 /// Login / Register Screen — PRD §6.1
 /// Liquid Glass card with Google + Email auth, water ripple effects
@@ -198,13 +197,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             top: -100,
             right: -60,
             child: Container(
-              width: 280,
-              height: 280,
+              width: 320,
+              height: 320,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.aquaCore.withValues(alpha: 0.12),
+                    AppColors.biolume.withOpacity(0.15),
                     Colors.transparent,
                   ],
                 ),
@@ -212,16 +211,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             ),
           ),
           Positioned(
-            bottom: -120,
-            left: -80,
+            bottom: -150,
+            left: -100,
             child: Container(
-              width: 350,
-              height: 350,
+              width: 400,
+              height: 400,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 gradient: RadialGradient(
                   colors: [
-                    AppColors.aquaCyan.withValues(alpha: 0.08),
+                    AppColors.aquaCore.withOpacity(0.12),
                     Colors.transparent,
                   ],
                 ),

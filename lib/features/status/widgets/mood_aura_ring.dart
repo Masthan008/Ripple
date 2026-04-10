@@ -96,10 +96,16 @@ class _MoodAuraRingState extends State<MoodAuraRing>
             ),
             boxShadow: [
               BoxShadow(
-                color: colors[0].withValues(alpha: 0.3 * _controller.value),
-                blurRadius: 8 + 4 * _controller.value,
-                spreadRadius: 1,
+                color: colors[0].withValues(alpha: 0.4 * _controller.value),
+                blurRadius: 12 + 6 * _controller.value,
+                spreadRadius: 1 + _controller.value,
               ),
+              if (widget.mood == 'gaming')
+                BoxShadow(
+                  color: Colors.white.withValues(alpha: 0.1 * _controller.value),
+                  blurRadius: 2,
+                  spreadRadius: 0.5,
+                ),
             ],
           ),
           child: Container(
