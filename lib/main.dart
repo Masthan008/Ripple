@@ -11,6 +11,8 @@ import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
 import 'core/services/supabase_service.dart';
 import 'features/chat/services/schedule_service.dart';
+import 'features/challenges/services/challenges_service.dart';
+import 'features/gifts/services/gift_service.dart';
 import 'app.dart';
 
 void main() async {
@@ -88,6 +90,16 @@ void main() async {
 
         // Start scheduled message checker (every 30s)
         ScheduleService.startScheduleChecker();
+
+        // Initialize weekly challenges (creates if not exists for current week)
+        ChallengesService.initializeWeeklyChallenges().catchError((e) {
+          debugPrint('⚠️ Challenges initialization error: $e');
+        });
+
+        // Initialize gift card themes
+        GiftService.initializeGiftCards().catchError((e) {
+          debugPrint('⚠️ Gift cards initialization error: $e');
+        });
 
         // Restore screenshot block setting
         final prefs = await SharedPreferences.getInstance();

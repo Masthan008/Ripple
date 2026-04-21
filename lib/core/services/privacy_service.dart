@@ -126,6 +126,88 @@ class PrivacyService {
     }
   }
 
+  // ── CHECK IF CAN SEE PROFILE PHOTO ───────────────────────
+  static bool canSeeProfilePhoto({
+    required Map<String, dynamic> targetUser,
+    required String viewerUid,
+    required List<String> viewerFriends,
+  }) {
+    final privacy =
+        Map<String, dynamic>.from(targetUser['privacy'] as Map? ?? {});
+    final visibility =
+        privacy['profilePhotoVisibility'] as String? ?? 'everyone';
+    final targetUid = targetUser['uid'] as String? ?? '';
+
+    if (targetUid == viewerUid) return true;
+
+    switch (visibility) {
+      case 'everyone':
+        return true;
+      case 'friends':
+        return viewerFriends.contains(targetUid);
+      case 'nobody':
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  // ── CHECK IF CAN SEE BIO ─────────────────────────────────
+  static bool canSeeBio({
+    required Map<String, dynamic> targetUser,
+    required String viewerUid,
+    required List<String> viewerFriends,
+  }) {
+    final privacy =
+        Map<String, dynamic>.from(targetUser['privacy'] as Map? ?? {});
+    final visibility = privacy['bioVisibility'] as String? ?? 'everyone';
+    final targetUid = targetUser['uid'] as String? ?? '';
+
+    if (targetUid == viewerUid) return true;
+
+    switch (visibility) {
+      case 'everyone':
+        return true;
+      case 'friends':
+        return viewerFriends.contains(targetUid);
+      case 'nobody':
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  // ── GRANULAR STEALTH MODE ─────────────────────────────────
+  static Future<void> setStealthForContact({
+    required String contactUid,
+    required bool enabled,
+  }) async {
+    final stealthList = await _getStealthList();
+    if (enabled) {
+      if (!stealthList.contains(contactUid)) {
+        stealthList.add(contactUid);
+      }
+    } else {
+      stealthList.remove(contactUid);
+    }
+    await _fs.collection('users').doc(_uid).update({
+      'privacy.stealthContacts': stealthList,
+    });
+  }
+
+  static Future<bool> isStealthForContact(String contactUid) async {
+    final stealthList = await _getStealthList();
+    return stealthList.contains(contactUid);
+  }
+
+  static Future<List<String>> _getStealthList() async {
+    final doc = await _fs.collection('users').doc(_uid).get();
+    final data = doc.data();
+    final stealthContacts = data?['privacy']?['stealthContacts'] as List?;
+    if (stealthContacts == null) return [];
+    return List<String>.from(stealthContacts);
+  }
+
   // ── SELF DESTRUCT — SET PER CHAT ───────────────────────
   static Future<void> setSelfDestructTimer({
     required String chatId,

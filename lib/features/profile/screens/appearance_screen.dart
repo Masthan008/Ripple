@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/theme/theme_models.dart';
+import '../../../core/theme/theme_provider.dart';
+import '../../../core/theme/smart_theme_switcher.dart';
 import '../../../core/utils/l10n.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../providers/settings_provider.dart';
@@ -16,14 +18,17 @@ class AppearanceScreen extends ConsumerWidget {
     final currentTheme = ref.watch(themeProvider);
     final currentBubble = ref.watch(bubbleStyleProvider);
     final currentFontSize = ref.watch(fontSizeProvider);
+    final rippleTheme = ref.watch(rippleThemeProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
+      backgroundColor: rippleTheme.colors.background,
       appBar: AppBar(
-        title: Text(L10n.s(ref, 'appearance'), style: AppTextStyles.heading),
+        title: Text(L10n.s(ref, 'appearance'), style: AppTextStyles.heading.copyWith(
+          color: rippleTheme.colors.textPrimary,
+        )),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.aquaCore),
+        iconTheme: IconThemeData(color: rippleTheme.colors.primary),
       ),
       body: AnimationLimiter(
         child: SingleChildScrollView(
@@ -37,37 +42,194 @@ class AppearanceScreen extends ConsumerWidget {
                 child: FadeInAnimation(child: w),
               ),
               children: [
-                // Theme section
-                _sectionHeader(L10n.s(ref, 'theme')),
+                // ORIGINAL 3 Themes (now mapped to Ripple Themes)
+                _sectionHeader('Classic Themes', rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
                     _ThemeCard(
                       label: L10n.s(ref, 'darkOcean'),
                       colors: [const Color(0xFF060D1A), const Color(0xFF0C4A6E)],
-                      isSelected: currentTheme == 'dark_ocean',
-                      onTap: () => ref.read(themeProvider.notifier).setTheme('dark_ocean'),
+                      isSelected: rippleTheme.id == 'aqua_ocean',
+                      accentColor: rippleTheme.colors.primary,
+                      onTap: () {
+                        ref.read(rippleThemeProvider.notifier).setTheme('aqua_ocean');
+                        ref.read(themeProvider.notifier).setTheme('dark_ocean');
+                      },
                     ),
                     const SizedBox(width: 10),
                     _ThemeCard(
                       label: L10n.s(ref, 'lightGlass'),
                       colors: [const Color(0xFFE0F7FA), const Color(0xFFB2EBF2)],
-                      isSelected: currentTheme == 'light_glass',
-                      onTap: () => ref.read(themeProvider.notifier).setTheme('light_glass'),
+                      isSelected: rippleTheme.id == 'crystal_water',
+                      accentColor: rippleTheme.colors.primary,
+                      onTap: () {
+                        ref.read(rippleThemeProvider.notifier).setTheme('crystal_water');
+                        ref.read(themeProvider.notifier).setTheme('light_glass');
+                      },
                     ),
                     const SizedBox(width: 10),
                     _ThemeCard(
                       label: L10n.s(ref, 'midnight'),
                       colors: [const Color(0xFF1A0033), const Color(0xFF4A0080)],
-                      isSelected: currentTheme == 'midnight_purple',
-                      onTap: () => ref.read(themeProvider.notifier).setTheme('midnight_purple'),
+                      isSelected: rippleTheme.id == 'midnight_purple',
+                      accentColor: rippleTheme.colors.primary,
+                      onTap: () {
+                        ref.read(rippleThemeProvider.notifier).setTheme('midnight_purple');
+                        ref.read(themeProvider.notifier).setTheme('midnight_purple');
+                      },
                     ),
                   ],
                 ),
                 const SizedBox(height: 24),
 
+                // NEW 5 Bioluminescent Themes
+                _sectionHeader('Bioluminescent Themes (NEW - 5 Themes)', rippleTheme.colors.primary.withOpacity(0.7)),
+                const SizedBox(height: 8),
+                SizedBox(
+                  height: 140,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: ThemePresets.all.length,
+                    itemBuilder: (context, index) {
+                      final theme = ThemePresets.all[index];
+                      final isSelected = theme.id == rippleTheme.id;
+
+                      return Padding(
+                        padding: const EdgeInsets.only(right: 12),
+                        child: GestureDetector(
+                          onTap: () => ref.read(rippleThemeProvider.notifier).setTheme(theme.id),
+                          child: Container(
+                            width: 110,
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(14),
+                              gradient: theme.gradients.surface,
+                              border: Border.all(
+                                color: isSelected ? theme.colors.primary : rippleTheme.colors.glassBorder,
+                                width: isSelected ? 2.5 : 1,
+                              ),
+                              boxShadow: isSelected ? theme.shadows.primaryGlow : null,
+                            ),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    gradient: theme.gradients.primary,
+                                    boxShadow: theme.shadows.primaryGlow,
+                                  ),
+                                  child: isSelected
+                                      ? const Center(
+                                          child: Icon(
+                                            Icons.check_circle,
+                                            color: Colors.white,
+                                            size: 24,
+                                          ),
+                                        )
+                                      : null,
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  theme.name,
+                                  style: AppTextStyles.caption.copyWith(
+                                    fontSize: 11,
+                                    color: isSelected ? theme.colors.primary : Colors.white,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                  maxLines: 1,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 24),
+
+                // Smart Theme Switcher section
+                _sectionHeader('Smart Theme Switcher', rippleTheme.colors.primary.withOpacity(0.7)),
+                const SizedBox(height: 8),
+                GestureDetector(
+                  onTap: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      isScrollControlled: true,
+                      builder: (_) => const SmartThemeSettingsSheet(),
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          rippleTheme.colors.glassSurface,
+                          rippleTheme.colors.surface.withOpacity(0.5),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: rippleTheme.colors.glassBorder,
+                        width: 1,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            gradient: rippleTheme.gradients.primary,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.schedule,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Auto Theme Switching',
+                                style: TextStyle(
+                                  color: rippleTheme.colors.textPrimary,
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                'Themes change based on time of day',
+                                style: TextStyle(
+                                  color: rippleTheme.colors.textMuted,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(
+                          Icons.chevron_right,
+                          color: rippleTheme.colors.textMuted,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
                 // Bubble style section
-                _sectionHeader(L10n.s(ref, 'chatBubbleStyle')),
+                _sectionHeader(L10n.s(ref, 'chatBubbleStyle'), rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -96,7 +258,7 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // Font size section
-                _sectionHeader(L10n.s(ref, 'fontSize')),
+                _sectionHeader(L10n.s(ref, 'fontSize'), rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 GlassCard(
                   borderRadius: 16,
@@ -106,9 +268,9 @@ class AppearanceScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Text('Aa', style: TextStyle(color: AppColors.textMuted, fontSize: 12)),
-                          Text('Preview', style: TextStyle(color: Colors.white, fontSize: currentFontSize)),
-                          Text('Aa', style: TextStyle(color: AppColors.textMuted, fontSize: 18)),
+                          Text('Aa', style: TextStyle(color: rippleTheme.colors.textMuted, fontSize: 12)),
+                          Text('Preview', style: TextStyle(color: rippleTheme.colors.textPrimary, fontSize: currentFontSize)),
+                          Text('Aa', style: TextStyle(color: rippleTheme.colors.textMuted, fontSize: 18)),
                         ],
                       ),
                       Slider(
@@ -117,8 +279,8 @@ class AppearanceScreen extends ConsumerWidget {
                         max: 18,
                         divisions: 3,
                         label: _fontLabel(currentFontSize),
-                        activeColor: AppColors.aquaCore,
-                        inactiveColor: AppColors.glassPanel,
+                        activeColor: rippleTheme.colors.primary,
+                        inactiveColor: rippleTheme.colors.glassSurface,
                         onChanged: (v) => ref.read(fontSizeProvider.notifier).setSize(v),
                       ),
                       Row(
@@ -145,28 +307,33 @@ class AppearanceScreen extends ConsumerWidget {
     return 'XL';
   }
 
-  Widget _sectionHeader(String title) => Text(
+  Widget _sectionHeader(String title, Color color) => Text(
     title.toUpperCase(),
     style: AppTextStyles.caption.copyWith(
       fontSize: 11, fontWeight: FontWeight.w600,
-      letterSpacing: 1.2, color: AppColors.aquaCore.withValues(alpha: 0.7),
+      letterSpacing: 1.2, color: color,
     ),
   );
 }
 
-class _ThemeCard extends StatelessWidget {
+class _ThemeCard extends ConsumerWidget {
   final String label;
   final List<Color> colors;
   final bool isSelected;
+  final Color? accentColor;
   final VoidCallback onTap;
 
   const _ThemeCard({
     required this.label, required this.colors,
     required this.isSelected, required this.onTap,
+    this.accentColor,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
+    final accent = accentColor ?? theme.colors.primary;
+
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -185,16 +352,19 @@ class _ThemeCard extends StatelessWidget {
                   ),
                   borderRadius: BorderRadius.circular(10),
                   border: isSelected
-                      ? Border.all(color: AppColors.aquaCore, width: 2)
+                      ? Border.all(color: accent, width: 2)
                       : null,
                 ),
                 child: isSelected
-                    ? const Center(child: Icon(Icons.check_circle_rounded,
-                        color: AppColors.aquaCore, size: 24))
+                    ? Center(child: Icon(Icons.check_circle_rounded,
+                        color: accent, size: 24))
                     : null,
               ),
               const SizedBox(height: 6),
-              Text(label, style: AppTextStyles.caption.copyWith(fontSize: 10)),
+              Text(label, style: AppTextStyles.caption.copyWith(
+                fontSize: 10,
+                color: theme.colors.textSecondary,
+              )),
             ],
           ),
         ),
@@ -203,7 +373,7 @@ class _ThemeCard extends StatelessWidget {
   }
 }
 
-class _BubbleCard extends StatelessWidget {
+class _BubbleCard extends ConsumerWidget {
   final String label;
   final double radius;
   final bool isSelected;
@@ -215,7 +385,9 @@ class _BubbleCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
+
     return Expanded(
       child: GestureDetector(
         onTap: onTap,
@@ -227,17 +399,20 @@ class _BubbleCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
-                  color: AppColors.aquaCore.withValues(alpha: 0.35),
+                  color: theme.colors.primary.withValues(alpha: 0.35),
                   borderRadius: BorderRadius.circular(radius),
                   border: isSelected
-                      ? Border.all(color: AppColors.aquaCore, width: 2)
+                      ? Border.all(color: theme.colors.primary, width: 2)
                       : null,
                 ),
                 child: Text('Hello!', style: AppTextStyles.caption.copyWith(
-                    color: Colors.white, fontSize: 11)),
+                    color: theme.colors.textPrimary, fontSize: 11)),
               ),
               const SizedBox(height: 6),
-              Text(label, style: AppTextStyles.caption.copyWith(fontSize: 10)),
+              Text(label, style: AppTextStyles.caption.copyWith(
+                fontSize: 10,
+                color: theme.colors.textSecondary,
+              )),
             ],
           ),
         ),

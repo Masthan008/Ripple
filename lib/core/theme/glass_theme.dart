@@ -1,38 +1,29 @@
 import 'package:flutter/material.dart';
-import '../constants/app_colors.dart';
+import 'theme_models.dart';
 
 /// Glass Morphism helper utilities for the Liquid Glass design system
-class GlassTheme {
-  GlassTheme._();
-
+extension GlassThemeExtension on RippleTheme {
   // ─── Glass Card Decoration ───────────────────────────
-  static BoxDecoration glassDecoration({
+  BoxDecoration glassDecoration({
     double borderRadius = 24,
     Color? backgroundColor,
     Color? borderColor,
     double borderWidth = 1,
-    List<BoxShadow>? shadows,
+    List<BoxShadow>? customShadows,
   }) {
     return BoxDecoration(
-      color: backgroundColor ?? AppColors.glassPanel,
+      color: backgroundColor ?? colors.glassSurface,
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(
-        color: borderColor ?? AppColors.glassBorder,
+        color: borderColor ?? colors.glassBorder,
         width: borderWidth,
       ),
-      boxShadow: shadows ??
-          [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              blurRadius: 10,
-              spreadRadius: 0,
-            ),
-          ],
+      boxShadow: customShadows ?? shadows.soft,
     );
   }
 
   // ─── Glass Card with Bioluminescent Edge ────────────────
-  static BoxDecoration glassDecorationWithBiolume({
+  BoxDecoration glassDecorationWithBiolume({
     double borderRadius = 24,
   }) {
     return BoxDecoration(
@@ -41,17 +32,17 @@ class GlassTheme {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          const Color(0x33FFFFFF),
+          colors.glassBorder,
           Colors.transparent,
-          AppColors.aquaCore.withOpacity(0.1),
+          colors.primary.withOpacity(0.1),
         ],
       ),
       border: Border.fromBorderSide(
-        BorderSide(color: AppColors.glassBorder, width: 0.5),
+        BorderSide(color: colors.glassBorder, width: 0.5),
       ),
       boxShadow: [
         BoxShadow(
-          color: AppColors.aquaCore.withOpacity(0.1),
+          color: colors.primary.withOpacity(0.1),
           blurRadius: 20,
           spreadRadius: -5,
         ),
@@ -60,9 +51,9 @@ class GlassTheme {
   }
 
   // ─── Message Bubble Incoming ─────────────────────────
-  static BoxDecoration incomingBubbleDecoration() {
+  BoxDecoration incomingBubbleDecoration() {
     return BoxDecoration(
-      color: AppColors.msgIn,
+      color: colors.bubbleIncoming,
       borderRadius: const BorderRadius.only(
         topLeft: Radius.circular(4),
         topRight: Radius.circular(20),
@@ -70,16 +61,16 @@ class GlassTheme {
         bottomRight: Radius.circular(20),
       ),
       border: Border.all(
-        color: AppColors.glassBorder.withOpacity(0.3),
+        color: colors.glassBorder.withOpacity(0.3),
         width: 0.5,
       ),
     );
   }
 
   // ─── Message Bubble Outgoing ─────────────────────────
-  static BoxDecoration outgoingBubbleDecoration() {
+  BoxDecoration outgoingBubbleDecoration() {
     return BoxDecoration(
-      gradient: AppColors.msgOutGradient,
+      gradient: gradients.bubbleOutgoing,
       borderRadius: const BorderRadius.only(
         topLeft: Radius.circular(20),
         topRight: Radius.circular(4),
@@ -87,63 +78,66 @@ class GlassTheme {
         bottomRight: Radius.circular(20),
       ),
       border: Border.all(
-        color: AppColors.aquaCore.withOpacity(0.4),
+        color: colors.primary.withOpacity(0.4),
         width: 0.5,
       ),
       boxShadow: [
         BoxShadow(
-          color: AppColors.aquaCore.withOpacity(0.15),
+          color: colors.primary.withOpacity(0.15),
           blurRadius: 12,
-          offset: const Offset(0, 4),
+          offset: const Offset(0, 4), // soft drop shadow
         ),
       ],
     );
   }
 
   // ─── Bottom Nav Bar Decoration ───────────────────────
-  static BoxDecoration bottomNavDecoration() {
-    return const BoxDecoration(
-      color: Color(0xCC060D1A), // 80% abyss
+  BoxDecoration bottomNavDecoration() {
+    return BoxDecoration(
+      color: colors.surface.withOpacity(0.8), 
       border: Border(
-        top: BorderSide(color: Color(0x0FFFFFFF), width: 1),
+        top: BorderSide(color: colors.glassBorder, width: 1),
       ),
     );
   }
 
   // ─── Glass Button Decoration ─────────────────────────
-  static BoxDecoration glassButtonDecoration({
+  BoxDecoration glassButtonDecoration({
     double borderRadius = 14,
     bool isPrimary = false,
   }) {
     if (isPrimary) {
       return BoxDecoration(
-        gradient: AppColors.buttonGradient,
+        gradient: gradients.primary,
         borderRadius: BorderRadius.circular(borderRadius),
-        boxShadow: AppColors.aquaGlow,
+        boxShadow: shadows.primaryGlow,
       );
     }
     return BoxDecoration(
-      color: AppColors.glassPanel,
+      color: colors.glassSurface,
       borderRadius: BorderRadius.circular(borderRadius),
-      border: Border.all(color: AppColors.glassBorder, width: 1),
+      border: Border.all(color: colors.glassBorder, width: 1),
     );
   }
 
   // ─── Input Field Decoration ──────────────────────────
-  static BoxDecoration inputDecoration({
+  BoxDecoration inputDecoration({
     double borderRadius = 12,
   }) {
     return BoxDecoration(
-      color: const Color(0x0FFFFFFF), // 6% white
+      color: colors.glassSurface.withOpacity(isDark ? 0.06 : 0.4),
       borderRadius: BorderRadius.circular(borderRadius),
       border: Border.all(
-        color: const Color(0x17FFFFFF), // 9% white
+        color: colors.glassBorder.withOpacity(isDark ? 0.1 : 0.3),
         width: 1,
       ),
     );
   }
+}
 
-  // ─── Blur Sigma Values ───────────────────────────────
+class GlassTheme {
+  // Keep sigma values static for backward compatibility easily without theme
+  // if needed elsewhere
   static const double blurHeavy = 28.0;
   static const double blurMedium = 20.0;
   static const double blurLight = 12.0;

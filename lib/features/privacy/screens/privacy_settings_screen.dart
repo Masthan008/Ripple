@@ -87,7 +87,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
   Widget _buildVisibilityTile({
     required String title,
     required String subtitle,
-    required String emoji,
+    required IconData icon,
     required String value,
     required ValueChanged<String>? onChanged,
   }) {
@@ -106,12 +106,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   : const Color(0xFF0EA5E9).withOpacity(0.1),
         ),
         child: Center(
-          child: Text(
-            emoji,
-            style: TextStyle(
-              fontSize: 18,
-              color: isDisabled ? Colors.white24 : Colors.white,
-            ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: isDisabled ? Colors.white24 : const Color(0xFF0EA5E9),
           ),
         ),
       ),
@@ -277,13 +275,18 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  '💣 Self-Destruct Timer',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+                const Row(
+                  children: [
+                    Icon(Icons.timer_off_rounded, color: Color(0xFF0EA5E9), size: 20),
+                    SizedBox(width: 8),
+                    Text('Self-Destruct Timer',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 const Text(
@@ -309,8 +312,8 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                           SnackBar(
                             content: Text(
                               o['seconds'] == 0
-                                  ? '💣 Self-destruct off'
-                                  : '💣 Messages will delete after ${o['label']}',
+                                  ? 'Self-destruct off'
+                                  : 'Messages will delete after ${o['label']}',
                             ),
                           ),
                         );
@@ -333,7 +336,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
         backgroundColor: const Color(0xFF0A1628),
         title: const Row(
           children: [
-            Text('🔒', style: TextStyle(fontSize: 18)),
+            Icon(Icons.security_rounded, color: Color(0xFF0EA5E9), size: 22),
             SizedBox(width: 8),
             Text('Privacy & Security'),
           ],
@@ -348,12 +351,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
               : ListView(
                 children: [
                   // ── WHO CAN SEE MY INFO ──────────────────
-                  _buildSectionHeader('👁  Who Can See My Info'),
+                  _buildSectionHeader('Who Can See My Info'),
 
                   _buildVisibilityTile(
                     title: 'Last Seen',
                     subtitle: 'Control who sees when you were last active',
-                    emoji: '🕐',
+                    icon: Icons.schedule_rounded,
                     value: _lastSeenVisibility,
                     onChanged:
                         _stealthMode
@@ -371,7 +374,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   _buildVisibilityTile(
                     title: 'Profile Photo',
                     subtitle: 'Control who can see your profile picture',
-                    emoji: '📷',
+                    icon: Icons.photo_camera_rounded,
                     value: _profilePhotoVisibility,
                     onChanged:
                         _stealthMode
@@ -389,7 +392,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   _buildVisibilityTile(
                     title: 'Bio',
                     subtitle: 'Control who can read your bio',
-                    emoji: '📝',
+                    icon: Icons.edit_note_rounded,
                     value: _bioVisibility,
                     onChanged:
                         _stealthMode
@@ -407,7 +410,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   _buildVisibilityTile(
                     title: 'Online Status',
                     subtitle: 'Control who sees when you are online',
-                    emoji: '🟢',
+                    icon: Icons.circle_rounded,
                     value: _onlineStatusVisibility,
                     onChanged:
                         _stealthMode
@@ -425,7 +428,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   const Divider(color: Colors.white12),
 
                   // ── STEALTH MODE ─────────────────────────
-                  _buildSectionHeader('👻  Stealth Mode'),
+                  _buildSectionHeader('Stealth Mode'),
 
                   Container(
                     margin: const EdgeInsets.symmetric(
@@ -448,7 +451,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                     ),
                     child: Row(
                       children: [
-                        const Text('👻', style: TextStyle(fontSize: 32)),
+                        const Icon(Icons.visibility_off_rounded, color: Color(0xFF6366F1), size: 32),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
@@ -465,7 +468,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 _stealthMode
-                                    ? '👻 You are invisible to everyone'
+                                    ? 'You are invisible to everyone'
                                     : 'Appear completely offline to all users. '
                                         'No last seen, no online status, no read receipts.',
                                 style: TextStyle(
@@ -502,7 +505,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   const Divider(color: Colors.white12),
 
                   // ── MESSAGES ─────────────────────────────
-                  _buildSectionHeader('💬  Messages'),
+                  _buildSectionHeader('Messages'),
 
                   SwitchListTile(
                     value: _readReceipts,
@@ -532,13 +535,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                         fontSize: 12,
                       ),
                     ),
-                    secondary: const Text(
-                      '✓✓',
-                      style: TextStyle(
-                        color: Color(0xFF0EA5E9),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 16,
-                      ),
+                    secondary: const Icon(
+                      Icons.done_all_rounded,
+                      color: Color(0xFF0EA5E9),
+                      size: 24,
                     ),
                     activeThumbColor: const Color(0xFF0EA5E9),
                   ),
@@ -566,12 +566,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                       'Show when you are typing',
                       style: TextStyle(color: Colors.white38, fontSize: 12),
                     ),
-                    secondary: const Text('⌨️', style: TextStyle(fontSize: 20)),
+                    secondary: const Icon(Icons.keyboard_rounded, color: Color(0xFF0EA5E9), size: 24),
                     activeThumbColor: const Color(0xFF0EA5E9),
                   ),
 
                   ListTile(
-                    leading: const Text('💣', style: TextStyle(fontSize: 20)),
+                    leading: const Icon(Icons.timer_off_rounded, color: Color(0xFF0EA5E9), size: 24),
                     title: const Text(
                       'Default Self-Destruct Timer',
                       style: TextStyle(color: Colors.white),
@@ -593,7 +593,21 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   const Divider(color: Colors.white12),
 
                   // ── SECURITY ─────────────────────────────
-                  _buildSectionHeader('🔐  Security'),
+                  _buildSectionHeader('Security'),
+
+                  ListTile(
+                    leading: const Icon(Icons.dashboard_rounded, color: Color(0xFF0EA5E9), size: 24),
+                    title: const Text(
+                      'Privacy Dashboard',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'View security score and locked chats',
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                    onTap: () => context.push('/privacy-dashboard'),
+                  ),
 
                   SwitchListTile(
                     value: _screenshotBlock,
@@ -619,7 +633,7 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                       'Prevent screenshots across the entire app',
                       style: TextStyle(color: Colors.white38, fontSize: 12),
                     ),
-                    secondary: const Text('📵', style: TextStyle(fontSize: 20)),
+                    secondary: const Icon(Icons.screenshot_monitor_outlined, color: Color(0xFF0EA5E9), size: 24),
                     activeThumbColor: const Color(0xFF0EA5E9),
                   ),
 
@@ -638,12 +652,12 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                       'Prevent keyboard from learning your messages',
                       style: TextStyle(color: Colors.white38, fontSize: 12),
                     ),
-                    secondary: const Text('⌨️', style: TextStyle(fontSize: 20)),
+                    secondary: const Icon(Icons.keyboard_hide_rounded, color: Color(0xFF0EA5E9), size: 24),
                     activeThumbColor: const Color(0xFF0EA5E9),
                   ),
 
                   ListTile(
-                    leading: const Text('🔒', style: TextStyle(fontSize: 20)),
+                    leading: const Icon(Icons.lock_rounded, color: Color(0xFF0EA5E9), size: 24),
                     title: const Text(
                       'Chat Lock',
                       style: TextStyle(color: Colors.white),
@@ -662,10 +676,10 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                   const Divider(color: Colors.white12),
 
                   // ── ADVANCED ─────────────────────────────
-                  _buildSectionHeader('🎭  Advanced'),
+                  _buildSectionHeader('Advanced'),
 
                   ListTile(
-                    leading: const Text('🎭', style: TextStyle(fontSize: 20)),
+                    leading: const Icon(Icons.theater_comedy_rounded, color: Colors.orange, size: 24),
                     title: const Text(
                       'Fake Passcode',
                       style: TextStyle(color: Colors.white),

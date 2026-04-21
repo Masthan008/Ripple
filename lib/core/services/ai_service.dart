@@ -311,6 +311,74 @@ class AiService {
       maxTokens: 500, // Slightly longer max for chat replies
     );
   }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FEATURE 11 — ACTION ITEM IDENTIFICATION
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  static Future<ActionItems> extractActionItems({
+    required String messageText,
+  }) async {
+    final result = await _call(
+      systemPrompt:
+          'You are an action item extractor. Identify dates, times, tasks, '
+          'and deadlines in messages. Return ONLY valid JSON.',
+      prompt: 'Extract action items from this message:\n"$messageText"\n\n'
+          'Return JSON only:\n'
+          '{"hasActionItems": true/false, "dates": ["date1", "date2"], '
+          '"times": ["time1", "time2"], "tasks": ["task1", "task2"], '
+          '"deadlines": ["deadline1", "deadline2"]}',
+      maxTokens: 200,
+    );
+
+    try {
+      final clean =
+          result.replaceAll('```json', '').replaceAll('```', '').trim();
+      final data = jsonDecode(clean) as Map<String, dynamic>;
+      return ActionItems(
+        hasActionItems: data['hasActionItems'] as bool? ?? false,
+        dates: (data['dates'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        times: (data['times'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        tasks: (data['tasks'] as List?)?.map((e) => e.toString()).toList() ?? [],
+        deadlines: (data['deadlines'] as List?)?.map((e) => e.toString()).toList() ?? [],
+      );
+    } catch (_) {
+      return const ActionItems(
+        hasActionItems: false,
+        dates: [],
+        times: [],
+        tasks: [],
+        deadlines: [],
+      );
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FEATURE 12 — RIPPLE BOT ASSISTANT
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  static Future<String> rippleBotAssistant({
+    required String query,
+    required List<Map<String, String>> chatContext,
+  }) async {
+    final contextText = chatContext
+        .map((m) => '${m['sender']}: ${m['text']}')
+        .join('\n');
+
+    final systemPrompt = '''You are Ripple Bot, a helpful AI assistant for a messaging app. 
+You can:
+- Settle debates by providing factual information
+- Check facts and verify claims
+- Generate creative ideas or suggestions
+- Answer questions on any topic
+
+Keep responses concise (under 100 words), friendly, and helpful. 
+Use a casual but professional tone.''';
+
+    return await _call(
+      systemPrompt: systemPrompt,
+      prompt: 'Chat context:\n$contextText\n\nUser query: $query',
+      maxTokens: 300,
+    );
+  }
 }
 
 // ── MODELS ───────────────────────────────────────────────
@@ -322,6 +390,21 @@ class SpamResult {
     required this.isSpam,
     required this.confidence,
     required this.reason,
+  });
+}
+
+class ActionItems {
+  final bool hasActionItems;
+  final List<String> dates;
+  final List<String> times;
+  final List<String> tasks;
+  final List<String> deadlines;
+  const ActionItems({
+    required this.hasActionItems,
+    required this.dates,
+    required this.times,
+    required this.tasks,
+    required this.deadlines,
   });
 }
 

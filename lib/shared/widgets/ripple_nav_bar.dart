@@ -3,11 +3,14 @@ import 'dart:ui' show ImageFilter;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
+import '../../core/theme/theme_provider.dart';
 
 /// Telegram-style bottom navbar with animated pill indicator,
 /// unread badges, and frosted glass background.
-class RippleNavBar extends StatefulWidget {
+/// Fully theme-aware — adapts to dark and light themes.
+class RippleNavBar extends ConsumerStatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
   final List<int> unreadCounts;
@@ -22,10 +25,10 @@ class RippleNavBar extends StatefulWidget {
   });
 
   @override
-  State<RippleNavBar> createState() => _RippleNavBarState();
+  ConsumerState<RippleNavBar> createState() => _RippleNavBarState();
 }
 
-class _RippleNavBarState extends State<RippleNavBar>
+class _RippleNavBarState extends ConsumerState<RippleNavBar>
     with TickerProviderStateMixin {
   late AnimationController _pillController;
   late Animation<double> _pillScale;
@@ -80,33 +83,46 @@ class _RippleNavBarState extends State<RippleNavBar>
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom;
+    final theme = ref.watch(rippleThemeProvider);
 
     return ClipRRect(
       borderRadius: const BorderRadius.only(
         topLeft: Radius.circular(20),
         topRight: Radius.circular(20),
       ),
-      child: _buildBarContent(bottomPad),
+      child: _buildBarContent(bottomPad, theme),
     );
   }
 
-  Widget _buildBarContent(double bottomPad) {
+  Widget _buildBarContent(double bottomPad, dynamic theme) {
     final content = Container(
       height: 72 + bottomPad,
       padding: EdgeInsets.only(bottom: bottomPad),
       clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(
-        color: Color(0xFF0A1628),
+      decoration: BoxDecoration(
+        color: theme.colors.surface.withOpacity(theme.isDark ? 0.95 : 0.92),
         border: Border(
-          top: BorderSide(color: Color(0x1AFFFFFF), width: 1),
+          top: BorderSide(
+            color: theme.colors.glassBorder,
+            width: 1,
+          ),
         ),
-        borderRadius: BorderRadius.only(
+        borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(20),
           topRight: Radius.circular(20),
         ),
+        boxShadow: theme.isDark
+            ? null
+            : [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, -4),
+                ),
+              ],
       ),
       child: Row(
-        children: List.generate(6, (i) => Expanded(child: _buildTab(i))),
+        children: List.generate(6, (i) => Expanded(child: _buildTab(i, theme))),
       ),
     );
 
@@ -118,7 +134,7 @@ class _RippleNavBarState extends State<RippleNavBar>
     );
   }
 
-  Widget _buildTab(int index) {
+  Widget _buildTab(int index, dynamic theme) {
     final isActive = widget.currentIndex == index;
     final unread = index < widget.unreadCounts.length
         ? widget.unreadCounts[index]
@@ -134,30 +150,30 @@ class _RippleNavBarState extends State<RippleNavBar>
             child: isActive
                 ? ScaleTransition(
                     scale: _pillScale,
-                    child: _buildActivePill(index, unread),
+                    child: _buildActivePill(index, unread, theme),
                   )
-                : _buildInactiveItem(index, unread),
+                : _buildInactiveItem(index, unread, theme),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildActivePill(int index, int unread) {
+  Widget _buildActivePill(int index, int unread, dynamic theme) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0x330EA5E9),
+        color: theme.colors.primary.withOpacity(0.15),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: const Color(0x550EA5E9),
+          color: theme.colors.primary.withOpacity(0.3),
           width: 1,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildIcon(index, true, unread),
+          _buildIcon(index, true, unread, theme),
           const SizedBox(width: 3),
           Flexible(
             child: Text(
@@ -167,7 +183,7 @@ class _RippleNavBarState extends State<RippleNavBar>
               style: GoogleFonts.dmSans(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: const Color(0xFF0EA5E9),
+                color: theme.colors.primary,
               ),
             ),
           ),
@@ -176,25 +192,25 @@ class _RippleNavBarState extends State<RippleNavBar>
     );
   }
 
-  Widget _buildInactiveItem(int index, int unread) {
+  Widget _buildInactiveItem(int index, int unread, dynamic theme) {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _buildIcon(index, false, unread),
+        _buildIcon(index, false, unread, theme),
         const SizedBox(height: 4),
         Text(
           _labels[index],
           style: GoogleFonts.dmSans(
             fontSize: 10,
             fontWeight: FontWeight.w400,
-            color: const Color(0x66FFFFFF),
+            color: theme.colors.textMuted,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildIcon(int index, bool isActive, int unread) {
+  Widget _buildIcon(int index, bool isActive, int unread, dynamic theme) {
     Widget icon;
     if (index == 5 && isActive && widget.userPhotoUrl != null && widget.userPhotoUrl!.isNotEmpty) {
       icon = Container(
@@ -203,7 +219,7 @@ class _RippleNavBarState extends State<RippleNavBar>
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: const Color(0xFF0EA5E9),
+            color: theme.colors.primary,
             width: 1.5,
           ),
         ),
@@ -215,7 +231,7 @@ class _RippleNavBarState extends State<RippleNavBar>
             fit: BoxFit.cover,
             errorWidget: (_, __, ___) => Icon(
               _activeIcons[index],
-              color: const Color(0xFF0EA5E9),
+              color: theme.colors.primary,
               size: 18,
             ),
           ),
@@ -225,8 +241,8 @@ class _RippleNavBarState extends State<RippleNavBar>
       icon = Icon(
         isActive ? _activeIcons[index] : _inactiveIcons[index],
         color: isActive
-            ? const Color(0xFF0EA5E9)
-            : const Color(0x66FFFFFF),
+            ? theme.colors.primary
+            : theme.colors.textMuted,
         size: 20,
       );
     }
@@ -250,8 +266,8 @@ class _RippleNavBarState extends State<RippleNavBar>
               minHeight: 14,
             ),
             decoration: BoxDecoration(
-              gradient: const LinearGradient(
-                colors: [Color(0xFF0EA5E9), Color(0xFF22D3EE)],
+              gradient: LinearGradient(
+                colors: [theme.colors.primary, theme.colors.secondary],
               ),
               borderRadius: BorderRadius.circular(7),
             ),

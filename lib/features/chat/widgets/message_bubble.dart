@@ -12,6 +12,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/l10n.dart';
+import '../../../core/utils/dopamine_effects.dart';
 import '../../profile/providers/settings_provider.dart';
 import '../../../core/utils/helpers.dart';
 import '../models/message_model.dart';
@@ -23,6 +24,7 @@ import 'package:flutter/services.dart';
 import '../../../core/utils/haptic_feedback.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../groups/models/poll_model.dart';
+import '../../../shared/widgets/swipeable_message.dart';
 
 /// Message bubble widget — Phase 1 with reactions, reply, edit, delete,
 /// forwarded tag, seen receipts, multi-select support
@@ -93,11 +95,27 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
       return _buildDeletedBubble(ref, bubbleStyle);
     }
 
-    return ScaleTransition(
+    // Check if this is a new message (sent within last 5 seconds)
+    final isNewMessage = DateTime.now().difference(widget.message.createdAt).inSeconds < 5;
+
+    Widget bubble = ScaleTransition(
       scale: _scaleAnimation,
       child: GestureDetector(
         onLongPress: () {
           AppHaptics.heavyTap();
+          // Show dopamine feedback for long press
+          if (widget.isMe) {
+            DopamineEffects.showConfettiBurst(
+              context,
+              position: Offset(
+                MediaQuery.of(context).size.width / 2,
+                MediaQuery.of(context).size.height / 2,
+              ),
+              particleCount: 15,
+              colors: [Colors.cyan, Colors.blue, Colors.purple],
+              duration: const Duration(milliseconds: 600),
+            );
+          }
           widget.onLongPress?.call();
         },
         onTap: widget.onTap,
@@ -234,6 +252,16 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
         ),
       ),
     );
+
+    // Return wrapped with dopamine effects for new messages
+    if (isNewMessage) {
+      return DopamineEffects.newMessagePop(
+        isNew: true,
+        child: bubble,
+      );
+    }
+
+    return bubble;
   }
 
   BoxDecoration _getIncomingDecoration(String style) {
@@ -394,6 +422,8 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
         return _buildPollContent();
       case 'gif':
         return _buildGifContent();
+      case 'sticker':
+        return _buildStickerContent();
       case 'text':
       case 'emoji':
       default:
@@ -404,6 +434,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
   Widget _buildTextContent(double fontSize) {
     final isEmoji = widget.message.type == 'emoji';
     final text = widget.message.text ?? '';
+    final actionItems = widget.message.actionItems;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -421,7 +452,66 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
         ),
         // Link preview if text contains a URL
         if (!isEmoji && _containsUrl(text)) ..._buildLinkPreview(text),
+        // Action items chips
+        if (actionItems != null && actionItems.isNotEmpty)
+          _buildActionItemsChips(actionItems),
       ],
+    );
+  }
+
+  Widget _buildStickerContent() {
+    final sticker = widget.message.text ?? '';
+    return Container(
+      padding: const EdgeInsets.all(8),
+      child: Text(
+        sticker,
+        style: const TextStyle(fontSize: 64),
+      ),
+    );
+  }
+
+  Widget _buildActionItemsChips(List<String> actionItems) {
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      child: Wrap(
+        spacing: 6,
+        runSpacing: 4,
+        children: actionItems.map((task) {
+          return Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: AppColors.aquaCore.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: AppColors.aquaCore.withOpacity(0.4),
+                width: 1,
+              ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.task_alt,
+                  size: 12,
+                  color: AppColors.aquaCore,
+                ),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    task,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: Colors.white,
+                      fontSize: 10,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 

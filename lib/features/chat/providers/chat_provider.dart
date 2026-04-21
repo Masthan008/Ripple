@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/ai_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/utils/helpers.dart';
 import '../../auth/models/user_model.dart';
@@ -116,6 +117,11 @@ class ChatService {
 
     // Write message document
     batch.set(messageRef, message.toMap());
+
+    // ── Extract action items asynchronously (don't block) ───
+    if (type == 'text' && text.isNotEmpty) {
+      _extractAndSaveActionItems(messageRef, text);
+    }
 
     // Update chat document with last message info
     batch.set(
@@ -253,6 +259,27 @@ class ChatService {
   /// Extract participants from chatId
   List<String> _getChatParticipants(String chatId) {
     return chatId.split('_');
+  }
+
+  /// Extract action items from message text using AI
+  /// This runs asynchronously and updates the message document
+  Future<void> _extractAndSaveActionItems(
+    DocumentReference messageRef,
+    String text,
+  ) async {
+    try {
+      final actionItems = await AiService.extractActionItems(messageText: text);
+
+      if (actionItems.hasActionItems && actionItems.tasks.isNotEmpty) {
+        await messageRef.update({
+          'actionItems': actionItems.tasks,
+        });
+        debugPrint('✅ Action items extracted: ${actionItems.tasks}');
+      }
+    } catch (e) {
+      debugPrint('⚠️ Action item extraction failed: $e');
+      // Don't throw - this is a non-critical enhancement
+    }
   }
 
   /// Get the other user's UID from chatId

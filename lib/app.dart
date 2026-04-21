@@ -4,11 +4,18 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme.dart';
+import 'core/theme/theme_provider.dart';
 import 'core/utils/l10n.dart';
 import 'core/services/notification_service.dart';
+import 'features/profile/providers/accessibility_provider.dart';
 import 'features/auth/screens/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
+import 'features/chat/screens/cloud_drive_screen.dart';
+import 'features/chat/screens/video_player_screen.dart';
+import 'features/chat/screens/chat_media_gallery_screen.dart';
+import 'features/groups/screens/join_group_screen.dart';
+import 'features/ai/screens/ai_chat_screen.dart';
 import 'features/chat/screens/chat_list_screen.dart';
 import 'features/chat/screens/chat_screen.dart';
 import 'features/chat/providers/chat_provider.dart';
@@ -19,6 +26,8 @@ import 'features/groups/screens/group_chat_screen.dart';
 import 'features/groups/screens/group_info_screen.dart';
 import 'features/groups/providers/group_provider.dart';
 import 'features/calls/screens/call_screen.dart';
+import 'features/calls/screens/daily_call_screen.dart';
+import 'features/calls/screens/incoming_call_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/search/screens/global_search_screen.dart';
@@ -26,6 +35,7 @@ import 'features/chat/screens/saved_messages_screen.dart';
 import 'features/chat/screens/archived_chats_screen.dart';
 import 'features/ai/screens/ai_settings_screen.dart';
 import 'features/privacy/screens/privacy_settings_screen.dart';
+import 'features/privacy/screens/privacy_dashboard_screen.dart';
 import 'features/privacy/screens/chat_lock_settings_screen.dart';
 import 'features/privacy/screens/fake_passcode_screen.dart';
 import 'features/profile/screens/other_user_profile_screen.dart';
@@ -34,6 +44,11 @@ import 'features/social/screens/leaderboard_screen.dart';
 import 'features/social/screens/friend_suggestions_screen.dart';
 import 'features/social/screens/activity_feed_screen.dart';
 import 'features/social/screens/profile_visitors_screen.dart';
+import 'features/challenges/screens/challenges_screen.dart';
+import 'features/gifts/screens/gift_cards_screen.dart';
+import 'features/status/screens/status_list_screen.dart';
+import 'features/status/screens/create_status_screen.dart';
+import 'features/status/screens/status_viewer_screen.dart';
 import 'features/profile/providers/settings_provider.dart';
 
 /// GoRouter provider — created ONCE, uses refreshListenable to re-run redirect
@@ -475,6 +490,30 @@ final routerProvider = Provider<GoRouter>((ref) {
             ),
       ),
       GoRoute(
+        path: '/privacy-dashboard',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const PrivacyDashboardScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
         path: '/chat-lock-settings',
         pageBuilder:
             (context, state) => CustomTransitionPage(
@@ -668,6 +707,290 @@ final routerProvider = Provider<GoRouter>((ref) {
               },
             ),
       ),
+      GoRoute(
+        path: '/challenges',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const ChallengesScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
+        path: '/gift-cards',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const GiftCardsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
+        path: '/daily-call',
+        pageBuilder: (context, state) {
+          final callId = state.uri.queryParameters['callId'] ?? '';
+          final channelName = state.uri.queryParameters['channelName'] ?? '';
+          final currentUserId = state.uri.queryParameters['currentUserId'] ?? '';
+          final currentUserName = state.uri.queryParameters['currentUserName'] ?? '';
+          final otherUserName = state.uri.queryParameters['otherUserName'] ?? '';
+          final otherUserId = state.uri.queryParameters['otherUserId'];
+          final isVideo = state.uri.queryParameters['isVideo'] == 'true';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: DailyCallScreen(
+              callId: callId,
+              channelName: channelName,
+              currentUserId: currentUserId,
+              currentUserName: currentUserName,
+              otherUserName: otherUserName,
+              otherUserId: otherUserId,
+              isVideo: isVideo,
+            ),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/incoming-call',
+        pageBuilder: (context, state) {
+          final callId = state.uri.queryParameters['callId'] ?? '';
+          final channelName = state.uri.queryParameters['channelName'] ?? '';
+          final callerName = state.uri.queryParameters['callerName'] ?? 'Unknown';
+          final callerUserId = state.uri.queryParameters['callerUserId'] ?? '';
+          final isVideo = state.uri.queryParameters['isVideo'] == 'true';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: IncomingCallScreen(
+              callId: callId,
+              channelName: channelName,
+              callerName: callerName,
+              callerUserId: callerUserId,
+              isVideo: isVideo,
+            ),
+            transitionsBuilder: (
+              context,
+              animation,
+              secondaryAnimation,
+              child,
+            ) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/ai-chat',
+        pageBuilder: (context, state) {
+          final botId = state.uri.queryParameters['botId'] ?? 'ripple';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: AiChatScreen(botId: botId),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/chat-media-gallery',
+        pageBuilder: (context, state) {
+          final chatId = state.uri.queryParameters['chatId'] ?? '';
+          final isGroup = state.uri.queryParameters['isGroup'] == 'true';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: ChatMediaGalleryScreen(
+              chatId: chatId,
+              isGroup: isGroup,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/video-player',
+        pageBuilder: (context, state) {
+          final videoUrl = state.uri.queryParameters['url'] ?? '';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: VideoPlayerScreen(
+              videoUrl: videoUrl,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/cloud-drive',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const CloudDriveScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: animation.drive(
+                Tween(
+                  begin: const Offset(0.0, 1.0),
+                  end: Offset.zero,
+                ).chain(CurveTween(curve: Curves.easeOutQuart)),
+              ),
+              child: child,
+            );
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/join-group',
+        pageBuilder: (context, state) {
+          final inviteCode = state.uri.queryParameters['inviteCode'] ?? '';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: JoinGroupScreen(
+              inviteCode: inviteCode,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/status-list',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const StatusListScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
+        path: '/create-status',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const CreateStatusSheet(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      // Note: StatusViewerScreen requires a list of statuses and viewerName
+      // Use MaterialPageRoute navigation from chat list instead
     ],
     redirect: (context, state) {
       // Read current state on each redirect evaluation (NOT watch)
@@ -680,26 +1003,29 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isUserLoading = currentUser.isLoading;
       final loc = state.matchedLocation;
 
-      // ── Rule 1: Splash always allowed ─────────────────────
+      // ── Rule 1: Root redirects to home ────────────────────
+      if (loc == '/') return '/home';
+
+      // ── Rule 2: Splash always allowed ─────────────────────
       if (loc == '/splash') return null;
 
-      // ── Rule 2: Still loading — don't redirect yet ────────
+      // ── Rule 3: Still loading — don't redirect yet ────────
       if (isAuthLoading || isUserLoading) return null;
 
-      // ── Rule 3: Not logged in ─────────────────────────────
+      // ── Rule 4: Not logged in ─────────────────────────────
       if (!isFirebaseAuthed) {
         if (loc == '/login') return null;
         return '/login';
       }
 
-      // ── Rule 4: Logged in but NOT fully registered ────────
+      // ── Rule 5: Logged in but NOT fully registered ────────
       if (!isFullyRegistered) {
         if (loc == '/register') return null;
         if (loc == '/login') return null;
         return '/login';
       }
 
-      // ── Rule 5: Fully registered ──────────────────────────
+      // ── Rule 6: Fully registered ──────────────────────────
       if (loc == '/login' || loc == '/register') return '/home';
 
       // Already on correct screen — no redirect
@@ -745,11 +1071,13 @@ class App extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
     final currentLang = ref.watch(languageProvider);
+    final currentTheme = ref.watch(rippleThemeProvider);
+    final accessibility = ref.watch(accessibilityProvider);
 
     return MaterialApp.router(
       title: 'Ripple',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.darkTheme,
+      theme: AppTheme.fromRippleTheme(currentTheme),
       routerConfig: router,
       locale: L10n.supportedLocales[currentLang] ?? const Locale('en'),
       localizationsDelegates: const [
@@ -758,6 +1086,16 @@ class App extends ConsumerWidget {
         GlobalCupertinoLocalizations.delegate,
       ],
       supportedLocales: L10n.supportedLocales.values.toList(),
+      builder: (context, child) {
+        // Apply accessibility settings globally
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(
+            textScaler: TextScaler.linear(accessibility.effectiveTextScale),
+            boldText: accessibility.highContrast,
+          ),
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

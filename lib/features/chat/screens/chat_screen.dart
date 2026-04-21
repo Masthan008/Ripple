@@ -38,10 +38,12 @@ import '../services/message_actions_service.dart';
 import '../widgets/forward_message_sheet.dart';
 import '../widgets/gif_picker_sheet.dart';
 import '../widgets/glass_input_bar.dart';
+import '../../stickers/widgets/sticker_picker_sheet.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_context_menu.dart';
 import '../widgets/pinned_message_banner.dart';
 import '../services/chat_organisation_service.dart';
+import '../services/schedule_service.dart';
 import '../../../core/services/ai_service.dart';
 import '../../../core/services/privacy_service.dart';
 import '../widgets/typing_indicator.dart';
@@ -138,9 +140,56 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  Future<void> _handleRippleBotCommand(String text) async {
+    final query = text.replaceAll('@ripple', '').trim();
+    if (query.isEmpty) return;
+
+    setState(() => _isSending = true);
+
+    try {
+      final messages = ref.read(chatMessagesProvider(widget.chatId)).valueOrNull ?? [];
+      final chatContext = messages.take(20).map((m) => {
+        'sender': m.senderId == widget.partnerUid ? widget.partnerName : 'You',
+        'text': m.text ?? '',
+      }).toList();
+
+      final response = await AiService.rippleBotAssistant(
+        query: query,
+        chatContext: chatContext,
+      );
+
+      // Send the bot response as a message
+      final chatService = ref.read(chatServiceProvider);
+      await chatService.sendMessage(
+        chatId: widget.chatId,
+        text: '🤖 Ripple Bot: $response',
+        replyTo: null,
+        expiresAt: null,
+      );
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Ripple Bot error: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isSending = false);
+    }
+  }
+
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
+
+    // Check for @ripple bot command
+    if (text.contains('@ripple')) {
+      await _handleRippleBotCommand(text);
+      _messageController.clear();
+      return;
+    }
 
     setState(() => _isSending = true);
     _messageController.clear();
@@ -990,6 +1039,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   onVideoRecorded: _sendCircularVideoMessage,
                   onAiCompose: () => _showAiComposer(context),
                   onToneFix: () => _showToneFixer(context),
+                  onSchedule: () => _showSchedulePicker(context),
+                  onSticker: () => _showStickerPicker(context),
                 ),
 
                 // Emoji picker
@@ -1677,6 +1728,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               }
             },
           ),
+    );
+  }
+
+  // ── Sticker Picker ───────────────────────────────────────
+  void _showStickerPicker(BuildContext ctx) {
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StickerPickerSheet(
+        onStickerSelected: (stickerEmoji) async {
+          setState(() => _isSending = true);
+          try {
+            final chatService = ref.read(chatServiceProvider);
+            await chatService.sendMessage(
+              chatId: widget.chatId,
+              text: stickerEmoji,
+              type: 'sticker',
+            );
+            _scrollToBottom();
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to send sticker: $e'),
+                  backgroundColor: AppColors.errorRed,
+                ),
+              );
+            }
+          } finally {
+            if (mounted) setState(() => _isSending = false);
+          }
+        },
+      ),
     );
   }
 
@@ -3187,5 +3272,183 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ).showSnackBar(SnackBar(content: Text('Could not explain: $e')));
       }
     }
+  }
+
+  // ─── Schedule Message Picker ─────────────────────────────
+  void _showSchedulePicker(BuildContext ctx) {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+
+    DateTime selectedDate = DateTime.now().add(const Duration(minutes: 5));
+
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.schedule_send, color: AppColors.aquaCore),
+                    const SizedBox(width: 12),
+                    const Text(
+                      'Schedule Message',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '"$text"',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontStyle: FontStyle.italic,
+                    ),
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Send at:',
+                  style: TextStyle(
+                    color: Colors.white54,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // Quick time options
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    _TimeChip(
+                      label: '5 min',
+                      onTap: () => setModalState(() =>
+                          selectedDate = DateTime.now().add(const Duration(minutes: 5))),
+                    ),
+                    _TimeChip(
+                      label: '30 min',
+                      onTap: () => setModalState(() =>
+                          selectedDate = DateTime.now().add(const Duration(minutes: 30))),
+                    ),
+                    _TimeChip(
+                      label: '1 hour',
+                      onTap: () => setModalState(() =>
+                          selectedDate = DateTime.now().add(const Duration(hours: 1))),
+                    ),
+                    _TimeChip(
+                      label: 'Tomorrow 9AM',
+                      onTap: () {
+                        final tomorrow = DateTime.now().add(const Duration(days: 1));
+                        setModalState(() => selectedDate = DateTime(
+                            tomorrow.year, tomorrow.month, tomorrow.day, 9, 0));
+                      },
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                // Selected time display
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppColors.aquaCore.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.aquaCore.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.access_time, color: AppColors.aquaCore),
+                      const SizedBox(width: 12),
+                      Text(
+                        '${selectedDate.day}/${selectedDate.month} at ${selectedDate.hour}:${selectedDate.minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      await ScheduleService.scheduleMessage(
+                        chatId: widget.chatId,
+                        isGroup: false,
+                        text: text,
+                        sendAt: selectedDate,
+                      );
+                      _messageController.clear();
+                      if (mounted) {
+                        Navigator.pop(context);
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Message scheduled successfully!'),
+                          ),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.aquaCore,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    child: const Text('Schedule Message'),
+                  ),
+                ),
+                SizedBox(height: MediaQuery.of(context).padding.bottom),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _TimeChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _TimeChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return ActionChip(
+      onPressed: onTap,
+      label: Text(label),
+      backgroundColor: Colors.white10,
+      labelStyle: const TextStyle(color: Colors.white, fontSize: 12),
+      side: const BorderSide(color: Colors.white24),
+    );
   }
 }

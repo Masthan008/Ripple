@@ -1,9 +1,11 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/privacy_service.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../auth/models/user_model.dart';
@@ -24,23 +26,20 @@ class OtherUserProfileScreen extends ConsumerStatefulWidget {
 
 class _OtherUserProfileScreenState
     extends ConsumerState<OtherUserProfileScreen> {
-  bool _isLoading = true;
-  UserModel? _user;
   List<Map<String, dynamic>> _mutualFriends = [];
-  int _rippleScore = 0;
 
   @override
   void initState() {
     super.initState();
-    _loadProfile();
+    _recordProfileVisit();
+    _loadMutualFriends();
   }
 
-  Future<void> _loadProfile() async {
+  Future<void> _recordProfileVisit() async {
     try {
       final myUid = ref.read(chatServiceProvider).myUid;
       final me = ref.read(currentUserProvider).valueOrNull;
 
-      // Record profile visit if user exists
       if (me != null) {
         await SocialService.recordProfileVisit(
           profileOwnerId: widget.uid,
@@ -49,128 +48,153 @@ class _OtherUserProfileScreenState
           visitorPhoto: me.photoUrl ?? '',
         );
       }
-
-      final doc =
-          await FirebaseService.usersCollection.doc(widget.uid).get();
-      if (doc.exists) {
-        _user = UserModel.fromFirestore(doc);
-        final data = doc.data()!;
-        _rippleScore = data['rippleScore'] as int? ?? 0;
-
-        _mutualFriends = await SocialService.getMutualFriends(
-          currentUid: myUid,
-          targetUid: widget.uid,
-        );
-      }
     } catch (e) {
-      debugPrint('Error loading other profile: $e');
-    } finally {
-      if (mounted) setState(() => _isLoading = false);
+      debugPrint('Error recording profile visit: $e');
     }
   }
 
+  Future<void> _loadMutualFriends() async {
+    try {
+      final myUid = ref.read(chatServiceProvider).myUid;
+      final friends = await SocialService.getMutualFriends(
+        currentUid: myUid,
+        targetUid: widget.uid,
+      );
+      if (mounted) setState(() => _mutualFriends = friends);
+    } catch (e) {
+      debugPrint('Error loading mutual friends: $e');
+    }
+  }
+
+
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.abyssBackground,
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.aquaCore),
-        ),
-      );
-    }
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseService.usersCollection.doc(widget.uid).snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: AppColors.abyssBackground,
+            body: Center(
+              child: CircularProgressIndicator(color: AppColors.aquaCore),
+            ),
+          );
+        }
 
-    if (_user == null) {
-      return Scaffold(
-        backgroundColor: AppColors.abyssBackground,
-        appBar: AppBar(backgroundColor: Colors.transparent),
-        body: const Center(
-          child: Text('User not found', style: TextStyle(color: Colors.white)),
-        ),
-      );
-    }
+        if (!snapshot.hasData || !snapshot.data!.exists) {
+          return Scaffold(
+            backgroundColor: AppColors.abyssBackground,
+            appBar: AppBar(backgroundColor: Colors.transparent),
+            body: const Center(
+              child: Text('User not found', style: TextStyle(color: Colors.white)),
+            ),
+          );
+        }
 
-    return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
-      appBar: AppBar(
-        title: Text(_user!.name, style: AppTextStyles.headingSmall),
-        backgroundColor: Colors.transparent,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Column(
-          children: [
-            const SizedBox(height: 20),
-            Center(
-              child: Container(
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.aquaCyan.withValues(alpha: 0.3),
-                      blurRadius: 30,
-                      spreadRadius: 5,
+        final user = snapshot.data!.data() as Map<String, dynamic>?;
+        if (user == null) {
+          return const SizedBox.shrink();
+        }
+
+        final privacy = user['privacy'] as Map<String, dynamic>? ?? {};
+        final rippleScore = user['rippleScore'] as int? ?? 0;
+        final myUid = ref.read(chatServiceProvider).myUid;
+        final me = ref.read(currentUserProvider).valueOrNull;
+        final myFriends = me?.friends is List ? List<String>.from(me!.friends as List) : <String>[];
+        final isOnline = PrivacyService.canSeeOnlineStatus(
+          targetUser: user,
+          viewerUid: myUid,
+          viewerFriends: myFriends,
+        );
+        final canSeePhoto = PrivacyService.canSeeProfilePhoto(
+          targetUser: user,
+          viewerUid: myUid,
+          viewerFriends: myFriends,
+        );
+
+        return Scaffold(
+          backgroundColor: AppColors.abyssBackground,
+          appBar: AppBar(
+            title: Text(user['name'] as String? ?? 'User', style: AppTextStyles.headingSmall),
+            backgroundColor: Colors.transparent,
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20),
+            child: Column(
+              children: [
+                const SizedBox(height: 20),
+                Center(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.aquaCyan.withValues(alpha: 0.3),
+                          blurRadius: 30,
+                          spreadRadius: 5,
+                        ),
+                      ],
+                    ),
+                    child: AquaAvatar(
+                      imageUrl: canSeePhoto ? (user['photoUrl'] as String?) : null,
+                      name: user['name'] as String? ?? 'User',
+                      size: 100,
+                      showOnlineDot: true,
+                      isOnline: isOnline && (user['isOnline'] as bool? ?? false),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  user['name'] as String? ?? 'User',
+                  style: AppTextStyles.display.copyWith(fontSize: 26),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: SocialService.getRippleRankColor(rippleScore)
+                            .withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            SocialService.getRippleRank(rippleScore),
+                            style: TextStyle(
+                              color: SocialService.getRippleRankColor(rippleScore),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            rippleScore.toString(),
+                            style: TextStyle(
+                              color: SocialService.getRippleRankColor(rippleScore),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-                child: AquaAvatar(
-                  imageUrl: _user!.photoUrl,
-                  name: _user!.name,
-                  size: 100,
-                  showOnlineDot: true,
-                  isOnline: _user!.isOnline,
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              _user!.name,
-              style: AppTextStyles.display.copyWith(fontSize: 26),
-            ),
-            const SizedBox(height: 4),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: SocialService.getRippleRankColor(_rippleScore)
-                        .withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        SocialService.getRippleRank(_rippleScore),
-                        style: TextStyle(
-                          color: SocialService.getRippleRankColor(_rippleScore),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        _rippleScore.toString(),
-                        style: TextStyle(
-                          color: SocialService.getRippleRankColor(_rippleScore),
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                const SizedBox(height: 32),
+                AchievementsSection(uid: widget.uid),
+                const SizedBox(height: 24),
+                _buildMutualFriendsSection(),
               ],
             ),
-            const SizedBox(height: 32),
-            AchievementsSection(uid: widget.uid),
-            const SizedBox(height: 24),
-            _buildMutualFriendsSection(),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 

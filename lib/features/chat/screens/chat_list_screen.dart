@@ -2,6 +2,7 @@ import 'package:shimmer/shimmer.dart';
 import '../../../core/utils/haptic_feedback.dart';
 import 'dart:async';
 
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,21 +16,28 @@ import '../../../core/utils/app_lifecycle_observer.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
-import '../../../core/utils/l10n.dart'; // Add this
+import '../../../core/utils/l10n.dart';
 import '../../../core/theme/glass_theme.dart';
+import '../../../core/theme/theme_provider.dart';
+import '../../../core/utils/animations.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/floating_particles.dart'; // Add this
 import '../../../shared/widgets/glass_card.dart';
+import '../../../shared/widgets/liquid_pull_to_refresh.dart';
+import '../../../shared/widgets/bioluminescent_glow.dart';
 import '../../../shared/widgets/liquid_glass_navbar/navbar_widget.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../groups/providers/group_provider.dart';
 import '../../profile/screens/profile_screen.dart';
 import '../../status/screens/status_list_screen.dart';
+import '../../status/screens/create_status_screen.dart';
+import '../../status/screens/status_viewer_screen.dart';
 import '../../status/services/status_service.dart';
-import '../../calls/screens/incoming_call_screen.dart';
+import '../../status/models/status_model.dart';
 import '../../ai/widgets/ai_bot_picker.dart';
 import '../../profile/providers/settings_provider.dart'; // Add this
 import '../services/chat_organisation_service.dart';
+import '../services/schedule_service.dart';
 import '../../../core/services/privacy_service.dart';
 import '../../../core/services/chat_lock_service.dart';
 import '../../../app.dart'; // Add this for routerProvider
@@ -86,6 +94,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         StatusService.cleanupExpired();
         StatusService.clearExpiredMood();
 
+        // Start scheduled message checker
+        ScheduleService.startScheduleChecker();
+
         // Listen for incoming calls (foreground detection)
         _listenForIncomingCalls(uid);
       }
@@ -98,6 +109,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       WidgetsBinding.instance.removeObserver(_lifecycleObserver!);
     }
     _incomingCallSub?.cancel();
+    ScheduleService.stopScheduleChecker();
     super.dispose();
   }
 
@@ -139,17 +151,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               // Push incoming call screen
               if (mounted) {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder:
-                        (_) => IncomingCallScreen(
-                          callId: callId,
-                          channelName: channelName,
-                          callerName: callerName,
-                          callerUserId: callerUserId,
-                          isVideo: callType == 'video',
-                        ),
-                  ),
+                GoRouter.of(context).push(
+                  '/incoming-call?callId=$callId&channelName=$channelName&callerName=${Uri.encodeComponent(callerName)}&callerUserId=$callerUserId&isVideo=${callType == 'video'}',
                 );
               }
             }
@@ -162,23 +165,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final currentUser = ref.watch(currentUserProvider).valueOrNull;
     final myUid = ref.watch(authStateProvider).valueOrNull?.uid;
     final currentTheme = ref.watch(themeProvider);
-
-    Color bgColor = AppColors.abyssBackground;
-    if (currentTheme == 'light_glass') bgColor = const Color(0xFFF0F9FF);
-    if (currentTheme == 'midnight_purple') bgColor = const Color(0xFF0F001A);
+    final rippleTheme = ref.watch(rippleThemeProvider);
 
     return Scaffold(
-      backgroundColor: bgColor,
+      backgroundColor: rippleTheme.colors.background,
       extendBody: true, // Need this so body can flow under navbar glass
       body: Stack(
         children: [
-          // Subtle floating particles background
+          // Subtle floating particles background with theme color
           FloatingParticles(
             particleCount: 5,
-            color:
-                currentTheme == 'light_glass'
-                    ? AppColors.aquaCore.withOpacity(0.3)
-                    : AppColors.aquaCore,
+            color: rippleTheme.colors.primary.withOpacity(
+              currentTheme == 'light_glass' ? 0.3 : 0.8,
+            ),
           ),
           AnimatedSwitcher(
             duration: const Duration(milliseconds: 400),
@@ -273,7 +272,25 @@ class _ChatsTab extends ConsumerStatefulWidget {
 }
 
 class _ChatsTabState extends ConsumerState<_ChatsTab> {
-  String _filter = 'all'; // all | unread | groups
+  String _filter = 'all'; // all | unread | groups | folderId
+  
+  // Folders stream and cached data
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _foldersStream;
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> _folders = [];
+
+  @override
+  void initState() {
+    super.initState();
+    final currentUser = ref.read(authStateProvider).valueOrNull;
+    if (currentUser != null) {
+      _foldersStream = FirebaseService.firestore
+          .collection('users')
+          .doc(currentUser.uid)
+          .collection('folders')
+          .orderBy('order')
+          .snapshots();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -308,6 +325,10 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
             ),
             const SizedBox(height: 12),
 
+            // Status Stories Row
+            _buildStatusStoriesRow(),
+            const SizedBox(height: 12),
+
             // Filter chips
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
@@ -340,22 +361,45 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                     setState(() => _filter = 'groups');
                   },
                 ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Work',
-                  selected: _filter == 'work',
-                  onTap: () {
-                    AppHaptics.selectionTick();
-                    setState(() => _filter = 'work');
+                // Dynamic folder chips from stream
+                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                  stream: _foldersStream,
+                  builder: (context, foldersSnap) {
+                    if (!foldersSnap.hasData || foldersSnap.data!.docs.isEmpty) {
+                      return const SizedBox.shrink();
+                    }
+                    
+                    // Cache folders for use in chat list filtering
+                    _folders = foldersSnap.data!.docs;
+                    
+                    final folders = foldersSnap.data!.docs;
+                    return Row(
+                      children: folders.map((folder) {
+                        final data = folder.data();
+                        final folderId = folder.id;
+                        final name = data['name'] as String? ?? 'Folder';
+                        final isSelected = _filter == folderId;
+                        
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8),
+                          child: _FilterChip(
+                            label: name,
+                            selected: isSelected,
+                            onTap: () {
+                              AppHaptics.selectionTick();
+                              setState(() => _filter = isSelected ? 'all' : folderId);
+                            },
+                          ),
+                        );
+                      }).toList(),
+                    );
                   },
                 ),
+                // Folder management button
                 _FilterChip(
-                  label: 'Friends',
-                  selected: _filter == 'friends',
-                  onTap: () {
-                    AppHaptics.selectionTick();
-                    setState(() => _filter = 'friends');
-                  },
+                  label: '+',
+                  selected: false,
+                  onTap: () => _showFolderManagement(context),
                 ),
                 ],
               ),
@@ -433,15 +477,36 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                       .where((d) => !archivedIds.contains(d.id))
                                       .toList();
 
-                              // Apply folder filters (Phase 1 Stub)
+                              // Apply folder filters
                               if (_filter == 'groups') {
                                 chats = chats.where((d) {
                                   final data = d.data();
                                   return data['isGroup'] == true;
                                 }).toList();
-                              } else if (_filter == 'work' || _filter == 'friends') {
-                                // For now, these are empty stubs until user assigns chats to folders
-                                chats = [];
+                              } else if (_filter != 'all' && _filter != 'unread') {
+                                // Filter is a folder ID - check if chat is in folder
+                                final folderDoc = _folders.firstWhere(
+                                  (d) => d.id == _filter,
+                                  orElse: () => throw Exception('Folder not found'),
+                                );
+                                if (folderDoc != null && folderDoc.data() != null) {
+                                  final folderData = folderDoc.data();
+                                  final folderChatIds = folderData['chatIds'] is List
+                                      ? List<String>.from(folderData['chatIds'] as List)
+                                      : <String>[];
+                                  final folderGroupIds = folderData['groupIds'] is List
+                                      ? List<String>.from(folderData['groupIds'] as List)
+                                      : <String>[];
+                                  chats = chats.where((d) {
+                                    final data = d.data();
+                                    final isGroup = data['isGroup'] == true;
+                                    if (isGroup) {
+                                      return folderGroupIds.contains(d.id);
+                                    } else {
+                                      return folderChatIds.contains(d.id);
+                                    }
+                                  }).toList();
+                                }
                               }
 
                               // Apply filter
@@ -481,7 +546,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                 return bTs.compareTo(aTs);
                               });
 
-                              return RefreshIndicator(
+                              return LiquidPullToRefresh(
                                 onRefresh: () async {
                                   AppHaptics.mediumTap();
                                   await Future.delayed(
@@ -490,9 +555,6 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                   // Invalidating the provider will trigger a re-fetch
                                   ref.invalidate(authStateProvider);
                                 },
-                                color: AppColors.aquaCore,
-                                backgroundColor: AppColors.abyssBackground
-                                    .withOpacity(0.8),
                                 child: ListView.builder(
                                   physics: const AlwaysScrollableScrollPhysics(
                                     parent: BouncingScrollPhysics(),
@@ -829,6 +891,20 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                   if (context.mounted) Navigator.pop(context);
                 },
               ),
+              ListTile(
+                leading: const Icon(
+                  Icons.folder_open_rounded,
+                  color: AppColors.aquaCore,
+                ),
+                title: const Text(
+                  'Add to Folder',
+                  style: TextStyle(color: Colors.white),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _showAddToFolderPicker(context, chatId);
+                },
+              ),
               SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
             ],
           ),
@@ -891,6 +967,447 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
             child: Text(L10n.s(ref, 'findFriends')),
           ),
         ],
+      ),
+    );
+  }
+
+  // ─── FOLDER MANAGEMENT ─────────────────────────────────
+
+  void _showFolderManagement(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _FolderManagementSheet(
+        folders: _folders,
+        onCreateFolder: _createFolder,
+        onDeleteFolder: _deleteFolder,
+      ),
+    );
+  }
+
+  Future<void> _createFolder(String name, String icon, String color) async {
+    await ChatOrganisationService.createFolder(
+      name: name,
+      icon: icon,
+      color: color,
+      order: _folders.length,
+    );
+  }
+
+  Future<void> _deleteFolder(String folderId) async {
+    await ChatOrganisationService.deleteFolder(folderId);
+  }
+
+  void _showAddToFolderPicker(BuildContext context, String chatId) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => _AddToFolderSheet(
+        folders: _folders,
+        chatId: chatId,
+        onAddToFolder: (folderId) async {
+          await ChatOrganisationService.addChatToFolder(
+            folderId: folderId,
+            chatId: chatId,
+          );
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Chat added to folder')),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  // ─── STATUS SHEETS ────────────────────────────────────
+
+  void _showCreateStatusSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => const CreateStatusSheet(),
+    );
+  }
+
+  void _showStatusViewer(BuildContext context, String uid) async {
+    final statuses = await StatusService.getUserStatuses(uid);
+    if (!context.mounted || statuses.isEmpty) return;
+
+    // Get user info
+    final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
+    final userName = userDoc.data()?['displayName'] as String? ?? 'User';
+
+    if (!context.mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => StatusViewerScreen(
+          statuses: statuses,
+          viewerName: userName,
+        ),
+      ),
+    );
+  }
+
+  // ─── STATUS STORIES ROW ─────────────────────────────────
+
+  Widget _buildStatusStoriesRow() {
+    final currentUser = ref.watch(authStateProvider).valueOrNull;
+    if (currentUser == null) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 90,
+      child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseService.firestore
+            .collection('statuses')
+            .where('uid', isNotEqualTo: currentUser.uid)
+            .where('expiresAt', isGreaterThan: Timestamp.now())
+            .orderBy('expiresAt', descending: false)
+            .snapshots(),
+        builder: (context, statusSnap) {
+          return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+            stream: FirebaseService.firestore
+                .collection('users')
+                .doc(currentUser.uid)
+                .snapshots(),
+            builder: (context, userSnap) {
+              final userData = userSnap.data?.data();
+              final myStatus = userData?['currentStatus'];
+              final hasMyStatus = myStatus != null && myStatus.isNotEmpty;
+
+              // Get unique users with statuses
+              final statusDocs = statusSnap.data?.docs ?? [];
+              final userStatuses = <String, Map<String, dynamic>>{};
+              for (final doc in statusDocs) {
+                final data = doc.data();
+                final uid = data['uid'] as String?;
+                if (uid != null && !userStatuses.containsKey(uid)) {
+                  userStatuses[uid] = data;
+                }
+              }
+
+              return ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 1 + userStatuses.length, // My status + others
+                itemBuilder: (context, index) {
+                  if (index == 0) {
+                    // My Status
+                    return _StatusBubble(
+                      isMyStatus: true,
+                      hasStatus: hasMyStatus,
+                      photoUrl: userData?['photoUrl'] as String?,
+                      name: 'My Status',
+                      onTap: () {
+                        if (hasMyStatus) {
+                          _showStatusViewer(context, currentUser.uid);
+                        } else {
+                          _showCreateStatusSheet(context);
+                        }
+                      },
+                    );
+                  }
+
+                  // Friend's status
+                  final entry = userStatuses.entries.elementAt(index - 1);
+                  final uid = entry.key;
+                  final data = entry.value;
+
+                  return _StatusBubble(
+                    isMyStatus: false,
+                    hasStatus: true,
+                    photoUrl: data['photoUrl'] as String?,
+                    name: data['name'] as String? ?? 'User',
+                    onTap: () => _showStatusViewer(context, uid),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _FolderManagementSheet extends StatelessWidget {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> folders;
+  final Function(String, String, String) onCreateFolder;
+  final Function(String) onDeleteFolder;
+
+  const _FolderManagementSheet({
+    required this.folders,
+    required this.onCreateFolder,
+    required this.onDeleteFolder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final nameController = TextEditingController();
+
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Chat Folders',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Done'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (folders.isEmpty)
+            const Center(
+              child: Text(
+                'No folders yet. Create your first folder!',
+                style: TextStyle(color: Colors.white54),
+              ),
+            )
+          else
+            ...folders.map((folder) {
+              final data = folder.data();
+              final name = data['name'] as String? ?? 'Folder';
+              return ListTile(
+                leading: const Icon(Icons.folder_rounded, color: AppColors.aquaCore),
+                title: Text(name, style: const TextStyle(color: Colors.white)),
+                trailing: IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () async {
+                    await onDeleteFolder(folder.id);
+                    if (context.mounted) Navigator.pop(context);
+                  },
+                ),
+              );
+            }),
+          const Divider(color: Colors.white24),
+          TextField(
+            controller: nameController,
+            style: const TextStyle(color: Colors.white),
+            decoration: InputDecoration(
+              hintText: 'New folder name',
+              hintStyle: const TextStyle(color: Colors.white54),
+              filled: true,
+              fillColor: Colors.white10,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.add_circle, color: AppColors.aquaCore),
+                onPressed: () async {
+                  if (nameController.text.isNotEmpty) {
+                    await onCreateFolder(
+                      nameController.text,
+                      'folder',
+                      '#0EA5E9',
+                    );
+                    if (context.mounted) Navigator.pop(context);
+                  }
+                },
+              ),
+            ),
+          ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _AddToFolderSheet extends StatelessWidget {
+  final List<QueryDocumentSnapshot<Map<String, dynamic>>> folders;
+  final String chatId;
+  final Function(String) onAddToFolder;
+
+  const _AddToFolderSheet({
+    required this.folders,
+    required this.chatId,
+    required this.onAddToFolder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Text(
+                'Add to Folder',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const Spacer(),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Cancel'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          if (folders.isEmpty)
+            const Center(
+              child: Text(
+                'Create folders first to organize your chats',
+                style: TextStyle(color: Colors.white54),
+                textAlign: TextAlign.center,
+              ),
+            )
+          else
+            ...folders.map((folder) {
+              final data = folder.data();
+              final name = data['name'] as String? ?? 'Folder';
+              return ListTile(
+                leading: const Icon(Icons.folder_rounded, color: AppColors.aquaCore),
+                title: Text(name, style: const TextStyle(color: Colors.white)),
+                onTap: () => onAddToFolder(folder.id),
+              );
+            }),
+          SizedBox(height: MediaQuery.of(context).padding.bottom + 16),
+        ],
+      ),
+    );
+  }
+}
+
+/// Status bubble widget for stories row
+class _StatusBubble extends StatelessWidget {
+  final bool isMyStatus;
+  final bool hasStatus;
+  final String? photoUrl;
+  final String name;
+  final VoidCallback onTap;
+
+  const _StatusBubble({
+    required this.isMyStatus,
+    required this.hasStatus,
+    required this.photoUrl,
+    required this.name,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 72,
+        margin: const EdgeInsets.only(right: 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Avatar with status ring
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: hasStatus
+                    ? LinearGradient(
+                        colors: [AppColors.aquaCore, AppColors.aquaCyan],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
+                color: hasStatus ? null : Colors.white10,
+              ),
+              padding: hasStatus ? const EdgeInsets.all(3) : null,
+              child: Container(
+                decoration: const BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: AppColors.abyssBackground,
+                ),
+                padding: const EdgeInsets.all(2),
+                child: Stack(
+                  children: [
+                    CircleAvatar(
+                      radius: 28,
+                      backgroundColor: Colors.white10,
+                      backgroundImage: photoUrl != null && photoUrl!.isNotEmpty
+                          ? CachedNetworkImageProvider(photoUrl!)
+                          : null,
+                      child: photoUrl == null || photoUrl!.isEmpty
+                          ? Text(
+                              name[0].toUpperCase(),
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            )
+                          : null,
+                    ),
+                    // Add button for my status when empty
+                    if (isMyStatus && !hasStatus)
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: Container(
+                          width: 20,
+                          height: 20,
+                          decoration: BoxDecoration(
+                            color: AppColors.aquaCore,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.abyssBackground,
+                              width: 2,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.add,
+                            color: Colors.white,
+                            size: 12,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            // Name
+            Text(
+              isMyStatus ? 'My Status' : name,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 11,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1063,14 +1580,31 @@ class _ChatSearchBarState extends ConsumerState<_ChatSearchBar> {
       try {
         final userDoc =
             await FirebaseService.usersCollection.doc(otherUid).get();
-        final name = (userDoc.data()?['name'] as String? ?? '').toLowerCase();
+        final userData = userDoc.data();
+        if (userData == null) continue;
+
+        final name = (userData['name'] as String? ?? '').toLowerCase();
         if (name.contains(lowerQuery)) {
           seenUids.add(otherUid);
+
+          // Check privacy for profile photo
+          final currentUser = ref.read(currentUserProvider).valueOrNull;
+          final myUid = currentUser?.uid ?? widget.currentUid;
+          final myFriends = currentUser?.friends is List
+              ? List<String>.from(currentUser!.friends as List)
+              : <String>[];
+
+          final canSeePhoto = PrivacyService.canSeeProfilePhoto(
+            targetUser: userData,
+            viewerUid: myUid,
+            viewerFriends: myFriends,
+          );
+
           results.add({
             'chatId': chatDoc.id,
             'otherUid': otherUid,
-            'name': userDoc.data()?['name'] ?? 'User',
-            'photoUrl': userDoc.data()?['photoUrl'] ?? '',
+            'name': userData['name'] ?? 'User',
+            'photoUrl': canSeePhoto ? (userData['photoUrl'] as String? ?? '') : '',
           });
         }
       } catch (_) {}
@@ -1363,10 +1897,10 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
 
         final userData = snap.data!.data()!;
         final name = userData['name'] ?? 'User';
-        final photoUrl = userData['photoUrl'] ?? '';
+        final photoUrlRaw = userData['photoUrl'] ?? '';
         final isOnlineRaw = userData['isOnline'] ?? false;
 
-        // Privacy: check if we can see online status
+        // Privacy: check if we can see online status and profile photo
         final currentUser = ref.read(currentUserProvider).valueOrNull;
         final myUid = currentUser?.uid ?? '';
         final myFriends = currentUser?.friends is List
@@ -1380,6 +1914,13 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
               viewerUid: myUid,
               viewerFriends: myFriends,
             );
+
+        final canSeePhoto = PrivacyService.canSeeProfilePhoto(
+          targetUser: userData,
+          viewerUid: myUid,
+          viewerFriends: myFriends,
+        );
+        final photoUrl = canSeePhoto ? photoUrlRaw : '';
 
         // Determine preview text
         String preview;
@@ -1894,28 +2435,34 @@ class _AiTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
+
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(L10n.s(ref, 'ai'), style: AppTextStyles.heading),
+            Text(L10n.s(ref, 'ai'), style: AppTextStyles.heading.copyWith(
+              color: theme.colors.textPrimary,
+            )),
             const SizedBox(height: 24),
             Expanded(
               child: Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.smart_toy_rounded,
                       size: 80,
-                      color: AppColors.aquaCore,
+                      color: theme.colors.primary,
                     ),
                     const SizedBox(height: 20),
                     Text(
                       L10n.s(ref, 'aiAssistant'),
-                      style: AppTextStyles.headingSmall,
+                      style: AppTextStyles.headingSmall.copyWith(
+                        color: theme.colors.textPrimary,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Padding(
@@ -1923,7 +2470,9 @@ class _AiTab extends ConsumerWidget {
                       child: Text(
                         L10n.s(ref, 'aiDesc'),
                         textAlign: TextAlign.center,
-                        style: AppTextStyles.caption,
+                        style: AppTextStyles.caption.copyWith(
+                          color: theme.colors.textMuted,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 32),

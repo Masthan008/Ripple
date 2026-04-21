@@ -1,6 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
+import '../models/folder_model.dart';
+
 /// Unified service for chat pinning, archiving, folders, and saved messages.
 class ChatOrganisationService {
   ChatOrganisationService._();
@@ -8,6 +10,18 @@ class ChatOrganisationService {
   static final _fs = FirebaseFirestore.instance;
   static final _auth = FirebaseAuth.instance;
   static String get _uid => _auth.currentUser!.uid;
+
+  // ─── GET FOLDERS ────────────────────────────────────────
+
+  static Stream<List<FolderModel>> getFolders() {
+    return _fs
+        .collection('users')
+        .doc(_uid)
+        .collection('folders')
+        .orderBy('order')
+        .snapshots()
+        .map((snap) => snap.docs.map(FolderModel.fromFirestore).toList());
+  }
 
   // ─── PIN / UNPIN ────────────────────────────────────────
 

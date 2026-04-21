@@ -1,12 +1,13 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/theme/theme_provider.dart';
 import '../../core/theme/glass_theme.dart';
 
 /// Reusable frosted glass card with BackdropFilter blur
 /// Core visual element of the Liquid Glass design system
 /// Supports animated blur via [animateBlur] for dynamic glassmorphism
-class GlassCard extends StatelessWidget {
+class GlassCard extends ConsumerWidget {
   final Widget child;
   final double borderRadius;
   final double blur;
@@ -41,7 +42,9 @@ class GlassCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
+
     Widget card;
 
     if (animateBlur) {
@@ -49,11 +52,11 @@ class GlassCard extends StatelessWidget {
         tween: Tween(begin: 0, end: blur),
         duration: animateDuration,
         curve: Curves.easeOutCubic,
-        builder: (_, blurValue, child) => _buildCard(blurValue, child!),
-        child: _buildInner(),
+        builder: (_, blurValue, child) => _buildCard(blurValue, child!, theme),
+        child: _buildInner(theme),
       );
     } else {
-      card = _buildCard(blur, _buildInner());
+      card = _buildCard(blur, _buildInner(theme), theme);
     }
 
     if (margin != null) {
@@ -67,7 +70,7 @@ class GlassCard extends StatelessWidget {
     return card;
   }
 
-  Widget _buildCard(double blurValue, Widget inner) {
+  Widget _buildCard(double blurValue, Widget inner, dynamic theme) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(borderRadius),
       child: BackdropFilter(
@@ -75,29 +78,22 @@ class GlassCard extends StatelessWidget {
         child: Container(
           padding: padding ?? const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: backgroundColor ?? AppColors.glassPanel,
+            color: backgroundColor ?? theme.colors.glassSurface,
             borderRadius: BorderRadius.circular(borderRadius),
             border: Border.all(
-              color: borderColor ?? AppColors.glassBorder,
+              color: borderColor ?? theme.colors.glassBorder,
               width: 1,
             ),
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [
-                Colors.white.withOpacity(0.05),
+                (theme.isDark ? Colors.white : Colors.black).withOpacity(0.05),
                 Colors.transparent,
-                AppColors.aquaCore.withOpacity(0.03),
+                theme.colors.primary.withOpacity(0.03),
               ],
             ),
-            boxShadow: shadows ??
-                [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.15),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
+            boxShadow: shadows ?? theme.shadows.soft,
           ),
           child: inner,
         ),
@@ -105,7 +101,7 @@ class GlassCard extends StatelessWidget {
     );
   }
 
-  Widget _buildInner() {
+  Widget _buildInner(dynamic theme) {
     return showShimmer
         ? Stack(
             children: [
@@ -117,11 +113,11 @@ class GlassCard extends StatelessWidget {
                 right: 0,
                 height: 1,
                 child: Container(
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     gradient: LinearGradient(
                       colors: [
                         Colors.transparent,
-                        Color(0x4DFFFFFF),
+                        theme.colors.primary.withOpacity(0.3),
                         Colors.transparent,
                       ],
                     ),

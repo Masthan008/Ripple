@@ -19,6 +19,7 @@ import '../../../core/utils/media_compressor.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/ai_service.dart';
 import '../../auth/models/user_model.dart';
 import '../../calls/screens/daily_call_screen.dart';
 import '../../chat/models/message_model.dart';
@@ -72,6 +73,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   // Phase 6 — Privacy state
   bool _incognitoKeyboard = false;
   int _selfDestructSeconds = 0;
+
+  // AI Features state
+  bool _isSummarizing = false;
+  String? _summary;
 
   @override
   void initState() {
@@ -367,6 +372,69 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             ],
           ),
     );
+  }
+
+  Future<void> _catchUpSummary() async {
+    setState(() => _isSummarizing = true);
+    try {
+      final messages = ref.read(groupMessagesProvider(widget.groupId)).valueOrNull ?? [];
+      final chatMessages = messages.take(50).map((m) => {
+        'sender': m.senderId,
+        'text': m.text ?? '',
+      }).toList();
+
+      final summary = await AiService.summariseChat(
+        messages: chatMessages,
+        chatName: widget.groupName,
+      );
+
+      setState(() => _summary = summary);
+      if (mounted) {
+        showDialog(
+          context: context,
+          builder: (_) => AlertDialog(
+            backgroundColor: const Color(0xFF0A1628),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16),
+              side: BorderSide(color: AppColors.aquaCyan.withOpacity(0.2)),
+            ),
+            title: Row(
+              children: [
+                const Icon(Icons.auto_awesome, color: Colors.amber, size: 24),
+                const SizedBox(width: 8),
+                const Text('Catch Up Summary', style: TextStyle(color: Colors.white)),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child: Text(
+                  summary,
+                  style: const TextStyle(color: Colors.white70, height: 1.5),
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Close', style: TextStyle(color: AppColors.aquaCore)),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate summary: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      setState(() => _isSummarizing = false);
+    }
   }
 
   void _showForwardSheet(MessageModel message) {
@@ -912,6 +980,34 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                 color: AppColors.lightWave,
                 size: 18,
               ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // Catch Up button
+          GestureDetector(
+            onTap: _isSummarizing ? null : _catchUpSummary,
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: AppColors.glassPanel,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.glassBorder, width: 0.5),
+              ),
+              child: _isSummarizing
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
+                      ),
+                    )
+                  : const Icon(
+                      Icons.auto_awesome,
+                      color: Colors.amber,
+                      size: 18,
+                    ),
             ),
           ),
           const SizedBox(width: 6),

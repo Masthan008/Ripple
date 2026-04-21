@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/ai_bot_service.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../screens/ai_chat_screen.dart';
 
 class AiBotPicker extends ConsumerWidget {
@@ -9,14 +10,18 @@ class AiBotPicker extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final bots = ref.read(aiBotServiceProvider).getAvailableBots();
+    final theme = ref.watch(rippleThemeProvider);
 
     return Material(
       color: Colors.transparent,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-        decoration: const BoxDecoration(
-          color: Color(0xFF0C1E3A),
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        decoration: BoxDecoration(
+          color: theme.colors.surface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+          border: Border(
+            top: BorderSide(color: theme.colors.glassBorder),
+          ),
         ),
         child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -25,25 +30,25 @@ class AiBotPicker extends ConsumerWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
+              Text(
                 'AI Companions',
                 style: TextStyle(
-                  color: Colors.white,
+                  color: theme.colors.textPrimary,
                   fontFamily: 'Outfit',
                   fontSize: 20,
                   fontWeight: FontWeight.bold,
                 ),
               ),
               IconButton(
-                icon: const Icon(Icons.close, color: Colors.white54),
+                icon: Icon(Icons.close, color: theme.colors.textMuted),
                 onPressed: () => Navigator.pop(context),
               ),
             ],
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Choose a persona to chat with.',
-            style: TextStyle(color: Colors.white54, fontSize: 13),
+            style: TextStyle(color: theme.colors.textMuted, fontSize: 13),
           ),
           const SizedBox(height: 24),
           SizedBox(
@@ -92,8 +97,8 @@ class AiBotPicker extends ConsumerWidget {
                         const SizedBox(height: 12),
                         Text(
                           bot.name,
-                          style: const TextStyle(
-                            color: Colors.white,
+                          style: TextStyle(
+                            color: theme.colors.textPrimary,
                             fontWeight: FontWeight.bold,
                             fontSize: 14,
                           ),

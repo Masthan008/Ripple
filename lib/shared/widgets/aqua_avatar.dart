@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../../core/constants/app_colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/theme/theme_provider.dart';
 
-/// Circular/rounded avatar with cyan gradient ring border and glow
-class AquaAvatar extends StatelessWidget {
+/// Circular/rounded avatar with gradient ring border and glow — theme-aware
+class AquaAvatar extends ConsumerWidget {
   final String? imageUrl;
   final String? name;
   final double size;
@@ -24,7 +25,8 @@ class AquaAvatar extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
     final borderRadius = isSquare ? size * 0.28 : size / 2;
 
     return SizedBox(
@@ -39,10 +41,10 @@ class AquaAvatar extends StatelessWidget {
             height: size + ringWidth * 2 + 4,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(borderRadius + ringWidth + 2),
-              gradient: AppColors.aquaGradient,
+              gradient: theme.gradients.primary,
               boxShadow: [
                 BoxShadow(
-                  color: AppColors.aquaCore.withValues(alpha: 0.3),
+                  color: theme.colors.primary.withOpacity(0.3),
                   blurRadius: 8,
                   spreadRadius: 0,
                 ),
@@ -55,7 +57,7 @@ class AquaAvatar extends StatelessWidget {
             height: size + 2,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(borderRadius),
-              color: AppColors.abyssBackground,
+              color: theme.colors.background,
             ),
           ),
           // Avatar content
@@ -64,7 +66,7 @@ class AquaAvatar extends StatelessWidget {
             child: SizedBox(
               width: size,
               height: size,
-              child: _buildAvatarContent(),
+              child: _buildAvatarContent(theme),
             ),
           ),
           // Online indicator dot
@@ -75,6 +77,7 @@ class AquaAvatar extends StatelessWidget {
               child: _OnlineDotIndicator(
                 isOnline: isOnline,
                 size: size * 0.28,
+                theme: theme,
               ),
             ),
         ],
@@ -82,24 +85,27 @@ class AquaAvatar extends StatelessWidget {
     );
   }
 
-  Widget _buildAvatarContent() {
+  Widget _buildAvatarContent(dynamic theme) {
     if (imageUrl != null && imageUrl!.isNotEmpty) {
       return CachedNetworkImage(
         imageUrl: imageUrl!,
         fit: BoxFit.cover,
-        placeholder: (_, __) => _buildInitialsAvatar(),
-        errorWidget: (_, __, ___) => _buildInitialsAvatar(),
+        placeholder: (_, __) => _buildInitialsAvatar(theme),
+        errorWidget: (_, __, ___) => _buildInitialsAvatar(theme),
       );
     }
-    return _buildInitialsAvatar();
+    return _buildInitialsAvatar(theme);
   }
 
-  Widget _buildInitialsAvatar() {
+  Widget _buildInitialsAvatar(dynamic theme) {
     final initials = _getInitials(name ?? '?');
     return Container(
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Color(0xFF0C4A6E), Color(0xFF0E7490)],
+          colors: [
+            theme.colors.primary.withOpacity(0.8),
+            theme.colors.secondary.withOpacity(0.6),
+          ],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
@@ -125,12 +131,17 @@ class AquaAvatar extends StatelessWidget {
   }
 }
 
-/// Small pulsing online/offline dot
+/// Small pulsing online/offline dot — theme-aware
 class _OnlineDotIndicator extends StatefulWidget {
   final bool isOnline;
   final double size;
+  final dynamic theme;
 
-  const _OnlineDotIndicator({required this.isOnline, required this.size});
+  const _OnlineDotIndicator({
+    required this.isOnline,
+    required this.size,
+    required this.theme,
+  });
 
   @override
   State<_OnlineDotIndicator> createState() => _OnlineDotIndicatorState();
@@ -172,6 +183,7 @@ class _OnlineDotIndicatorState extends State<_OnlineDotIndicator>
 
   @override
   Widget build(BuildContext context) {
+    final theme = widget.theme;
     return AnimatedBuilder(
       animation: _scaleAnim,
       builder: (_, child) {
@@ -181,16 +193,16 @@ class _OnlineDotIndicatorState extends State<_OnlineDotIndicator>
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: widget.isOnline
-                ? AppColors.onlineGreen
-                : AppColors.offlineGray,
+                ? theme.colors.online
+                : theme.colors.textMuted,
             border: Border.all(
-              color: AppColors.abyssBackground,
+              color: theme.colors.background,
               width: 2,
             ),
             boxShadow: widget.isOnline
                 ? [
                     BoxShadow(
-                      color: AppColors.onlineGreen.withValues(alpha: 0.5 * _scaleAnim.value),
+                      color: theme.colors.online.withOpacity(0.5 * _scaleAnim.value),
                       blurRadius: 6 * _scaleAnim.value,
                       spreadRadius: 0,
                     ),

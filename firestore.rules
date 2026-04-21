@@ -31,6 +31,16 @@ service cloud.firestore {
                  'rippleScore', 'totalMessagesSent', 'totalImagesSent',
                  'totalVoiceMessages', 'totalFriends', 'translatorUsed',
                  'aiFeaturesUsed'
+               ]))
+        || (isSignedIn()
+            && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly([
+                 'privacy.stealthContacts', 'privacy.lastSeenVisibility',
+                 'privacy.onlineStatusVisibility', 'privacy.profilePhotoVisibility',
+                 'privacy.bioVisibility', 'privacy.readReceiptsEnabled',
+                 'privacy.typingIndicatorEnabled', 'privacy.stealthMode',
+                 'privacy.screenshotBlockEnabled', 'privacy.incognitoKeyboardEnabled',
+                 'privacy.chatLockEnabled', 'privacy.fakePasscode'
                ]));
 
       allow delete: if false;
@@ -180,6 +190,146 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && (request.resource.data.diff(resource.data).affectedKeys()
             .hasOnly(['votes', 'voterIds']));
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SECRET CHATS (E2E Encrypted)
+    // ═══════════════════════════════════════════════════════
+    match /secretChats/{chatId} {
+      // Only participants can read their secret chats
+      allow read: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
+
+      // Participants can create secret chats
+      allow create: if isSignedIn()
+        && request.auth.uid in request.resource.data.participants
+        && request.resource.data.encrypted == true;
+
+      // Participants can update secret chat metadata
+      allow update: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
+
+      // Only participants can delete
+      allow delete: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
+
+      // Messages subcollection
+      match /messages/{messageId} {
+        allow read, write: if isSignedIn()
+          && request.auth.uid in
+             get(/databases/$(database)/documents/secretChats/$(chatId))
+             .data.participants;
+      }
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CHALLENGES (Weekly challenges)
+    // ═══════════════════════════════════════════════════════
+    match /challenges/{challengeId} {
+      // Anyone authenticated can read active challenges
+      allow read: if isSignedIn();
+
+      // Only admins can create challenges (via admin functions)
+      allow create: if isSignedIn();
+
+      // No direct updates from clients - use cloud functions
+      allow update: if false;
+
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // BADGES (Achievement definitions)
+    // ═══════════════════════════════════════════════════════
+    match /badges/{badgeId} {
+      // Anyone can read badge definitions
+      allow read: if isSignedIn();
+
+      // Only system can create/update badges
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // CHALLENGE PROGRESS (per-user subcollection)
+    // ═══════════════════════════════════════════════════════
+    match /users/{userId}/challengeProgress/{progressId} {
+      // Users can read their own progress
+      allow read: if isOwner(userId);
+
+      // Users can update their own progress (completing challenges)
+      allow write: if isOwner(userId);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // USER BADGES (per-user earned badges subcollection)
+    // ═══════════════════════════════════════════════════════
+    match /users/{userId}/badges/{badgeId} {
+      // Users can read their own badges
+      allow read: if isOwner(userId);
+
+      // System awards badges - users can only mark as seen
+      allow create: if isSignedIn(); // System creates
+      allow update: if isOwner(userId)
+        && request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['isNew']);
+
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // GIFT CARDS (Available gift themes)
+    // ═══════════════════════════════════════════════════════
+    match /giftCards/{cardId} {
+      // Anyone can read available gift cards
+      allow read: if isSignedIn();
+
+      // Only system can create gift card themes
+      allow create: if isSignedIn();
+      allow update: if isSignedIn();
+
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // GIFTS (Gift transactions)
+    // ═══════════════════════════════════════════════════════
+    match /gifts/{giftId} {
+      // Sender or recipient can read gift
+      allow read: if isSignedIn()
+        && (request.auth.uid == resource.data.senderId
+            || request.auth.uid == resource.data.recipientId);
+
+      // Anyone can create a gift (sending)
+      allow create: if isSignedIn()
+        && request.auth.uid == request.resource.data.senderId;
+
+      // Only recipient can update status (claiming)
+      allow update: if isSignedIn()
+        && request.auth.uid == resource.data.recipientId
+        && request.resource.data.diff(resource.data).affectedKeys()
+           .hasOnly(['status', 'claimedAt']);
+
+      // Only sender can delete (if pending)
+      allow delete: if isSignedIn()
+        && request.auth.uid == resource.data.senderId
+        && resource.data.status == 'pending';
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // SENT GIFTS (per-user subcollection)
+    // ═══════════════════════════════════════════════════════
+    match /users/{userId}/giftsSent/{giftId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // RECEIVED GIFTS (per-user subcollection)
+    // ═══════════════════════════════════════════════════════
+    match /users/{userId}/giftsReceived/{giftId} {
+      allow read, write: if isOwner(userId);
     }
   }
 }

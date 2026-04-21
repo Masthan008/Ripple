@@ -217,6 +217,13 @@ class AuthService {
     await _auth.signOut();
   }
 
+  /// Switch accounts - sign out current user and return to login
+  Future<void> switchAccount() async {
+    await signOut();
+    // Force auth state refresh
+    await _auth.signOut();
+  }
+
   /// Create user document in Firestore with all required fields.
   /// isRegistrationComplete starts as FALSE — set to true only in RegisterScreen.
   /// Uses .set(merge: true) so it never overwrites existing data.

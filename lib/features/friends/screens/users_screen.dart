@@ -11,6 +11,7 @@ import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_loader.dart';
 import '../../auth/models/user_model.dart';
 import '../providers/friends_provider.dart';
+import '../../../core/theme/theme_provider.dart';
 
 /// Users Discovery Screen — PRD §3.2
 /// Search / discover all users (excluding self and blocked)
@@ -37,11 +38,12 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
     final sentRequests = ref.watch(friendRequestsSentProvider);
     final blockedUsers = ref.watch(blockedUsersProvider);
     final friendsList = ref.watch(friendsListProvider);
+    final theme = ref.watch(rippleThemeProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
+      backgroundColor: theme.colors.background,
       appBar: AppBar(
-        title: Text('Discover People', style: AppTextStyles.heading),
+        title: Text('Discover People', style: AppTextStyles.heading.copyWith(color: theme.colors.textPrimary)),
         backgroundColor: Colors.transparent,
       ),
       body: Column(
@@ -51,7 +53,7 @@ class _UsersScreenState extends ConsumerState<UsersScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
             child: Container(
               height: 44,
-              decoration: GlassTheme.inputDecoration(),
+              decoration: theme.inputDecoration(),
               padding: const EdgeInsets.symmetric(horizontal: 14),
               child: Row(
                 children: [

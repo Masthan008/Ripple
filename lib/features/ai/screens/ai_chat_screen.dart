@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../chat/widgets/glass_input_bar.dart';
 import '../services/ai_bot_service.dart';
@@ -101,11 +101,12 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final theme = ref.read(rippleThemeProvider);
         setState(() => _isTyping = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Bot failed to respond: $e'),
-            backgroundColor: AppColors.errorRed,
+            backgroundColor: theme.colors.error,
           ),
         );
       }
@@ -114,16 +115,21 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(rippleThemeProvider);
     final bot = ref.read(aiBotServiceProvider).getBotById(widget.botId);
     if (bot == null) return const Scaffold(body: Center(child: Text('Bot not found')));
 
     final color = Color(int.parse(bot.colorHex));
 
     return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
+      backgroundColor: theme.colors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back, color: theme.colors.textPrimary),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Row(
           children: [
             Container(
@@ -141,8 +147,12 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(bot.name, style: AppTextStyles.heading),
-                const Text('AI Companion', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                Text(bot.name, style: AppTextStyles.heading.copyWith(
+                  color: theme.colors.textPrimary,
+                )),
+                Text('AI Companion', style: TextStyle(
+                  color: theme.colors.textMuted, fontSize: 11,
+                )),
               ],
             ),
           ],
@@ -166,15 +176,16 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                           margin: const EdgeInsets.only(top: 8),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.05),
+                            color: theme.colors.glassSurface,
                             borderRadius: BorderRadius.circular(20),
+                            border: Border.all(color: theme.colors.glassBorder),
                           ),
-                          child: const SizedBox(
+                          child: SizedBox(
                             width: 30,
                             height: 14,
                             child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: Colors.white54,
+                              color: theme.colors.textMuted,
                             ),
                           ),
                         ),
@@ -193,21 +204,25 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                         decoration: BoxDecoration(
                           color: isMe
-                              ? AppColors.aquaCore.withValues(alpha: 0.2)
-                              : Colors.white.withValues(alpha: 0.08),
+                              ? theme.colors.primary.withValues(alpha: 0.2)
+                              : theme.colors.glassSurface,
                           borderRadius: BorderRadius.circular(20).copyWith(
                             bottomRight: isMe ? const Radius.circular(0) : const Radius.circular(20),
                             bottomLeft: !isMe ? const Radius.circular(0) : const Radius.circular(20),
                           ),
                           border: Border.all(
                             color: isMe
-                                ? AppColors.aquaCore.withValues(alpha: 0.3)
-                                : Colors.white.withValues(alpha: 0.1),
+                                ? theme.colors.primary.withValues(alpha: 0.3)
+                                : theme.colors.glassBorder,
                           ),
                         ),
                         child: Text(
                           msg.text ?? '',
-                          style: const TextStyle(color: Colors.white, fontSize: 15, height: 1.3),
+                          style: TextStyle(
+                            color: theme.colors.textPrimary,
+                            fontSize: 15,
+                            height: 1.3,
+                          ),
                         ),
                       ),
                     );

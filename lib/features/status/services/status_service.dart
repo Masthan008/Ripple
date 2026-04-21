@@ -143,6 +143,27 @@ class StatusService {
         });
   }
 
+  // ── GET USER STATUSES ──────────────────────────────────
+  static Future<List<StatusModel>> getUserStatuses(String uid) async {
+    try {
+      final snap = await _fs
+          .collection('statuses')
+          .where('uid', isEqualTo: uid)
+          .where('expiresAt', isGreaterThan: Timestamp.now())
+          .orderBy('expiresAt', descending: false)
+          .get();
+
+      return snap.docs
+          .map(StatusModel.fromFirestore)
+          .where((s) => !s.isExpired)
+          .toList()
+        ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    } catch (e) {
+      debugPrint('\u274c getUserStatuses error: $e');
+      return [];
+    }
+  }
+
   // ── CLEANUP EXPIRED (call on app open) ────────────────
   static Future<void> cleanupExpired() async {
     try {

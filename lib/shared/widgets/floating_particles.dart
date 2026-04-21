@@ -1,24 +1,25 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/theme/theme_provider.dart';
 
-/// Animated floating water particles in background
+/// Animated floating water particles in background — theme-aware
 /// From PRD §5.5 — small glowing circles float upward
-class FloatingParticles extends StatefulWidget {
+class FloatingParticles extends ConsumerStatefulWidget {
   final int particleCount;
-  final Color color;
+  final Color? color;
 
   const FloatingParticles({
     super.key,
     this.particleCount = 7,
-    this.color = AppColors.aquaCore,
+    this.color,
   });
 
   @override
-  State<FloatingParticles> createState() => _FloatingParticlesState();
+  ConsumerState<FloatingParticles> createState() => _FloatingParticlesState();
 }
 
-class _FloatingParticlesState extends State<FloatingParticles>
+class _FloatingParticlesState extends ConsumerState<FloatingParticles>
     with TickerProviderStateMixin {
   late final List<_ParticleData> _particles;
   final _random = Random();
@@ -63,6 +64,9 @@ class _FloatingParticlesState extends State<FloatingParticles>
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(rippleThemeProvider);
+    final particleColor = widget.color ?? theme.colors.primary;
+
     return IgnorePointer(
       child: Stack(
         children: _particles.map((particle) {
@@ -96,13 +100,13 @@ class _FloatingParticlesState extends State<FloatingParticles>
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        widget.color.withValues(alpha: opacity),
-                        widget.color.withValues(alpha: 0),
+                        particleColor.withOpacity(opacity),
+                        particleColor.withOpacity(0),
                       ],
                     ),
                     boxShadow: [
                       BoxShadow(
-                        color: widget.color.withValues(alpha: opacity * 0.5),
+                        color: particleColor.withOpacity(opacity * 0.5),
                         blurRadius: particle.size * 2,
                         spreadRadius: 1,
                       ),

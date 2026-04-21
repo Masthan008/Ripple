@@ -3,8 +3,10 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../models/poll_model.dart';
 import '../../chat/models/message_model.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/theme_provider.dart';
 
-class PollBubble extends StatelessWidget {
+class PollBubble extends ConsumerWidget {
   final MessageModel message;
   final PollModel poll;
   final String currentUid;
@@ -21,16 +23,17 @@ class PollBubble extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final totalVotes = poll.totalVotes;
     final hasVoted = poll.hasVoted(currentUid);
+    final theme = ref.watch(rippleThemeProvider);
 
     return Container(
       width: 260,
       padding: const EdgeInsets.all(16),
       decoration: isMe
-          ? GlassTheme.outgoingBubbleDecoration()
-          : GlassTheme.incomingBubbleDecoration(),
+          ? theme.outgoingBubbleDecoration()
+          : theme.incomingBubbleDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

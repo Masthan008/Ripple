@@ -11,6 +11,7 @@ import '../../../shared/widgets/water_ripple_painter.dart';
 import '../../friends/providers/friends_provider.dart';
 import '../../auth/models/user_model.dart';
 import '../providers/group_provider.dart';
+import '../../../core/theme/theme_provider.dart';
 
 /// Create Group Screen — PRD §6.5
 /// Select friends, set group name, and create
@@ -65,9 +66,10 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
   @override
   Widget build(BuildContext context) {
     final friends = ref.watch(friendsListProvider);
+    final theme = ref.watch(rippleThemeProvider);
 
     return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
+      backgroundColor: theme.colors.background,
       appBar: AppBar(
         title: Text('Create Group', style: AppTextStyles.heading),
         backgroundColor: Colors.transparent,
@@ -116,7 +118,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
             child: Column(
               children: [
                 Container(
-                  decoration: GlassTheme.inputDecoration(),
+                  decoration: theme.inputDecoration(),
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: TextField(
                     controller: _nameController,
@@ -132,7 +134,7 @@ class _CreateGroupScreenState extends ConsumerState<CreateGroupScreen> {
                 ),
                 const SizedBox(height: 10),
                 Container(
-                  decoration: GlassTheme.inputDecoration(),
+                  decoration: theme.inputDecoration(),
                   padding: const EdgeInsets.symmetric(horizontal: 14),
                   child: TextField(
                     controller: _descController,

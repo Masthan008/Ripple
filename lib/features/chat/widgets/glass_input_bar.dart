@@ -32,6 +32,8 @@ class GlassInputBar extends ConsumerStatefulWidget {
   final Function(String filePath, Duration duration)? onVideoRecorded;
   final VoidCallback? onAiCompose;
   final VoidCallback? onToneFix;
+  final VoidCallback? onSchedule;
+  final VoidCallback? onSticker;
   final bool incognitoKeyboard;
 
   const GlassInputBar({
@@ -49,6 +51,8 @@ class GlassInputBar extends ConsumerStatefulWidget {
     this.onVideoRecorded,
     this.onAiCompose,
     this.onToneFix,
+    this.onSchedule,
+    this.onSticker,
     this.incognitoKeyboard = false,
   });
 
@@ -136,6 +140,10 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
           if (widget.onGif != null)
             _IconBtn(icon: Icons.gif_box_rounded, onTap: widget.onGif),
 
+          // Sticker button
+          if (widget.onSticker != null)
+            _IconBtn(icon: Icons.sentiment_very_satisfied_rounded, onTap: widget.onSticker),
+
           const SizedBox(width: 4),
 
           // Text field
@@ -197,6 +205,15 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
               color: AppColors.aquaCore,
               size: 20,
               onTap: widget.onToneFix,
+            ),
+
+          // Schedule button (only when typing)
+          if (widget.onSchedule != null && hasText)
+            _IconBtn(
+              icon: Icons.schedule_send_rounded,
+              color: AppColors.aquaCore,
+              size: 20,
+              onTap: widget.onSchedule,
             ),
 
           const SizedBox(width: 4),
@@ -359,7 +376,10 @@ class _IconBtn extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: onTap,
+      onTap: () {
+        AppHaptics.lightTap();
+        onTap?.call();
+      },
       child: Padding(
         padding: const EdgeInsets.all(8),
         child: Icon(

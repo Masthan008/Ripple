@@ -12,6 +12,7 @@ import '../../../core/services/firebase_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/haptic_feedback.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../providers/chat_provider.dart';
 
 class CloudDriveScreen extends ConsumerStatefulWidget {
   const CloudDriveScreen({super.key});
@@ -150,12 +151,24 @@ class _CloudDriveScreenState extends ConsumerState<CloudDriveScreen> {
                       'Added ${_formatDate(data['createdAt'] as Timestamp?)}',
                       style: AppTextStyles.caption,
                     ),
-                    trailing: IconButton(
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: Colors.white24,
-                      ),
-                      onPressed: () => files[index].reference.delete(),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(
+                            Icons.share_outlined,
+                            color: Colors.white54,
+                          ),
+                          onPressed: () => _shareFileToChat(name, url, type),
+                        ),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.delete_outline,
+                            color: Colors.white24,
+                          ),
+                          onPressed: () => files[index].reference.delete(),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -202,5 +215,95 @@ class _CloudDriveScreenState extends ConsumerState<CloudDriveScreen> {
     // Open in browser or download and open
     // For simplicity, just opening browser
     OpenFilex.open(url);
+  }
+
+  Future<void> _shareFileToChat(String fileName, String url, String type) async {
+    AppHaptics.mediumTap();
+    
+    // Show chat selection dialog
+    final uid = FirebaseAuth.instance.currentUser!.uid;
+    final chats = await FirebaseService.firestore
+        .collection('chats')
+        .where('participants', arrayContains: uid)
+        .orderBy('updatedAt', descending: true)
+        .limit(20)
+        .get();
+
+    if (!mounted) return;
+
+    final selectedChat = await showDialog<String>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        title: Text('Share to Chat', style: AppTextStyles.heading),
+        content: SizedBox(
+          width: double.maxFinite,
+          height: 300,
+          child: ListView.builder(
+            itemCount: chats.docs.length,
+            itemBuilder: (context, index) {
+              final chat = chats.docs[index];
+              final data = chat.data();
+              final participants = data['participants'] as List<dynamic>? ?? [];
+              final otherUid = participants.firstWhere(
+                (p) => p != uid,
+                orElse: () => '',
+              ) as String;
+              
+              return ListTile(
+                leading: CircleAvatar(
+                  backgroundColor: AppColors.aquaCore.withOpacity(0.3),
+                  child: Text(
+                    otherUid.isNotEmpty ? otherUid.substring(0, 1).toUpperCase() : '?',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ),
+                title: Text(
+                  otherUid.isNotEmpty ? 'Chat with $otherUid' : 'Unknown',
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () => Navigator.pop(context, chat.id),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+
+    if (selectedChat != null) {
+      // Send file as message
+      final chatProvider = ref.read(chatServiceProvider);
+      await chatProvider.sendMessage(
+        chatId: selectedChat,
+        text: fileName,
+        type: _getFileType(type),
+        mediaUrl: url,
+        fileName: fileName,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File shared to chat')),
+        );
+      }
+    }
+  }
+
+  String _getFileType(String extension) {
+    final ext = extension.toLowerCase();
+    if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].contains(ext)) {
+      return 'image';
+    } else if (['mp4', 'mov', 'avi', 'mkv', 'webm'].contains(ext)) {
+      return 'video';
+    } else if (['mp3', 'm4a', 'wav', 'ogg', 'aac'].contains(ext)) {
+      return 'voice';
+    }
+    return 'file';
   }
 }

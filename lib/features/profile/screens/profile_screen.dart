@@ -17,6 +17,7 @@ import 'qr_code_screen.dart';
 import 'account_security_screen.dart';
 import 'notifications_settings_screen.dart';
 import 'appearance_screen.dart';
+import 'accessibility_screen.dart';
 import 'language_screen.dart';
 import '../providers/settings_provider.dart'; // Add this
 import 'storage_usage_screen.dart';
@@ -301,6 +302,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     onTap: () => context.push('/leaderboard'),
                   ),
                   _SettingsTile(
+                    icon: Icons.military_tech_rounded,
+                    title: 'Challenges',
+                    subtitle: 'Complete weekly challenges & earn badges',
+                    iconColor: Colors.green,
+                    onTap: () => context.push('/challenges'),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.card_giftcard_rounded,
+                    title: 'Gift Cards',
+                    subtitle: 'Send themed digital gifts to friends',
+                    iconColor: Colors.pink,
+                    onTap: () => context.push('/gift-cards'),
+                  ),
+                  _SettingsTile(
                     icon: Icons.people_alt_rounded,
                     title: L10n.s(ref, 'friendSuggestions'),
                     subtitle: L10n.s(ref, 'friendSuggestionsDesc'),
@@ -424,6 +439,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           context,
                           MaterialPageRoute(
                             builder: (_) => const AppearanceScreen(),
+                          ),
+                        ),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.accessibility_new_outlined,
+                    title: 'Accessibility',
+                    subtitle: 'High contrast, larger text, reduced motion',
+                    iconColor: const Color(0xFF673AB7),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AccessibilityScreen(),
                           ),
                         ),
                   ),
@@ -613,7 +641,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
 
                   // App version
                   Text(
-                    'Ripple v1.0.0 • Made with 💙',
+                    'Ripple v1.0.0',
                     style: AppTextStyles.caption.copyWith(
                       color: AppColors.textMuted,
                       fontSize: 10,

@@ -40,7 +40,7 @@ class MessageModel {
   final String id;
   final String senderId;
   final String? text;
-  final String type; // text|image|video|file|voice|gif|emoji
+  final String type; // text|image|video|file|voice|gif|emoji|sticker|poll
   final String? mediaUrl;
   final String? fileName;
 
@@ -58,6 +58,9 @@ class MessageModel {
   final DateTime createdAt;
   final DateTime? editedAt;
   final Timestamp? deleteAt;
+
+  // Action items extracted by AI
+  final List<String>? actionItems;
   final Timestamp? expiresAt;
 
   const MessageModel({
@@ -81,6 +84,7 @@ class MessageModel {
     this.editedAt,
     this.deleteAt,
     this.expiresAt,
+    this.actionItems,
   });
 
   factory MessageModel.fromFirestore(
@@ -136,6 +140,9 @@ class MessageModel {
           : null,
       deleteAt: data['deleteAt'] as Timestamp?,
       expiresAt: data['expiresAt'] as Timestamp?,
+      actionItems: data['actionItems'] is List
+          ? List<String>.from(data['actionItems'] as List)
+          : null,
     );
   }
 
@@ -213,4 +220,5 @@ class MessageModel {
   bool get isTextMessage => type == 'text' || type == 'emoji';
   bool get isMediaMessage => type == 'image' || type == 'video' || type == 'circular_video';
   bool get isFileMessage => type == 'file';
+  bool get isStickerMessage => type == 'sticker';
 }
