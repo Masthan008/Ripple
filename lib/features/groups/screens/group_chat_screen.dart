@@ -37,8 +37,16 @@ import '../../chat/providers/chat_provider.dart';
 import '../providers/group_provider.dart';
 import 'group_info_screen.dart';
 import '../models/poll_model.dart';
+import '../../../shared/widgets/aurora_background.dart';
 import '../widgets/create_poll_sheet.dart';
 import '../widgets/poll_bubble.dart';
+import '../providers/semantic_currents_provider.dart';
+import '../widgets/semantic_currents_bar.dart';
+import '../../../core/services/notification_service.dart';
+import '../../chat/widgets/gaze_lock_overlay.dart';
+import '../widgets/spatial_canvas_view.dart';
+import '../../../core/services/sentience_engine.dart';
+import '../../../core/utils/haptic_feedback.dart';
 
 /// Group Chat Screen — PRD §6.6
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -78,9 +86,14 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   bool _isSummarizing = false;
   String? _summary;
 
+  // Spatial Threads™ state
+  bool _isSpatialMode = false;
+
   @override
   void initState() {
     super.initState();
+    // Track active chat for foreground notification suppression
+    NotificationService.currentActiveChatId = widget.groupId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       MessageActionsService.markMessagesAsSeen(
         chatId: widget.groupId,
@@ -94,6 +107,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
   @override
   void dispose() {
+    // Clear active chat tracking
+    NotificationService.currentActiveChatId = null;
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -542,19 +557,24 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
     messages.whenData((_) => _scrollToBottom());
 
-    // Build a lookup map for member names
+    // Build a lookup map for member names and photos
     final memberNames = <String, String>{};
+    final memberPhotos = <String, String>{};
     members.whenData((list) {
       for (final m in list) {
         memberNames[m.uid] = m.name;
+        if (m.photoUrl.isNotEmpty) {
+          memberPhotos[m.uid] = m.photoUrl;
+        }
       }
     });
 
     return Scaffold(
       backgroundColor: AppColors.abyssBackground,
-      body: Stack(
-        children: [
-          const FloatingParticles(particleCount: 2),
+      body: AuroraBackground(
+        child: Stack(
+          children: [
+            const FloatingParticles(particleCount: 2),
           Column(
             children: [
               // Header
@@ -572,6 +592,13 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                       pin: false,
                       isGroup: true,
                     ),
+              ),
+
+              // Semantic Currents™ — Topic filter bar
+              messages.when(
+                data: (msgs) => SemanticCurrentsBar(messages: msgs),
+                loading: () => const SizedBox.shrink(),
+                error: (_, __) => const SizedBox.shrink(),
               ),
 
               // Messages
@@ -596,6 +623,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         msgs
                             .where((m) => !m.deletedFor.contains(myUid))
                             .toList();
+
+                    // Apply Semantic Currents™ topic filter
+                    final topicFiltered = ref.watch(
+                      filteredMessagesByTopicProvider(filtered),
+                    );
 
                     if (filtered.isEmpty) {
                       return Center(
@@ -622,12 +654,27 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                       );
                     }
 
+                    if (_isSpatialMode) {
+                      return SpatialCanvasView(
+                        groupId: widget.groupId,
+                        messages: topicFiltered,
+                        currentUid: myUid,
+                        memberNames: memberNames,
+                        memberPhotos: memberPhotos,
+                      );
+                    }
+
                     return ListView.builder(
                       controller: _scrollController,
                       padding: const EdgeInsets.symmetric(vertical: 12),
-                      itemCount: filtered.length,
+                      itemCount: topicFiltered.length,
                       itemBuilder: (_, i) {
-                        final msg = filtered[i];
+                        final isFirstInSequence = i == 0 || 
+                            (i > 0 && i < topicFiltered.length && topicFiltered[i].senderId != topicFiltered[i - 1].senderId);
+                        final isLastInSequence = i == topicFiltered.length - 1 || 
+                            (i < topicFiltered.length - 1 && topicFiltered[i].senderId != topicFiltered[i + 1].senderId);
+
+                        final msg = topicFiltered[i];
                         final isMe = msg.senderId == myUid;
                         final senderName =
                             memberNames[msg.senderId] ?? 'Unknown';
@@ -678,6 +725,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                                       msg.id,
                                     ),
                                     isMultiSelectMode: _isMultiSelectMode,
+                                    isFirstInSequence: isFirstInSequence,
+                                    isLastInSequence: isLastInSequence,
                                     onLongPress: () {
                                       if (_isMultiSelectMode) {
                                         _toggleSelection(msg.id);
@@ -822,7 +871,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               ],
             ],
           ),
+
+          // Ripple Telepathy™ — Full-screen lockdown when shoulder surfer detected
+          const ShoulderSurferLockdown(),
         ],
+      ),
       ),
     );
   }
@@ -978,6 +1031,31 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               child: const Icon(
                 Icons.videocam_rounded,
                 color: AppColors.lightWave,
+                size: 18,
+              ),
+            ),
+          ),
+          const SizedBox(width: 6),
+          // Spatial Threads toggle
+          GestureDetector(
+            onTap: () {
+              setState(() => _isSpatialMode = !_isSpatialMode);
+              AppHaptics.lightTap();
+            },
+            child: Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: _isSpatialMode ? const Color(0xFF6366F1).withOpacity(0.2) : AppColors.glassPanel,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: _isSpatialMode ? const Color(0xFF6366F1) : AppColors.glassBorder, 
+                  width: _isSpatialMode ? 1.5 : 0.5,
+                ),
+              ),
+              child: Icon(
+                _isSpatialMode ? Icons.grain_rounded : Icons.hub_outlined,
+                color: _isSpatialMode ? const Color(0xFF6366F1) : AppColors.lightWave,
                 size: 18,
               ),
             ),

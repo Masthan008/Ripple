@@ -112,7 +112,7 @@ class SocialService {
     await ref.set({
       'id': achievementId,
       'title': definition.title,
-      'emoji': definition.emoji,
+      'iconCode': definition.icon.codePoint,
       'description': definition.description,
       'tier': definition.tier.name,
       'unlockedAt': FieldValue.serverTimestamp(),
@@ -142,7 +142,7 @@ class SocialService {
           uid: uid,
           type: 'achievement',
           title: 'Unlocked ${def.title}',
-          emoji: def.emoji,
+          icon: def.icon,
           extra: {'achievementId': achievementId},
         );
       }
@@ -286,11 +286,19 @@ class SocialService {
   }
 
   static String getRippleRank(int score) {
-    if (score >= 10000) return '💎 Diamond';
-    if (score >= 5000) return '🥇 Gold';
-    if (score >= 2000) return '🥈 Silver';
-    if (score >= 500) return '🥉 Bronze';
-    return '🌊 Rippler';
+    if (score >= 10000) return 'Diamond';
+    if (score >= 5000) return 'Gold';
+    if (score >= 2000) return 'Silver';
+    if (score >= 500) return 'Bronze';
+    return 'Rippler';
+  }
+
+  static IconData getRippleRankIcon(int score) {
+    if (score >= 10000) return Icons.diamond_rounded;
+    if (score >= 5000) return Icons.military_tech_rounded;
+    if (score >= 2000) return Icons.shield_rounded;
+    if (score >= 500) return Icons.star_border_rounded;
+    return Icons.waves_rounded;
   }
 
   static Color getRippleRankColor(int score) {
@@ -463,14 +471,14 @@ class SocialService {
     // 'achievement' | 'new_friend' |
     // 'streak_milestone' | 'joined'
     required String title,
-    required String emoji,
+    required IconData icon,
     Map<String, dynamic>? extra,
   }) async {
     await _fs.collection('activityFeed').add({
       'uid': uid,
       'type': type,
       'title': title,
-      'emoji': emoji,
+      'iconCode': icon.codePoint,
       'extra': extra ?? {},
       'createdAt': FieldValue.serverTimestamp(),
     });

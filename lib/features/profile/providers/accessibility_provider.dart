@@ -188,7 +188,7 @@ class AccessibilityWrapper extends ConsumerWidget {
     
     return MediaQuery(
       data: MediaQuery.of(context).copyWith(
-        textScaleFactor: accessibility.effectiveTextScale,
+        textScaler: TextScaler.linear(accessibility.effectiveTextScale),
         boldText: accessibility.highContrast,
       ),
       child: AnimatedTheme(

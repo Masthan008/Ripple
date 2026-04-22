@@ -2,7 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/constants/app_colors.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../auth/providers/auth_provider.dart';
 
@@ -12,38 +12,39 @@ class AiSettingsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
     final currentUser = ref.watch(currentUserProvider);
     final uid = currentUser.value?.uid;
 
     if (uid == null) {
-      return const Scaffold(
-        backgroundColor: Color(0xFF060D1A),
+      return Scaffold(
+        backgroundColor: theme.colors.background,
         body: Center(
-          child: CircularProgressIndicator(color: AppColors.aquaCore),
+          child: CircularProgressIndicator(color: theme.colors.primary),
         ),
       );
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF060D1A),
+      backgroundColor: theme.colors.background,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A1628),
+        backgroundColor: theme.colors.surface,
         title: Row(
           children: [
-            const Icon(Icons.auto_awesome, color: Colors.amber, size: 22),
+            Icon(Icons.auto_awesome, color: theme.colors.warning, size: 22),
             const SizedBox(width: 8),
-            const Text('AI Features',
-                style: TextStyle(color: Colors.white, fontSize: 18)),
+            Text('AI Features',
+                style: TextStyle(color: theme.colors.textPrimary, fontSize: 18)),
           ],
         ),
-        iconTheme: const IconThemeData(color: Colors.white),
+        iconTheme: IconThemeData(color: theme.colors.textPrimary),
       ),
       body: StreamBuilder<DocumentSnapshot>(
         stream: FirebaseService.usersCollection.doc(uid).snapshots(),
         builder: (context, snapshot) {
           if (!snapshot.hasData) {
-            return const Center(
-              child: CircularProgressIndicator(color: AppColors.aquaCore),
+            return Center(
+              child: CircularProgressIndicator(color: theme.colors.primary),
             );
           }
 
@@ -56,7 +57,7 @@ class AiSettingsScreen extends ConsumerWidget {
 
           return ListView(
             children: [
-              _sectionHeader('Chat Assistance'),
+              _sectionHeader('Chat Assistance', theme.colors.primary),
               SwitchListTile(
                 value: smartRepliesEnabled,
                 onChanged: (v) {
@@ -64,12 +65,12 @@ class AiSettingsScreen extends ConsumerWidget {
                     'aiSettings.smartRepliesEnabled': v,
                   });
                 },
-                title: const Text('Smart Replies',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text('AI suggests replies to messages',
-                    style: TextStyle(color: Colors.white54, fontSize: 12)),
-                secondary: const Icon(Icons.auto_awesome, color: Colors.amber, size: 24),
-                activeThumbColor: AppColors.aquaCore,
+                title: Text('Smart Replies',
+                    style: TextStyle(color: theme.colors.textPrimary)),
+                subtitle: Text('AI suggests replies to messages',
+                    style: TextStyle(color: theme.colors.textMuted, fontSize: 12)),
+                secondary: Icon(Icons.auto_awesome, color: theme.colors.warning, size: 24),
+                activeColor: theme.colors.primary,
               ),
               SwitchListTile(
                 value: spamDetectionEnabled,
@@ -78,14 +79,14 @@ class AiSettingsScreen extends ConsumerWidget {
                     'aiSettings.spamDetectionEnabled': v,
                   });
                 },
-                title: const Text('Spam Detection',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text('Warns about suspicious messages',
-                    style: TextStyle(color: Colors.white54, fontSize: 12)),
-                secondary: const Icon(Icons.shield, color: Colors.green, size: 24),
-                activeThumbColor: AppColors.aquaCore,
+                title: Text('Spam Detection',
+                    style: TextStyle(color: theme.colors.textPrimary)),
+                subtitle: Text('Warns about suspicious messages',
+                    style: TextStyle(color: theme.colors.textMuted, fontSize: 12)),
+                secondary: Icon(Icons.shield, color: theme.colors.success, size: 24),
+                activeColor: theme.colors.primary,
               ),
-              _sectionHeader('Translation'),
+              _sectionHeader('Translation', theme.colors.primary),
               SwitchListTile(
                 value: autoTranslateEnabled,
                 onChanged: (v) {
@@ -93,23 +94,23 @@ class AiSettingsScreen extends ConsumerWidget {
                     'aiSettings.autoTranslateEnabled': v,
                   });
                 },
-                title: const Text('Auto Translate',
-                    style: TextStyle(color: Colors.white)),
-                subtitle: const Text(
+                title: Text('Auto Translate',
+                    style: TextStyle(color: theme.colors.textPrimary)),
+                subtitle: Text(
                     'Auto-translate messages in foreign languages',
-                    style: TextStyle(color: Colors.white54, fontSize: 12)),
-                secondary: const Icon(Icons.translate, color: Colors.blue, size: 24),
-                activeThumbColor: AppColors.aquaCore,
+                    style: TextStyle(color: theme.colors.textMuted, fontSize: 12)),
+                secondary: Icon(Icons.translate, color: theme.colors.secondary, size: 24),
+                activeColor: theme.colors.primary,
               ),
               if (autoTranslateEnabled)
                 ListTile(
-                  leading: const Icon(Icons.language, color: Colors.purple, size: 24),
-                  title: const Text('Target Language',
-                      style: TextStyle(color: Colors.white)),
+                  leading: Icon(Icons.language, color: theme.colors.accent, size: 24),
+                  title: Text('Target Language',
+                      style: TextStyle(color: theme.colors.textPrimary)),
                   trailing: DropdownButton<String>(
                     value: autoTranslateLang,
-                    dropdownColor: const Color(0xFF0A1628),
-                    style: TextStyle(color: AppColors.aquaCore),
+                    dropdownColor: theme.colors.surface,
+                    style: TextStyle(color: theme.colors.primary),
                     underline: const SizedBox(),
                     items: [
                       'English', 'Hindi', 'Telugu', 'Tamil', 'Spanish',
@@ -132,29 +133,29 @@ class AiSettingsScreen extends ConsumerWidget {
                 margin: const EdgeInsets.all(16),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.05),
+                  color: theme.colors.glassSurface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.white12),
+                  border: Border.all(color: theme.colors.glassBorder),
                 ),
-                child: const Column(
+                child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.info_outline, color: AppColors.aquaCore, size: 18),
-                        SizedBox(width: 8),
+                        Icon(Icons.info_outline, color: theme.colors.primary, size: 18),
+                        const SizedBox(width: 8),
                         Text('About AI Features',
                             style: TextStyle(
-                                color: Colors.white, fontWeight: FontWeight.bold)),
+                                color: theme.colors.textPrimary, fontWeight: FontWeight.bold)),
                       ],
                     ),
-                    SizedBox(height: 8),
+                    const SizedBox(height: 8),
                     Text(
                       'AI features are powered by Claude AI. Each action uses '
                       'a small amount of API quota. Smart replies and spam '
                       'detection use the fastest model (Haiku) to minimise cost.',
                       style: TextStyle(
-                          color: Colors.white54, fontSize: 13, height: 1.4),
+                          color: theme.colors.textMuted, fontSize: 13, height: 1.4),
                     ),
                   ],
                 ),
@@ -166,11 +167,11 @@ class AiSettingsScreen extends ConsumerWidget {
     );
   }
 
-  Widget _sectionHeader(String title) => Padding(
+  Widget _sectionHeader(String title, Color color) => Padding(
         padding: const EdgeInsets.fromLTRB(16, 20, 16, 4),
         child: Text(title,
             style: TextStyle(
-                color: AppColors.aquaCore,
+                color: color,
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.8)),

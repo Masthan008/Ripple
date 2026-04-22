@@ -127,9 +127,18 @@ class _ActivityFeedScreenState extends ConsumerState<ActivityFeedScreen> {
                                     text: act['title'] as String? ?? 'did something',
                                     style: const TextStyle(color: Colors.white70),
                                   ),
-                                  TextSpan(
-                                    text: ' ${act['emoji'] ?? ''}',
-                                  ),
+                                  if (act['iconCode'] != null)
+                                    WidgetSpan(
+                                      alignment: PlaceholderAlignment.middle,
+                                      child: Padding(
+                                        padding: const EdgeInsets.only(left: 4.0),
+                                        child: Icon(
+                                          IconData(act['iconCode'] as int, fontFamily: 'MaterialIcons'),
+                                          size: 16,
+                                          color: AppColors.aquaCore,
+                                        ),
+                                      ),
+                                    ),
                                 ],
                               ),
                             ),

@@ -25,6 +25,15 @@ import '../../../core/utils/haptic_feedback.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../groups/models/poll_model.dart';
 import '../../../shared/widgets/swipeable_message.dart';
+import 'gaze_lock_overlay.dart';
+import 'resonance_bubble_animation.dart';
+import 'chronos_locked_bubble.dart';
+import 'ambient_playback_widget.dart';
+import '../../../core/utils/reaction_icons.dart';
+import 'impact_text.dart';
+import 'quantum_vault_bubble.dart';
+import 'sonic_whisper_overlay.dart';
+import '../../../core/services/sentience_engine.dart';
 
 /// Message bubble widget — Phase 1 with reactions, reply, edit, delete,
 /// forwarded tag, seen receipts, multi-select support
@@ -40,6 +49,8 @@ class MessageBubble extends ConsumerStatefulWidget {
   final VoidCallback? onTap;
   final bool isSelected;
   final bool isMultiSelectMode;
+  final bool isFirstInSequence;
+  final bool isLastInSequence;
 
   const MessageBubble({
     super.key,
@@ -54,6 +65,8 @@ class MessageBubble extends ConsumerStatefulWidget {
     this.onTap,
     this.isSelected = false,
     this.isMultiSelectMode = false,
+    this.isFirstInSequence = true,
+    this.isLastInSequence = true,
   });
 
   @override
@@ -89,10 +102,21 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
   Widget build(BuildContext context) {
     final bubbleStyle = ref.watch(bubbleStyleProvider);
     final fontSize = ref.watch(fontSizeProvider);
+    final sentienceState = ref.watch(sentienceProvider(widget.chatId));
 
     // ── Deleted message placeholder ──
     if (widget.message.isDeleted) {
       return _buildDeletedBubble(ref, bubbleStyle);
+    }
+
+    // ── Chronos-locked message (contextual time-capsule) ──
+    if (widget.message.isChronosLocked && !widget.isMe) {
+      return ChronosLockedBubble(
+        message: widget.message,
+        isMe: widget.isMe,
+        chatId: widget.chatId,
+        isGroup: widget.isGroup,
+      );
     }
 
     // Check if this is a new message (sent within last 5 seconds)
@@ -218,8 +242,8 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
                         padding: _getPadding(),
                         decoration:
                             widget.isMe
-                                ? _getOutgoingDecoration(bubbleStyle)
-                                : _getIncomingDecoration(bubbleStyle),
+                                ? _getOutgoingDecoration(bubbleStyle, sentienceState)
+                                : _getIncomingDecoration(bubbleStyle, sentienceState),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -253,6 +277,37 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
       ),
     );
 
+    // Wrap with Ripple Telepathy™ gaze lock overlay
+    bubble = GazeLockOverlay(child: bubble);
+
+    // Wrap with Emotional Resonance™ animation
+    bubble = ResonanceBubbleAnimation(
+      signature: widget.message.emotionalSignature,
+      isMe: widget.isMe,
+      child: bubble,
+    );
+
+    // Wrap with Ambient Sonic Footprints™ playback
+    if (widget.message.ambientAudioUrl != null) {
+      bubble = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment:
+            widget.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          bubble,
+          Padding(
+            padding: EdgeInsets.only(
+              left: widget.isMe ? 0 : 16,
+              right: widget.isMe ? 16 : 0,
+            ),
+            child: AmbientPlaybackWidget(
+              ambientAudioUrl: widget.message.ambientAudioUrl,
+            ),
+          ),
+        ],
+      );
+    }
+
     // Return wrapped with dopamine effects for new messages
     if (isNewMessage) {
       return DopamineEffects.newMessagePop(
@@ -264,50 +319,79 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
     return bubble;
   }
 
-  BoxDecoration _getIncomingDecoration(String style) {
-    double radius = 20;
+  BoxDecoration _getIncomingDecoration(String style, SentienceState sentience) {
+    double radius = 20 * sentience.bubbleRoundness;
     if (style == 'sharp') radius = 4;
     if (style == 'minimal') radius = 12;
 
     return BoxDecoration(
-      color: AppColors.msgIn,
+      color: sentience.intensity > 0
+          ? sentience.primaryGlow.withOpacity(0.15) 
+          : AppColors.msgIn,
       borderRadius: BorderRadius.only(
-        topLeft: const Radius.circular(4),
+        topLeft: Radius.circular(widget.isFirstInSequence ? radius : 4),
         topRight: Radius.circular(radius),
-        bottomLeft: Radius.circular(radius),
-        bottomRight: Radius.circular(radius),
+        bottomLeft: Radius.circular(widget.isLastInSequence ? 4 : 4),
+        bottomRight: Radius.circular(widget.isLastInSequence ? radius : 8),
       ),
       border: Border.all(
-        color: AppColors.glassBorder.withOpacity(0.3),
+        color: sentience.intensity > 0
+            ? sentience.primaryGlow.withOpacity(0.3)
+            : AppColors.glassBorder.withOpacity(0.3),
         width: 0.5,
       ),
+      boxShadow: sentience.intensity > 0
+          ? [
+              BoxShadow(
+                color: sentience.primaryGlow.withOpacity(0.1 * sentience.intensity),
+                blurRadius: 10 * sentience.intensity,
+                spreadRadius: 2 * sentience.intensity,
+              )
+            ]
+          : null,
     );
   }
 
-  BoxDecoration _getOutgoingDecoration(String style) {
-    double radius = 20;
+  BoxDecoration _getOutgoingDecoration(String style, SentienceState sentience) {
+    double radius = 20 * sentience.bubbleRoundness;
     if (style == 'sharp') radius = 4;
     if (style == 'minimal') radius = 12;
 
     return BoxDecoration(
-      gradient: AppColors.msgOutGradient,
+      gradient: sentience.intensity > 0
+          ? LinearGradient(
+              colors: [sentience.primaryGlow, sentience.secondaryGlow],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            )
+          : AppColors.msgOutGradient,
       borderRadius: BorderRadius.only(
         topLeft: Radius.circular(radius),
-        topRight: const Radius.circular(4),
-        bottomLeft: Radius.circular(radius),
-        bottomRight: Radius.circular(radius),
+        topRight: Radius.circular(widget.isFirstInSequence ? radius : 4),
+        bottomLeft: Radius.circular(widget.isLastInSequence ? radius : 8),
+        bottomRight: Radius.circular(widget.isLastInSequence ? 4 : 4),
       ),
       border: Border.all(
-        color: AppColors.aquaCore.withOpacity(0.4),
+        color: sentience.intensity > 0
+            ? sentience.secondaryGlow.withOpacity(0.4)
+            : AppColors.aquaCore.withOpacity(0.4),
         width: 0.5,
       ),
-      boxShadow: [
-        BoxShadow(
-          color: AppColors.aquaCore.withOpacity(0.15),
-          blurRadius: 12,
-          offset: const Offset(0, 4),
-        ),
-      ],
+      boxShadow: sentience.intensity > 0
+          ? [
+              BoxShadow(
+                color: sentience.secondaryGlow.withOpacity(0.2 * sentience.intensity),
+                blurRadius: 12 * sentience.intensity,
+                spreadRadius: 2 * sentience.intensity,
+              )
+            ]
+          : [
+              BoxShadow(
+                color: AppColors.aquaCore.withOpacity(0.15),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
     );
   }
 
@@ -407,6 +491,14 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
   }
 
   Widget _buildContent(WidgetRef ref, double fontSize) {
+    // Quantum Vault™ — show scrambled message if quantum locked
+    if (widget.message.isQuantumLocked && widget.message.isTextMessage) {
+      return QuantumVaultBubble(
+        actualText: widget.message.text ?? '',
+        isMe: widget.isMe,
+      );
+    }
+
     switch (widget.message.type) {
       case 'image':
         return _buildImageContent(fontSize);
@@ -417,7 +509,16 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
       case 'file':
         return _buildFileContent(ref);
       case 'voice':
-        return _buildVoiceContent(ref);
+        // Sonic Whispers™ — wrap voice messages with ambient-aware overlay
+        final voiceWidget = _buildVoiceContent(ref);
+        if (widget.message.mediaUrl != null) {
+          return SonicWhisperOverlay(
+            audioUrl: widget.message.mediaUrl!,
+            isMe: widget.isMe,
+            child: voiceWidget,
+          );
+        }
+        return voiceWidget;
       case 'poll':
         return _buildPollContent();
       case 'gif':
@@ -431,6 +532,16 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
     }
   }
 
+  bool _isHighIntensity(String text) {
+    if (text.isEmpty) return false;
+    // Condition 1: Ends with multiple exclamation marks
+    if (text.endsWith('!!')) return true;
+    // Condition 2: ALL CAPS and at least 4 letters
+    final letters = text.replaceAll(RegExp(r'[^a-zA-Z]'), '');
+    if (letters.length > 3 && letters == letters.toUpperCase()) return true;
+    return false;
+  }
+
   Widget _buildTextContent(double fontSize) {
     final isEmoji = widget.message.type == 'emoji';
     final text = widget.message.text ?? '';
@@ -439,17 +550,20 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          text,
-          style:
-              isEmoji
-                  ? TextStyle(fontSize: fontSize * 2.2)
-                  : AppTextStyles.chatBubble.copyWith(
-                    color: Colors.white,
-                    fontSize: fontSize,
-                    height: 1.4,
-                  ),
-        ),
+        if (_isHighIntensity(text))
+          ImpactText(text: text, fontSize: fontSize)
+        else
+          Text(
+            text,
+            style:
+                isEmoji
+                    ? TextStyle(fontSize: fontSize * 2.2)
+                    : AppTextStyles.chatBubble.copyWith(
+                      color: Colors.white,
+                      fontSize: fontSize,
+                      height: 1.4,
+                    ),
+          ),
         // Link preview if text contains a URL
         if (!isEmoji && _containsUrl(text)) ..._buildLinkPreview(text),
         // Action items chips
@@ -1097,7 +1211,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(emoji, style: const TextStyle(fontSize: 14)),
+                    _getReactionWidget(emoji),
                     if (uids.length > 1) ...[
                       const SizedBox(width: 4),
                       Text(
@@ -1115,5 +1229,9 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
             }).toList(),
       ),
     );
+  }
+
+  Widget _getReactionWidget(String key) {
+    return ReactionIcons.getIcon(key, size: 14);
   }
 }

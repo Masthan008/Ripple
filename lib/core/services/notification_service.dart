@@ -23,6 +23,10 @@ class NotificationService {
       'https://onesignal.com/api/v1/notifications';
   static final Dio _dio = Dio();
 
+  /// Track which chat the user is currently viewing.
+  /// Set by ChatScreen/GroupChatScreen to suppress foreground notifications.
+  static String? currentActiveChatId;
+
   // ─── Initialization ─────────────────────────────────────
 
   /// Initialize notification service.
@@ -106,6 +110,23 @@ class NotificationService {
     OneSignal.Notifications.addClickListener((event) {
       final data = event.notification.additionalData ?? {};
       _handleNotificationNavigation(router, data);
+    });
+
+    // ── Foreground suppression ────────────────────────────
+    // Suppress push notifications when the user is already
+    // viewing the same chat that the notification belongs to.
+    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+      final data = event.notification.additionalData ?? {};
+      final type = data['type'] as String?;
+      final incomingChatId = data['chatId'] as String? ?? data['groupId'] as String?;
+
+      if ((type == 'chat' || type == 'group') &&
+          currentActiveChatId != null &&
+          incomingChatId == currentActiveChatId) {
+        // User is already in this chat — silently drop the notification
+        event.preventDefault();
+        debugPrint('🔕 Suppressed foreground notification for active chat: $incomingChatId');
+      }
     });
   }
 
@@ -234,7 +255,21 @@ class NotificationService {
     );
   }
 
-  /// Send a call notification
+  /// Send a status reaction notification
+  static Future<void> sendStatusReactionNotification({
+    required String recipientPlayerId,
+    required String reactorName,
+    required String emoji,
+  }) async {
+    await _sendOneSignalNotification(
+      playerIds: [recipientPlayerId],
+      title: 'Status Reaction',
+      body: '$reactorName reacted $emoji to your status',
+      data: {'type': 'status_reaction'},
+    );
+  }
+
+  /// Send a call notification with high-priority Android channel
   static Future<void> sendCallNotification({
     required String recipientPlayerId,
     required String callerName,
@@ -260,7 +295,8 @@ class NotificationService {
         'callType': callType,
         'isGroup': isGroup.toString(),
       },
-      ttl: 30,
+      ttl: 60,
+      androidChannelId: 'calls',
     );
   }
 
@@ -272,6 +308,7 @@ class NotificationService {
     required String body,
     Map<String, dynamic>? data,
     int? ttl,
+    String? androidChannelId,
   }) async {
     final appId = Env.oneSignalAppId;
     final restKey = Env.oneSignalRestApiKey;
@@ -310,6 +347,8 @@ class NotificationService {
           if (data != null) 'data': data,
           'priority': 10,
           if (ttl != null) 'ttl': ttl,
+          if (androidChannelId != null)
+            'android_channel_id': androidChannelId,
         },
       );
       debugPrint(

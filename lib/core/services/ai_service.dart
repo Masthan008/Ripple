@@ -379,6 +379,77 @@ Use a casual but professional tone.''';
       maxTokens: 300,
     );
   }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FEATURE 13 — SENTIENCE ENGINE (SENTIMENT ANALYSIS)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  static Future<Map<String, String>> analyzeSentiment({
+    required String chatHistory,
+  }) async {
+    final result = await _call(
+      systemPrompt:
+          'You are a sentiment analyser. Analyse the emotional tone of a chat. '
+          'Return ONLY valid JSON with mood and intensity. '
+          'Moods: calm, happy, excited, urgent, sad, angry. '
+          'Intensity: 0.0 to 1.0.',
+      prompt: 'Analyse the dominant emotional tone of this conversation:\n\n'
+          '$chatHistory\n\n'
+          'Return JSON only:\n'
+          '{"mood": "calm", "intensity": "0.5"}',
+      maxTokens: 50,
+    );
+
+    try {
+      final clean =
+          result.replaceAll('```json', '').replaceAll('```', '').trim();
+      final data = jsonDecode(clean) as Map<String, dynamic>;
+      return {
+        'mood': data['mood']?.toString() ?? 'calm',
+        'intensity': data['intensity']?.toString() ?? '0.5',
+      };
+    } catch (_) {
+      return {'mood': 'calm', 'intensity': '0.5'};
+    }
+  }
+
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  // FEATURE 14 — VOICE MESSAGE TRANSCRIPTION (SONIC WHISPERS)
+  // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  static Future<String> transcribeVoiceUrl(String audioUrl) async {
+    try {
+      final apiKey = Env.groqApiKey;
+
+      // Download audio to temp bytes then upload
+      final downloadResp = await Dio().get<List<int>>(
+        audioUrl,
+        options: Options(responseType: ResponseType.bytes),
+      );
+      
+      final formData = FormData.fromMap({
+        'file': MultipartFile.fromBytes(
+          downloadResp.data!,
+          filename: 'voice.m4a',
+        ),
+        'model': 'whisper-large-v3',
+        'response_format': 'json',
+      });
+
+      final response = await Dio().post(
+        'https://api.groq.com/openai/v1/audio/transcriptions',
+        options: Options(
+          headers: {'Authorization': 'Bearer $apiKey'},
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+        data: formData,
+      );
+
+      return response.data['text'] as String;
+    } catch (e) {
+      debugPrint('❌ Voice transcription error: $e');
+      return '';
+    }
+  }
 }
 
 // ── MODELS ───────────────────────────────────────────────

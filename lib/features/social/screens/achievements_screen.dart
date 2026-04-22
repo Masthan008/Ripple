@@ -129,9 +129,10 @@ class _AchievementsScreenState extends ConsumerState<AchievementsScreen> {
                   ),
                 ),
                 child: Center(
-                  child: Text(
-                    def.emoji,
-                    style: TextStyle(fontSize: 36, color: unlocked == null ? Colors.transparent : null),
+                  child: Icon(
+                    def.icon,
+                    size: 36,
+                    color: unlocked == null ? Colors.transparent : null,
                   ),
                 ),
               ),
@@ -214,7 +215,7 @@ class _AchievementCard extends StatelessWidget {
             ),
             child: Center(
               child: isUnlocked
-                  ? Text(definition.emoji, style: const TextStyle(fontSize: 32))
+                  ? Icon(definition.icon, size: 32, color: color)
                   : const Icon(Icons.lock_rounded, color: Colors.white24, size: 28),
             ),
           ),

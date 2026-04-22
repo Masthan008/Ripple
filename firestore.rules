@@ -40,7 +40,8 @@ service cloud.firestore {
                  'privacy.bioVisibility', 'privacy.readReceiptsEnabled',
                  'privacy.typingIndicatorEnabled', 'privacy.stealthMode',
                  'privacy.screenshotBlockEnabled', 'privacy.incognitoKeyboardEnabled',
-                 'privacy.chatLockEnabled', 'privacy.fakePasscode'
+                 'privacy.chatLockEnabled', 'privacy.fakePasscode',
+                 'privacy.telepathyEnabled'
                ]));
 
       allow delete: if false;
@@ -79,6 +80,14 @@ service cloud.firestore {
           && request.auth.uid in
              get(/databases/$(database)/documents/chats/$(chatId))
              .data.participants;
+
+        // Holographic Word-Threads™ sub-collection
+        match /wordThreads/{threadId} {
+          allow read, write: if isSignedIn()
+            && request.auth.uid in
+               get(/databases/$(database)/documents/chats/$(chatId))
+               .data.participants;
+        }
       }
     }
 
@@ -102,6 +111,14 @@ service cloud.firestore {
           && request.auth.uid in
              get(/databases/$(database)/documents/groups/$(groupId))
              .data.members;
+
+        // Holographic Word-Threads™ sub-collection
+        match /wordThreads/{threadId} {
+          allow read, write: if isSignedIn()
+            && request.auth.uid in
+               get(/databases/$(database)/documents/groups/$(groupId))
+               .data.members;
+        }
       }
     }
 

@@ -104,7 +104,7 @@ class _AchievementOverlayWidgetState extends State<_AchievementOverlayWidget>
                 ],
               ),
               child: Row(children: [
-                // Achievement emoji in circle
+                // Achievement icon in circle
                 Container(
                   width: 56,
                   height: 56,
@@ -114,9 +114,10 @@ class _AchievementOverlayWidgetState extends State<_AchievementOverlayWidget>
                     border: Border.all(color: color.withOpacity(0.4)),
                   ),
                   child: Center(
-                    child: Text(
-                      widget.achievement.emoji,
-                      style: const TextStyle(fontSize: 28),
+                    child: Icon(
+                      widget.achievement.icon,
+                      size: 28,
+                      color: color,
                     ),
                   ),
                 ),

@@ -98,12 +98,22 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                   const SizedBox(height: 2),
-                                  Text(
-                                    SocialService.getRippleRank(score),
-                                    style: AppTextStyles.caption.copyWith(
-                                      color: SocialService.getRippleRankColor(score),
-                                      fontSize: 10,
-                                    ),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        SocialService.getRippleRankIcon(score),
+                                        size: 12,
+                                        color: SocialService.getRippleRankColor(score),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        SocialService.getRippleRank(score),
+                                        style: AppTextStyles.caption.copyWith(
+                                          color: SocialService.getRippleRankColor(score),
+                                          fontSize: 10,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),
@@ -118,9 +128,10 @@ class _LeaderboardScreenState extends ConsumerState<LeaderboardScreen> {
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
-                                  Text(
-                                    '🌊',
-                                    style: TextStyle(fontSize: 12),
+                                  Icon(
+                                    Icons.waves_rounded,
+                                    size: 14,
+                                    color: SocialService.getRippleRankColor(score),
                                   ),
                                   const SizedBox(width: 4),
                                   Text(

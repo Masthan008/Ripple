@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../models/mood_config.dart';
 import '../models/status_model.dart';
 import '../services/status_service.dart';
+import '../../../core/utils/reaction_icons.dart';
 
 /// Fullscreen status viewer — Instagram/WhatsApp style with progress bars,
 /// tap navigation, long-press pause, reaction bar, and viewers list.
@@ -290,21 +291,27 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
   }
 
   Widget _buildReactionBar(StatusModel status) {
-    const emojis = ['❤️', '😂', '😮', '😢', '🔥', '👏'];
+    const reactions = ['favorite', 'laugh', 'wow', 'cry', 'fire', 'clap'];
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
-      children: emojis
-          .map((emoji) => GestureDetector(
+      children: reactions
+          .map((reaction) => GestureDetector(
                 onTap: () async {
                   await StatusService.reactToStatus(
                     statusId: status.statusId,
-                    emoji: emoji,
+                    emoji: reaction,
                   );
                   HapticFeedback.lightImpact();
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
-                        content: Text('Reacted with $emoji'),
+                        content: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('Reacted with '),
+                            ReactionIcons.getIcon(reaction, size: 16),
+                          ],
+                        ),
                         duration: const Duration(seconds: 1),
                         backgroundColor: const Color(0xFF1A2A40),
                       ),
@@ -313,7 +320,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  child: Text(emoji, style: const TextStyle(fontSize: 28)),
+                  child: ReactionIcons.getIcon(reaction, size: 28),
                 ),
               ))
           .toList(),
@@ -425,8 +432,7 @@ class _StatusViewerScreenState extends State<StatusViewerScreen>
                         )
                       : null,
                   trailing: reaction != null
-                      ? Text(reaction,
-                          style: const TextStyle(fontSize: 20))
+                      ? ReactionIcons.getIcon(reaction, size: 20)
                       : null,
                 );
               }),
@@ -563,7 +569,7 @@ class _MoodStatusContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = MoodConfig.getColors(mood);
-    final emoji = MoodConfig.getEmoji(mood);
+    final iconData = MoodConfig.getIcon(mood);
     final label = MoodConfig.getLabel(mood);
 
     return Container(
@@ -584,7 +590,7 @@ class _MoodStatusContent extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 80)),
+            Icon(iconData, size: 80, color: colors[0]),
             const SizedBox(height: 16),
             Text(
               label,

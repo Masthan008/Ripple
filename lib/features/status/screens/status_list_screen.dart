@@ -423,9 +423,10 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
       ),
       trailing:
           mood != null
-              ? Text(
-                MoodConfig.getEmoji(mood),
-                style: const TextStyle(fontSize: 20),
+              ? Icon(
+                MoodConfig.getIcon(mood),
+                size: 20,
+                color: AppColors.aquaCore,
               )
               : null,
       onTap: () {

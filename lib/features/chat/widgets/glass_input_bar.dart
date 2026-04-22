@@ -35,6 +35,8 @@ class GlassInputBar extends ConsumerStatefulWidget {
   final VoidCallback? onSchedule;
   final VoidCallback? onSticker;
   final bool incognitoKeyboard;
+  final bool isQuantumLocked;
+  final VoidCallback? onQuantumToggle;
 
   const GlassInputBar({
     super.key,
@@ -54,6 +56,8 @@ class GlassInputBar extends ConsumerStatefulWidget {
     this.onSchedule,
     this.onSticker,
     this.incognitoKeyboard = false,
+    this.isQuantumLocked = false,
+    this.onQuantumToggle,
   });
 
   @override
@@ -143,6 +147,18 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
           // Sticker button
           if (widget.onSticker != null)
             _IconBtn(icon: Icons.sentiment_very_satisfied_rounded, onTap: widget.onSticker),
+
+          // Quantum Vault lock toggle
+          if (widget.onQuantumToggle != null)
+            _IconBtn(
+              icon: widget.isQuantumLocked
+                  ? Icons.lock_rounded
+                  : Icons.lock_open_rounded,
+              color: widget.isQuantumLocked
+                  ? const Color(0xFF6366F1)
+                  : AppColors.textMuted,
+              onTap: widget.onQuantumToggle,
+            ),
 
           const SizedBox(width: 4),
 

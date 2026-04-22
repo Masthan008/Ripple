@@ -58,7 +58,14 @@ class _MessageContextMenuState extends State<MessageContextMenu>
   late Animation<double> _fadeAnim;
 
   static const quickReactions = [
-    '❤️', '😂', '😮', '😢', '😡', '👍', '👎', '🔥',
+    {'name': 'favorite', 'icon': Icons.favorite_rounded, 'color': Colors.redAccent},
+    {'name': 'laugh', 'icon': Icons.sentiment_very_satisfied_rounded, 'color': Colors.amber},
+    {'name': 'wow', 'icon': Icons.sentiment_neutral_rounded, 'color': Colors.orangeAccent},
+    {'name': 'cry', 'icon': Icons.sentiment_very_dissatisfied_rounded, 'color': Colors.blueAccent},
+    {'name': 'angry', 'icon': Icons.mood_bad_rounded, 'color': Colors.deepOrange},
+    {'name': 'thumb_up', 'icon': Icons.thumb_up_rounded, 'color': Colors.yellow},
+    {'name': 'thumb_down', 'icon': Icons.thumb_down_rounded, 'color': Colors.grey},
+    {'name': 'fire', 'icon': Icons.local_fire_department_rounded, 'color': Colors.deepOrangeAccent},
   ];
 
   @override
@@ -158,9 +165,13 @@ class _MessageContextMenuState extends State<MessageContextMenu>
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: quickReactions.map((emoji) {
+        children: quickReactions.map((reaction) {
+          final iconName = reaction['name'] as String;
+          final iconData = reaction['icon'] as IconData;
+          final iconColor = reaction['color'] as Color;
+
           return GestureDetector(
-            onTap: () => _handleReaction(emoji),
+            onTap: () => _handleReaction(iconName),
             child: Container(
               width: 36,
               height: 36,
@@ -169,7 +180,7 @@ class _MessageContextMenuState extends State<MessageContextMenu>
                 color: Colors.white.withOpacity(0.08),
               ),
               child: Center(
-                child: Text(emoji, style: const TextStyle(fontSize: 18)),
+                child: Icon(iconData, color: iconColor, size: 20),
               ),
             ),
           );

@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/ai_service.dart';
 import '../../../core/services/notification_service.dart';
+import '../models/emotional_signature.dart';
 import '../../../core/utils/helpers.dart';
 import '../../auth/models/user_model.dart';
 import '../models/message_model.dart';
@@ -67,6 +68,11 @@ class ChatService {
     ReplyData? replyTo,
     Timestamp? expiresAt,
     bool isForwarded = false,
+    EmotionalSignature? emotionalSignature,
+    String? chronosConditionType,
+    String? chronosConditionValue,
+    bool isChronosLocked = false,
+    bool isQuantumLocked = false,
   }) async {
     if (_myUid.isEmpty) return; // Guard during auth transition
 
@@ -108,6 +114,11 @@ class ChatService {
       seenBy: [_myUid],
       createdAt: DateTime.now(),
       expiresAt: expiresAt,
+      emotionalSignature: emotionalSignature,
+      chronosConditionType: chronosConditionType,
+      chronosConditionValue: chronosConditionValue,
+      isChronosLocked: isChronosLocked,
+      isQuantumLocked: isQuantumLocked,
     );
 
     final chatRef = _firestore.collection('chats').doc(chatId);

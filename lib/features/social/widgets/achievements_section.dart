@@ -76,8 +76,7 @@ class AchievementsSection extends StatelessWidget {
                             ),
                           ),
                           child: Center(
-                            child: Text(ach.emoji,
-                                style: const TextStyle(fontSize: 24)),
+                            child: Icon(ach.icon, size: 24, color: _getTierColor(ach.tier)),
                           ),
                         ),
                         const SizedBox(height: 6),

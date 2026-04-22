@@ -1,19 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_windowmanager_plus/flutter_windowmanager_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/privacy_service.dart';
+import '../../chat/providers/gaze_privacy_provider.dart';
 
 /// Full Privacy & Security settings screen.
-class PrivacySettingsScreen extends StatefulWidget {
+class PrivacySettingsScreen extends ConsumerStatefulWidget {
   const PrivacySettingsScreen({super.key});
 
   @override
-  State<PrivacySettingsScreen> createState() => _PrivacySettingsScreenState();
+  ConsumerState<PrivacySettingsScreen> createState() => _PrivacySettingsScreenState();
 }
 
-class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
+class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   String _lastSeenVisibility = 'everyone';
   String _profilePhotoVisibility = 'everyone';
   String _bioVisibility = 'everyone';
@@ -672,6 +674,122 @@ class _PrivacySettingsScreenState extends State<PrivacySettingsScreen> {
                     ),
                     onTap: () => context.push('/chat-lock-settings'),
                   ),
+
+                  const Divider(color: Colors.white12),
+
+                  // ── RIPPLE TELEPATHY™ ─────────────────
+                  _buildSectionHeader('Ripple Telepathy™'),
+
+                  Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF0EA5E9).withOpacity(
+                            ref.watch(telepathyEnabledProvider) ? 0.15 : 0.03,
+                          ),
+                          const Color(0xFF6366F1).withOpacity(
+                            ref.watch(telepathyEnabledProvider) ? 0.1 : 0.02,
+                          ),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: ref.watch(telepathyEnabledProvider)
+                            ? const Color(0xFF0EA5E9).withOpacity(0.4)
+                            : Colors.white12,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFF0EA5E9).withOpacity(0.3),
+                                const Color(0xFF6366F1).withOpacity(0.3),
+                              ],
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.remove_red_eye_rounded,
+                            color: Color(0xFF0EA5E9),
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    'Gaze-Locked Privacy',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF0EA5E9).withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'NEW',
+                                      style: TextStyle(
+                                        color: Color(0xFF0EA5E9),
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                ref.watch(telepathyEnabledProvider)
+                                    ? 'Messages blur until you look at them. '
+                                      'Anti-shoulder surfing is active.'
+                                    : 'Messages auto-blur unless you\'re looking at the screen. '
+                                      'Detects shoulder surfers using your camera.',
+                                style: TextStyle(
+                                  color: ref.watch(telepathyEnabledProvider)
+                                      ? const Color(0xFF0EA5E9)
+                                      : Colors.white54,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: ref.watch(telepathyEnabledProvider),
+                          onChanged: (_) {
+                            ref.read(telepathyEnabledProvider.notifier).toggle();
+                          },
+                          activeThumbColor: const Color(0xFF0EA5E9),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
 
                   const Divider(color: Colors.white12),
 

@@ -2,6 +2,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../../core/services/notification_service.dart';
+
 import '../models/status_model.dart';
 
 /// Service for creating, reading, and managing statuses in Firestore.
@@ -93,6 +95,30 @@ class StatusService {
     await _fs.collection('statuses').doc(statusId).update({
       'reactions.$uid': emoji,
     });
+
+    // Send push notification to the status owner
+    try {
+      final statusDoc = await _fs.collection('statuses').doc(statusId).get();
+      final ownerUid = statusDoc.data()?['uid'] as String?;
+      if (ownerUid == null || ownerUid == uid) return; // don't notify self
+
+      final ownerDoc = await _fs.collection('users').doc(ownerUid).get();
+      final playerId = ownerDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+      if (playerId.isEmpty) return;
+
+      final myDoc = await _fs.collection('users').doc(uid).get();
+      final myName = myDoc.data()?['name'] as String? ??
+          _auth.currentUser?.displayName ??
+          'Someone';
+
+      await NotificationService.sendStatusReactionNotification(
+        recipientPlayerId: playerId,
+        reactorName: myName,
+        emoji: emoji,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Status reaction notification error: $e');
+    }
   }
 
   // ── GET FRIENDS STATUSES ──────────────────────────────

@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+import 'emotional_signature.dart';
+
 /// Reply data embedded in a message
 class ReplyData {
   final String messageId;
@@ -63,6 +65,27 @@ class MessageModel {
   final List<String>? actionItems;
   final Timestamp? expiresAt;
 
+  // Emotional Resonance™ — typing rhythm/intensity metadata
+  final EmotionalSignature? emotionalSignature;
+
+  // Chronos Messaging™ — contextual time-capsule unlock conditions
+  final String? chronosConditionType;   // 'location', 'weather', 'battery', 'time'
+  final String? chronosConditionValue;  // geo-json, 'rain', '10', ISO-8601
+  final bool isChronosLocked;
+
+  // Ambient Sonic Footprints™ — 2-second ambient audio snapshot
+  final String? ambientAudioUrl;
+
+  // Quantum Vault™ — biometric scrambled messages
+  final bool isQuantumLocked;
+
+  // Spatial Threads™ — canvas position for group chat canvas mode
+  final double? canvasX;
+  final double? canvasY;
+
+  // Sonic Whispers™ — cached voice transcription
+  final String? voiceTranscription;
+
   const MessageModel({
     required this.id,
     required this.senderId,
@@ -85,6 +108,15 @@ class MessageModel {
     this.deleteAt,
     this.expiresAt,
     this.actionItems,
+    this.emotionalSignature,
+    this.chronosConditionType,
+    this.chronosConditionValue,
+    this.isChronosLocked = false,
+    this.ambientAudioUrl,
+    this.isQuantumLocked = false,
+    this.canvasX,
+    this.canvasY,
+    this.voiceTranscription,
   });
 
   factory MessageModel.fromFirestore(
@@ -143,6 +175,18 @@ class MessageModel {
       actionItems: data['actionItems'] is List
           ? List<String>.from(data['actionItems'] as List)
           : null,
+      emotionalSignature: data['emotionalSignature'] != null
+          ? EmotionalSignature.fromMap(
+              data['emotionalSignature'] as Map<String, dynamic>)
+          : null,
+      chronosConditionType: data['chronosConditionType'] as String?,
+      chronosConditionValue: data['chronosConditionValue'] as String?,
+      isChronosLocked: data['isChronosLocked'] as bool? ?? false,
+      ambientAudioUrl: data['ambientAudioUrl'] as String?,
+      isQuantumLocked: data['isQuantumLocked'] as bool? ?? false,
+      canvasX: (data['canvasX'] as num?)?.toDouble(),
+      canvasY: (data['canvasY'] as num?)?.toDouble(),
+      voiceTranscription: data['voiceTranscription'] as String?,
     );
   }
 
@@ -168,6 +212,15 @@ class MessageModel {
           editedAt != null ? Timestamp.fromDate(editedAt!) : null,
       'deleteAt': deleteAt,
       'expiresAt': expiresAt,
+      'emotionalSignature': emotionalSignature?.toMap(),
+      'chronosConditionType': chronosConditionType,
+      'chronosConditionValue': chronosConditionValue,
+      'isChronosLocked': isChronosLocked,
+      'ambientAudioUrl': ambientAudioUrl,
+      'isQuantumLocked': isQuantumLocked,
+      if (canvasX != null) 'canvasX': canvasX,
+      if (canvasY != null) 'canvasY': canvasY,
+      if (voiceTranscription != null) 'voiceTranscription': voiceTranscription,
     };
   }
 
@@ -192,6 +245,15 @@ class MessageModel {
     DateTime? editedAt,
     Timestamp? deleteAt,
     Timestamp? expiresAt,
+    EmotionalSignature? emotionalSignature,
+    String? chronosConditionType,
+    String? chronosConditionValue,
+    bool? isChronosLocked,
+    String? ambientAudioUrl,
+    bool? isQuantumLocked,
+    double? canvasX,
+    double? canvasY,
+    String? voiceTranscription,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -214,6 +276,15 @@ class MessageModel {
       editedAt: editedAt ?? this.editedAt,
       deleteAt: deleteAt ?? this.deleteAt,
       expiresAt: expiresAt ?? this.expiresAt,
+      emotionalSignature: emotionalSignature ?? this.emotionalSignature,
+      chronosConditionType: chronosConditionType ?? this.chronosConditionType,
+      chronosConditionValue: chronosConditionValue ?? this.chronosConditionValue,
+      isChronosLocked: isChronosLocked ?? this.isChronosLocked,
+      ambientAudioUrl: ambientAudioUrl ?? this.ambientAudioUrl,
+      isQuantumLocked: isQuantumLocked ?? this.isQuantumLocked,
+      canvasX: canvasX ?? this.canvasX,
+      canvasY: canvasY ?? this.canvasY,
+      voiceTranscription: voiceTranscription ?? this.voiceTranscription,
     );
   }
 

@@ -136,9 +136,9 @@ extension GlassThemeExtension on RippleTheme {
 }
 
 class GlassTheme {
-  // Keep sigma values static for backward compatibility easily without theme
-  // if needed elsewhere
-  static const double blurHeavy = 28.0;
+  // Deep Glassmorphism blur values
+  static const double blurExtreme = 50.0;
+  static const double blurHeavy = 35.0;
   static const double blurMedium = 20.0;
   static const double blurLight = 12.0;
 }

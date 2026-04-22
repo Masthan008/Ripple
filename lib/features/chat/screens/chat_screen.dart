@@ -22,6 +22,8 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/l10n.dart'; // Add this
 import '../../../core/services/cloudinary_service.dart';
+import '../../status/services/status_service.dart';
+import '../../../shared/widgets/aurora_background.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/utils/helpers.dart';
@@ -51,6 +53,16 @@ import '../widgets/chat_theme_picker.dart';
 import 'chat_media_gallery_screen.dart';
 import '../../social/services/social_service.dart';
 import '../../privacy/services/vanish_mode_service.dart';
+import '../widgets/gaze_lock_overlay.dart';
+import '../providers/gaze_privacy_provider.dart';
+import '../widgets/sensory_text_controller.dart';
+import '../../../core/services/chronos_unlock_service.dart';
+import '../../../core/services/notification_service.dart';
+import '../widgets/chronos_composer_sheet.dart';
+import '../../../shared/widgets/keyword_particle_overlay.dart';
+import '../../../core/services/sentience_engine.dart';
+import '../widgets/quantum_vault_bubble.dart';
+import '../widgets/sonic_whisper_overlay.dart';
 
 /// 1-to-1 Chat Screen — PRD §6.3
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -76,6 +88,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
+  late final SensoryTextController _sensoryController;
   bool _isSending = false;
   bool _showEmojiPicker = false;
 
@@ -98,9 +111,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   bool _isSummarizing = false;
 
+  // Chronos Messaging™ state
+  String? _chronosConditionType;
+  String? _chronosConditionValue;
+
+  // Keyword Particle System
+  String? _lastSentText;
+
+  // Quantum Vault™ state
+  bool _isQuantumLocked = false;
+
   @override
   void initState() {
     super.initState();
+    _sensoryController = SensoryTextController(controller: _messageController);
+    // Track active chat for foreground notification suppression
+    NotificationService.currentActiveChatId = widget.chatId;
     // Mark messages as read when opening chat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatServiceProvider).markAsRead(widget.chatId);
@@ -114,13 +140,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       // Load privacy settings
       _loadPrivacySettings();
+
+      // Start Chronos™ unlock monitoring
+      ChronosUnlockService.instance.startMonitoring(
+        chatId: widget.chatId,
+        currentUid: ref.read(chatServiceProvider).myUid,
+        isGroup: false,
+      );
     });
   }
 
   @override
   void dispose() {
+    // Clear active chat tracking
+    NotificationService.currentActiveChatId = null;
     // Clear typing status when leaving the chat
     ref.read(chatServiceProvider).clearTyping();
+    _sensoryController.dispose();
+    ChronosUnlockService.instance.stopMonitoring();
     _messageController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -194,6 +231,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _isSending = true);
     _messageController.clear();
 
+    // Trigger keyword particle system
+    setState(() => _lastSentText = text);
+
     // Capture reply before clearing
     final replyData = _replyTo;
     setState(() => _replyTo = null);
@@ -208,13 +248,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final vmData = chatDoc.data()?['vanishMode'] as Map<String, dynamic>?;
       final expiresAt = VanishModeService.calculateExpiration(vmData);
 
+      // Capture emotional signature before clearing controller
+      final emotionalSignature = _sensoryController.captureSignature();
+
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
         chatId: widget.chatId,
         text: text,
         replyTo: replyData,
         expiresAt: expiresAt,
+        emotionalSignature: emotionalSignature,
+        chronosConditionType: _chronosConditionType,
+        chronosConditionValue: _chronosConditionValue,
+        isChronosLocked: _chronosConditionType != null,
+        isQuantumLocked: _isQuantumLocked,
       );
+
+      // Reset chronos and quantum state after send
+      setState(() {
+        _chronosConditionType = null;
+        _chronosConditionValue = null;
+        _isQuantumLocked = false;
+      });
 
       final myUid = ref.read(chatServiceProvider).myUid;
       final newStreak = await SocialService.updateStreak(
@@ -635,11 +690,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (currentTheme == 'light_glass') bgColor = const Color(0xFFF0F9FF);
     if (currentTheme == 'midnight_purple') bgColor = const Color(0xFF0F001A);
 
+    final sentienceState = ref.watch(sentienceProvider(widget.chatId));
+
     return Scaffold(
       backgroundColor: bgColor,
-      body: Stack(
-        children: [
-          // Subtle floating particles background
+      body: AuroraBackground(
+        customColors: sentienceState.intensity > 0 ? [sentienceState.primaryGlow, sentienceState.secondaryGlow, sentienceState.accentGlow] : null,
+        animationSpeed: sentienceState.animationSpeed,
+        child: Stack(
+          children: [
+            // Subtle floating particles background
           FloatingParticles(
             particleCount: 3,
             color:
@@ -687,6 +747,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   data: (msgs) {
                     // Check for self destructing messages
                     _checkSelfDestruct(msgs);
+
+                    // Load AI smart replies for the latest incoming message
+                    _checkAndLoadSmartReplies(msgs);
+
+                    // Sentience Engine™ — analyze emotional tone
+                    if (msgs.isNotEmpty) {
+                      final recentTexts = msgs
+                          .take(5)
+                          .where((m) => m.text != null && m.text!.isNotEmpty)
+                          .map((m) => <String, String>{
+                                'sender': m.senderId == currentUser ? 'Me' : widget.partnerName,
+                                'text': m.text!,
+                              })
+                          .toList()
+                          .reversed
+                          .toList();
+                      ref.read(sentienceProvider(widget.chatId).notifier)
+                          .analyze(recentTexts, msgs.first.id);
+                    }
 
                     // Filter out expired and deleted messages
                     final now = DateTime.now();
@@ -746,6 +825,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   ? 1
                                   : 0),
                           itemBuilder: (_, i) {
+                            final isFirstInSequence = i == 0 || 
+                                (i > 0 && i < filtered.length && filtered[i].senderId != filtered[i - 1].senderId);
+                            final isLastInSequence = i == filtered.length - 1 || 
+                                (i < filtered.length - 1 && filtered[i].senderId != filtered[i + 1].senderId);
+
                             return AnimationConfiguration.staggeredList(
                               position: i,
                               duration: const Duration(milliseconds: 400),
@@ -777,6 +861,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                 .contains(filtered[i].id),
                                             isMultiSelectMode:
                                                 _isMultiSelectMode,
+                                            isFirstInSequence: isFirstInSequence,
+                                            isLastInSequence: isLastInSequence,
                                             onLongPress: () {
                                               if (_isMultiSelectMode) {
                                                 _toggleSelection(
@@ -1019,6 +1105,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
 
+                // Chronos\u2122 condition banner
+                if (_chronosConditionType != null)
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
+                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    child: Row(
+                      children: [
+                        Icon(
+                          ChronosUnlockService.conditionIcons[_chronosConditionType!] ?? Icons.hourglass_empty,
+                          size: 16,
+                          color: const Color(0xFF6366F1),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Chronos: ${ChronosUnlockService.formatCondition(
+                              _chronosConditionType!,
+                              _chronosConditionValue ?? '',
+                            )}',
+                            style: TextStyle(
+                              color: const Color(0xFF6366F1).withOpacity(0.9),
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => setState(() {
+                            _chronosConditionType = null;
+                            _chronosConditionValue = null;
+                          }),
+                          child: const Icon(
+                            Icons.close_rounded,
+                            color: Color(0xFF6366F1),
+                            size: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 GlassInputBar(
                   controller: _messageController,
                   onSend: _sendMessage,
@@ -1039,9 +1169,35 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   onVideoRecorded: _sendCircularVideoMessage,
                   onAiCompose: () => _showAiComposer(context),
                   onToneFix: () => _showToneFixer(context),
-                  onSchedule: () => _showSchedulePicker(context),
+                  onSchedule: () => _showChronosComposer(context),
                   onSticker: () => _showStickerPicker(context),
+                  isQuantumLocked: _isQuantumLocked,
+                  onQuantumToggle: () {
+                    setState(() => _isQuantumLocked = !_isQuantumLocked);
+                    AppHaptics.mediumTap();
+                  },
                 ),
+
+                // Quantum Vault™ active banner
+                if (_isQuantumLocked)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                    color: const Color(0xFF6366F1).withOpacity(0.1),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.lock_rounded, size: 14, color: Color(0xFF6366F1)),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Quantum Vault active — message will be scrambled',
+                          style: TextStyle(
+                            color: const Color(0xFF6366F1).withOpacity(0.9),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
 
                 // Emoji picker
                 if (_showEmojiPicker)
@@ -1064,7 +1220,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ],
             ],
           ),
+
+          // Ripple Telepathy™ — Full-screen lockdown when shoulder surfer detected
+          const ShoulderSurferLockdown(),
+
+          // Keyword Particle Overlay — emotional emoji particles
+          KeywordParticleOverlay(triggerKeyword: _lastSentText),
         ],
+      ),
       ),
     );
   }
@@ -1599,6 +1762,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         );
                       },
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
+                    _attachOption(
+                      icon: Icons.schedule_send_rounded,
+                      label: 'Schedule',
+                      color: const Color(0xFF6366F1),
+                      onTap: () {
+                        Navigator.pop(context);
+                        _showSchedulePicker(context);
+                      },
+                    ),
+                    const SizedBox(width: 52), // spacer
+                    const SizedBox(width: 52), // spacer
+                    const SizedBox(width: 52), // spacer
+                    const SizedBox(width: 52), // spacer
+                    const SizedBox(width: 52), // spacer
                   ],
                 ),
                 const SizedBox(height: 24),
@@ -3272,6 +3455,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ).showSnackBar(SnackBar(content: Text('Could not explain: $e')));
       }
     }
+  }
+
+  // ─── Chronos Messaging\u2122 Composer ─────────────────────────
+  void _showChronosComposer(BuildContext ctx) {
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => ChronosComposerSheet(
+        onConditionSet: (type, value) {
+          setState(() {
+            _chronosConditionType = type;
+            _chronosConditionValue = value;
+          });
+        },
+      ),
+    );
   }
 
   // ─── Schedule Message Picker ─────────────────────────────

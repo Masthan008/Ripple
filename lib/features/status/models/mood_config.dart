@@ -7,31 +7,31 @@ class MoodConfig {
 
   static const moods = {
     'happy': {
-      'emoji': '😊',
+      'icon': Icons.sentiment_satisfied_alt_rounded,
       'label': 'Happy',
       'colors': ['F59E0B', 'EF4444'],
       'animation': 'pulse',
     },
     'focused': {
-      'emoji': '🎯',
+      'icon': Icons.center_focus_strong_rounded,
       'label': 'Focused',
       'colors': ['0EA5E9', '6366F1'],
       'animation': 'glow',
     },
     'busy': {
-      'emoji': '⚡',
+      'icon': Icons.flash_on_rounded,
       'label': 'Busy',
       'colors': ['EF4444', 'F97316'],
       'animation': 'fast_pulse',
     },
     'gaming': {
-      'emoji': '🎮',
+      'icon': Icons.sports_esports_rounded,
       'label': 'Gaming',
       'colors': ['8B5CF6', 'EC4899'],
       'animation': 'rgb_cycle',
     },
     'vibing': {
-      'emoji': '🌊',
+      'icon': Icons.waves_rounded,
       'label': 'Vibing',
       'colors': ['0EA5E9', '22D3EE'],
       'animation': 'wave',
@@ -52,9 +52,9 @@ class MoodConfig {
         .toList();
   }
 
-  /// Get emoji for a mood
-  static String getEmoji(String mood) {
-    return (moods[mood]?['emoji'] as String?) ?? '🌊';
+  /// Get icon for a mood
+  static IconData getIcon(String mood) {
+    return (moods[mood]?['icon'] as IconData?) ?? Icons.waves_rounded;
   }
 
   /// Get label for a mood

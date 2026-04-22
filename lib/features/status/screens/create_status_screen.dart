@@ -89,7 +89,6 @@ class CreateStatusSheet extends StatelessWidget {
           ),
           _OptionTile(
             icon: Icons.mood_rounded,
-            emoji: '🎭',
             title: 'Mood',
             subtitle: 'Set your mood aura',
             onTap: () {
@@ -585,14 +584,12 @@ class _FilterSelector extends StatelessWidget {
 
 class _OptionTile extends StatelessWidget {
   final IconData? icon;
-  final String? emoji;
   final String title;
   final String subtitle;
   final VoidCallback onTap;
 
   const _OptionTile({
     this.icon,
-    this.emoji,
     required this.title,
     required this.subtitle,
     required this.onTap,
@@ -602,10 +599,7 @@ class _OptionTile extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
-      leading:
-          emoji != null
-              ? Text(emoji!, style: const TextStyle(fontSize: 24))
-              : Container(
+      leading: Container(
                 width: 40,
                 height: 40,
                 decoration: BoxDecoration(
@@ -920,9 +914,10 @@ class _MoodPickerSheetState extends State<_MoodPickerSheet> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(
-                              config['emoji'] as String,
-                              style: const TextStyle(fontSize: 36),
+                            Icon(
+                              config['icon'] as IconData,
+                              size: 36,
+                              color: isSelected ? colors[0] : Colors.white70,
                             ),
                             const SizedBox(height: 8),
                             Text(
