@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/utils/animations.dart';
+import 'holographic_glitch_transition.dart';
 
 /// Custom page transitions for GoRouter
 class PageTransitions {
@@ -51,6 +52,19 @@ class PageTransitions {
       key: key,
       child: child,
       transitionsBuilder: AppAnimations.rippleScale,
+    );
+  }
+
+  /// Holographic Glitch™ (cyberpunk materialization)
+  static CustomTransitionPage holographicGlitch({
+    required LocalKey key,
+    required Widget child,
+  }) {
+    return CustomTransitionPage(
+      key: key,
+      child: child,
+      transitionDuration: const Duration(milliseconds: 400),
+      transitionsBuilder: HolographicGlitchTransition.transitionBuilder,
     );
   }
 }

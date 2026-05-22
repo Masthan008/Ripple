@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -33,16 +34,28 @@ class SpatialCanvasView extends ConsumerStatefulWidget {
   ConsumerState<SpatialCanvasView> createState() => _SpatialCanvasViewState();
 }
 
-class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView> {
+class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView>
+    with TickerProviderStateMixin {
   final TransformationController _transformController = TransformationController();
   final Map<String, Offset> _positions = {};
   final _random = Random();
   String? _draggingId;
 
+  // Zero-Gravity Inertia™ state
+  final Map<String, Offset> _velocities = {};
+  late final Ticker _physicsTicker;
+  Offset _lastDragDelta = Offset.zero;
+  // Shockwave state
+  Offset? _shockwaveOrigin;
+  double _shockwaveRadius = 0;
+  double _shockwaveOpacity = 0;
+
   @override
   void initState() {
     super.initState();
     _initializePositions();
+    _physicsTicker = createTicker(_onPhysicsTick);
+    _physicsTicker.start();
   }
 
   void _initializePositions() {
@@ -79,6 +92,73 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView> {
       'canvasX': position.dx,
       'canvasY': position.dy,
     }).catchError((_) {});
+  }
+
+  void _onPhysicsTick(Duration elapsed) {
+    bool needsRebuild = false;
+
+    // Apply momentum drift to all nodes with velocity
+    final entriesToRemove = <String>[];
+    for (final entry in _velocities.entries) {
+      final id = entry.key;
+      var vel = entry.value;
+      if (vel.distance < 0.1) {
+        entriesToRemove.add(id);
+        continue;
+      }
+
+      // Friction: decelerate by 3% per frame
+      vel = vel * 0.97;
+      _velocities[id] = vel;
+
+      if (_positions.containsKey(id) && _draggingId != id) {
+        _positions[id] = _positions[id]! + vel;
+        needsRebuild = true;
+      }
+    }
+    for (final id in entriesToRemove) {
+      _velocities.remove(id);
+      // Save final resting position
+      if (_positions.containsKey(id)) {
+        _savePosition(id, _positions[id]!);
+      }
+    }
+
+    // Animate shockwave expansion
+    if (_shockwaveOrigin != null) {
+      _shockwaveRadius += 8;
+      _shockwaveOpacity *= 0.92;
+      if (_shockwaveOpacity < 0.01) {
+        _shockwaveOrigin = null;
+        _shockwaveRadius = 0;
+        _shockwaveOpacity = 0;
+      }
+      needsRebuild = true;
+    }
+
+    if (needsRebuild && mounted) {
+      setState(() {});
+    }
+  }
+
+  void _triggerShockwave(Offset origin) {
+    _shockwaveOrigin = origin;
+    _shockwaveRadius = 0;
+    _shockwaveOpacity = 0.6;
+
+    // Push nearby nodes away from the tap point
+    for (final entry in _positions.entries) {
+      final nodeCenter = entry.value + const Offset(110, 30);
+      final diff = nodeCenter - origin;
+      final distance = diff.distance;
+
+      if (distance < 300 && distance > 1) {
+        final pushForce = (300 - distance) / 300 * 3.0;
+        final pushDirection = diff / distance;
+        _velocities[entry.key] = (_velocities[entry.key] ?? Offset.zero) +
+            pushDirection * pushForce;
+      }
+    }
   }
 
   Color _getSenderColor(String senderId) {
@@ -141,17 +221,29 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView> {
                         onPanUpdate: (details) {
                           if (_draggingId == msg.id) {
                             final scale = _transformController.value.getMaxScaleOnAxis();
+                            final scaledDelta = Offset(
+                              details.delta.dx / scale,
+                              details.delta.dy / scale,
+                            );
+                            _lastDragDelta = scaledDelta;
                             setState(() {
                               _positions[msg.id] = Offset(
-                                pos.dx + details.delta.dx / scale,
-                                pos.dy + details.delta.dy / scale,
+                                pos.dx + scaledDelta.dx,
+                                pos.dy + scaledDelta.dy,
                               );
                             });
                           }
                         },
                         onPanEnd: (_) {
-                          _savePosition(msg.id, _positions[msg.id]!);
+                          // Impart momentum based on last drag velocity
+                          _velocities[msg.id] = _lastDragDelta * 1.5;
+                          _lastDragDelta = Offset.zero;
                           _draggingId = null;
+                        },
+                        onTap: () {
+                          // Trigger shockwave at this node's center
+                          final nodeCenter = pos + const Offset(110, 30);
+                          _triggerShockwave(nodeCenter);
                         },
                         child: _CanvasNode(
                           message: msg,
@@ -164,6 +256,26 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView> {
                       ),
                     );
                   }),
+
+                  // Shockwave ripple overlay
+                  if (_shockwaveOrigin != null)
+                    Positioned(
+                      left: _shockwaveOrigin!.dx - _shockwaveRadius,
+                      top: _shockwaveOrigin!.dy - _shockwaveRadius,
+                      child: IgnorePointer(
+                        child: Container(
+                          width: _shockwaveRadius * 2,
+                          height: _shockwaveRadius * 2,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: const Color(0xFF6366F1).withOpacity(_shockwaveOpacity),
+                              width: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -243,6 +355,7 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView> {
 
   @override
   void dispose() {
+    _physicsTicker.dispose();
     _transformController.dispose();
     super.dispose();
   }

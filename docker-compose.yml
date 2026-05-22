@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  ripple-web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    container_name: ripple_web_safe
+    # Enhancing safety by running the container read-only where possible,
+    # or limiting privileges (can be adjusted as needed).
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - ripple_net
+
+networks:
+  ripple_net:
+    driver: bridge

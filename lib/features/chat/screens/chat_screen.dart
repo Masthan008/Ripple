@@ -63,6 +63,8 @@ import '../../../shared/widgets/keyword_particle_overlay.dart';
 import '../../../core/services/sentience_engine.dart';
 import '../widgets/quantum_vault_bubble.dart';
 import '../widgets/sonic_whisper_overlay.dart';
+import '../../../shared/widgets/sentient_breathing_wrapper.dart';
+import '../../../shared/widgets/gyroscopic_parallax.dart';
 
 /// 1-to-1 Chat Screen — PRD §6.3
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -694,19 +696,24 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     return Scaffold(
       backgroundColor: bgColor,
-      body: AuroraBackground(
-        customColors: sentienceState.intensity > 0 ? [sentienceState.primaryGlow, sentienceState.secondaryGlow, sentienceState.accentGlow] : null,
-        animationSpeed: sentienceState.animationSpeed,
-        child: Stack(
-          children: [
-            // Subtle floating particles background
-          FloatingParticles(
-            particleCount: 3,
-            color:
-                currentTheme == 'light_glass'
-                    ? AppColors.aquaCore.withOpacity(0.3)
-                    : AppColors.aquaCore,
-          ),
+      body: SentientBreathingWrapper(
+        chatId: widget.chatId,
+        child: AuroraBackground(
+          customColors: sentienceState.intensity > 0 ? [sentienceState.primaryGlow, sentienceState.secondaryGlow, sentienceState.accentGlow] : null,
+          animationSpeed: sentienceState.animationSpeed,
+          child: Stack(
+            children: [
+              // Gyroscopic parallax floating particles
+              ParallaxLayer(
+                depthFactor: 1.5,
+                child: FloatingParticles(
+                  particleCount: 3,
+                  color:
+                      currentTheme == 'light_glass'
+                          ? AppColors.aquaCore.withOpacity(0.3)
+                          : AppColors.aquaCore,
+                ),
+              ),
 
           Column(
             children: [
@@ -1227,6 +1234,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           // Keyword Particle Overlay — emotional emoji particles
           KeywordParticleOverlay(triggerKeyword: _lastSentText),
         ],
+      ),
       ),
       ),
     );

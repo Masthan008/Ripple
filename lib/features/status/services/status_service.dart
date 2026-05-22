@@ -123,25 +123,35 @@ class StatusService {
 
   // ── GET FRIENDS STATUSES ──────────────────────────────
   static Stream<List<StatusModel>> getFriendsStatuses(List<String> friendUids) {
-    if (friendUids.isEmpty) return Stream.value([]);
+    if (friendUids.isEmpty) {
+      debugPrint('ℹ️ getFriendsStatuses: No friend UIDs provided');
+      return Stream.value([]);
+    }
 
-    // Firestore whereIn limit is 30
+    // Firestore whereIn limit is 30 — take max allowed
     final uids = friendUids.take(30).toList();
+    debugPrint('🔍 getFriendsStatuses: Querying statuses for ${uids.length} friends');
 
     return _fs
         .collection('statuses')
         .where('uid', whereIn: uids)
+        .where('expiresAt', isGreaterThan: Timestamp.now())
         .snapshots()
         .handleError((e) {
-          debugPrint('\u274c getFriendsStatuses stream error: $e');
+          debugPrint('❌ getFriendsStatuses stream error: $e');
+          // If composite index not created, fall back to simpler query
+          debugPrint('💡 TIP: If you see a "requires an index" error, '
+              'click the link in the error message to create it in Firebase Console');
         })
         .map((snap) {
+          debugPrint('📊 getFriendsStatuses: Got ${snap.docs.length} status docs');
           final list =
               snap.docs
                   .map(StatusModel.fromFirestore)
                   .where((s) => !s.isExpired)
                   .toList();
           list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          debugPrint('📊 getFriendsStatuses: ${list.length} non-expired statuses');
           return list;
         });
   }

@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:local_auth/local_auth.dart';
 import '../../../core/constants/app_colors.dart';
+import '../../../shared/widgets/decrypting_text.dart';
 
 /// Quantum Vault™ — Biometric Scrambled Messages
 /// Messages sent with Quantum Lock appear as scrambled Matrix-style text.
@@ -172,21 +173,22 @@ class _QuantumVaultBubbleState extends State<QuantumVaultBubble>
             // Message text (scrambled or real)
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
-              child: Text(
-                _isRevealed
-                    ? widget.actualText
-                    : (widget.isMe ? widget.actualText : _scrambledText),
-                key: ValueKey(_isRevealed),
-                style: TextStyle(
-                  fontSize: 15,
-                  height: 1.4,
-                  color: _isRevealed
-                      ? Colors.white
-                      : const Color(0xFF00FF41).withOpacity(0.8),
-                  fontFamily: _isRevealed ? null : 'monospace',
-                  letterSpacing: _isRevealed ? 0 : 1.5,
-                ),
-              ),
+              child: _isRevealed
+                  ? QuantumDecryptCascade(
+                      key: const ValueKey('revealed'),
+                      plainText: widget.actualText,
+                    )
+                  : Text(
+                      widget.isMe ? widget.actualText : _scrambledText,
+                      key: const ValueKey('scrambled'),
+                      style: TextStyle(
+                        fontSize: 15,
+                        height: 1.4,
+                        color: const Color(0xFF00FF41).withOpacity(0.8),
+                        fontFamily: 'monospace',
+                        letterSpacing: 1.5,
+                      ),
+                    ),
             ),
 
             // Hint for receiver

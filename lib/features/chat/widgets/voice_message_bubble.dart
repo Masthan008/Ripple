@@ -11,6 +11,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/services/ai_service.dart';
 import '../../../core/utils/haptic_feedback.dart';
 import '../../../core/utils/l10n.dart';
+import '../../../shared/widgets/bio_acoustic_waveform.dart';
 
 /// Voice message bubble with play/pause, waveform progress, and duration display
 class VoiceMessageBubble extends ConsumerStatefulWidget {
@@ -179,18 +180,14 @@ class _VoiceMessageBubbleState extends ConsumerState<VoiceMessageBubble> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Waveform with progress overlay
-                SizedBox(
-                  height: 32,
-                  child: CustomPaint(
-                    painter: _PlaybackWaveformPainter(
-                      amplitudes: widget.waveformData,
-                      progress: progress,
-                      activeColor: contentColor,
-                      inactiveColor: contentColor.withValues(alpha: 0.3),
-                    ),
-                    size: const Size(double.infinity, 32),
-                  ),
+                // Bio-Acoustic Waveform™ with pitch-mapped colors
+                BioAcousticWaveform(
+                  waveformData: widget.waveformData,
+                  progress: progress,
+                  isPlaying: _isPlaying,
+                  baseColor: contentColor,
+                  height: 36,
+                  width: 180,
                 ),
                 const SizedBox(height: 4),
 
