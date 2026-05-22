@@ -34,6 +34,7 @@ import 'impact_text.dart';
 import 'quantum_vault_bubble.dart';
 import 'sonic_whisper_overlay.dart';
 import '../../../core/services/sentience_engine.dart';
+import '../../../shared/widgets/black_hole_ripple.dart';
 
 /// Message bubble widget — Phase 1 with reactions, reply, edit, delete,
 /// forwarded tag, seen receipts, multi-select support
@@ -125,16 +126,13 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
     Widget bubble = ScaleTransition(
       scale: _scaleAnimation,
       child: GestureDetector(
-        onLongPress: () {
+        onLongPressStart: (details) {
           AppHaptics.heavyTap();
           // Show dopamine feedback for long press
           if (widget.isMe) {
             DopamineEffects.showConfettiBurst(
               context,
-              position: Offset(
-                MediaQuery.of(context).size.width / 2,
-                MediaQuery.of(context).size.height / 2,
-              ),
+              position: details.globalPosition,
               particleCount: 15,
               colors: [Colors.cyan, Colors.blue, Colors.purple],
               duration: const Duration(milliseconds: 600),

@@ -255,6 +255,10 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
 
         final userData = userSnap.data?.data() as Map<String, dynamic>? ?? {};
         final friends = List<String>.from(userData['friends'] as List? ?? []);
+        debugPrint('👥 StatusListScreen: Found ${friends.length} friends for status feed');
+        if (friends.isEmpty) {
+          debugPrint('ℹ️ StatusListScreen: User has no friends yet — no statuses to show');
+        }
 
         if (friends.isEmpty) {
           return Center(

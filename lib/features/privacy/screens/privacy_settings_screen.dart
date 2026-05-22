@@ -25,6 +25,8 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   bool _typingIndicator = true;
   bool _screenshotBlock = false;
   bool _incognitoKeyboard = false;
+  bool _sonicWhispersEnabled = true;
+  double _sonicDecibelThreshold = 60.0;
   bool _isLoading = true;
 
   @override
@@ -51,6 +53,8 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
       _typingIndicator = settings['typingIndicator'] as bool? ?? true;
       _screenshotBlock = prefs.getBool('screenshot_block') ?? false;
       _incognitoKeyboard = prefs.getBool('incognito_keyboard') ?? false;
+      _sonicWhispersEnabled = prefs.getBool('sonic_whispers_enabled') ?? true;
+      _sonicDecibelThreshold = prefs.getDouble('sonic_decibel_threshold') ?? 60.0;
       _isLoading = false;
     });
   }
@@ -785,6 +789,176 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                           },
                           activeThumbColor: const Color(0xFF0EA5E9),
                         ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  const Divider(color: Colors.white12),
+
+                  // ── SONIC WHISPERS™ ───────────────────
+                  _buildSectionHeader('Sonic Whispers™'),
+
+                  Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFF10B981).withOpacity(
+                            _sonicWhispersEnabled ? 0.12 : 0.03,
+                          ),
+                          const Color(0xFF0EA5E9).withOpacity(
+                            _sonicWhispersEnabled ? 0.08 : 0.02,
+                          ),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: _sonicWhispersEnabled
+                            ? const Color(0xFF10B981).withOpacity(0.4)
+                            : Colors.white12,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                gradient: LinearGradient(
+                                  colors: [
+                                    const Color(0xFF10B981).withOpacity(0.3),
+                                    const Color(0xFF0EA5E9).withOpacity(0.3),
+                                  ],
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.hearing_rounded,
+                                color: Color(0xFF10B981),
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      const Text(
+                                        'Ambient Voice Notes',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 16,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFF10B981).withOpacity(0.15),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: const Text(
+                                          'NEW',
+                                          style: TextStyle(
+                                            color: Color(0xFF10B981),
+                                            fontSize: 8,
+                                            fontWeight: FontWeight.bold,
+                                            letterSpacing: 1,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    _sonicWhispersEnabled
+                                        ? 'Auto-transcribes voice notes in noisy environments. '
+                                          'Shows large text when it\'s loud around you.'
+                                        : 'Detect ambient noise levels and auto-transcribe '
+                                          'voice messages when your environment is loud.',
+                                    style: TextStyle(
+                                      color: _sonicWhispersEnabled
+                                          ? const Color(0xFF10B981)
+                                          : Colors.white54,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Switch(
+                              value: _sonicWhispersEnabled,
+                              onChanged: (v) async {
+                                setState(() => _sonicWhispersEnabled = v);
+                                final prefs = await SharedPreferences.getInstance();
+                                await prefs.setBool('sonic_whispers_enabled', v);
+                              },
+                              activeThumbColor: const Color(0xFF10B981),
+                            ),
+                          ],
+                        ),
+                        // Decibel threshold slider
+                        if (_sonicWhispersEnabled) ...[
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.volume_down_rounded,
+                                color: Color(0xFF10B981),
+                                size: 18,
+                              ),
+                              Expanded(
+                                child: Slider(
+                                  value: _sonicDecibelThreshold,
+                                  min: 40,
+                                  max: 80,
+                                  divisions: 8,
+                                  label: '${_sonicDecibelThreshold.round()} dB',
+                                  activeColor: const Color(0xFF10B981),
+                                  inactiveColor: Colors.white12,
+                                  onChanged: (v) {
+                                    setState(() => _sonicDecibelThreshold = v);
+                                  },
+                                  onChangeEnd: (v) async {
+                                    final prefs = await SharedPreferences.getInstance();
+                                    await prefs.setDouble('sonic_decibel_threshold', v);
+                                  },
+                                ),
+                              ),
+                              const Icon(
+                                Icons.volume_up_rounded,
+                                color: Color(0xFF10B981),
+                                size: 18,
+                              ),
+                            ],
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            child: Text(
+                              'Noise threshold: ${_sonicDecibelThreshold.round()} dB — '
+                              '${_sonicDecibelThreshold <= 50 ? 'Very Sensitive (library)' : _sonicDecibelThreshold <= 60 ? 'Normal (office)' : _sonicDecibelThreshold <= 70 ? 'Moderate (street)' : 'Low Sensitivity (concert)'}',
+                              style: TextStyle(
+                                color: Colors.white.withOpacity(0.4),
+                                fontSize: 11,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

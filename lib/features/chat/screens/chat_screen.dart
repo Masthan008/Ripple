@@ -65,6 +65,7 @@ import '../widgets/quantum_vault_bubble.dart';
 import '../widgets/sonic_whisper_overlay.dart';
 import '../../../shared/widgets/sentient_breathing_wrapper.dart';
 import '../../../shared/widgets/gyroscopic_parallax.dart';
+import '../../../shared/widgets/liquid_glass_container.dart';
 
 /// 1-to-1 Chat Screen — PRD §6.3
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -1156,7 +1157,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
 
-                GlassInputBar(
+                LiquidGlassContainer(
+                  scrollController: _scrollController,
+                  baseBlur: 18,
+                  borderRadius: 0,
+                  glassColor: const Color(0xE6060D1A),
+                  child: GlassInputBar(
                   controller: _messageController,
                   onSend: _sendMessage,
                   onChanged: _onTextChanged,
@@ -1184,6 +1190,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     AppHaptics.mediumTap();
                   },
                 ),
+                ), // end LiquidGlassContainer
 
                 // Quantum Vault™ active banner
                 if (_isQuantumLocked)

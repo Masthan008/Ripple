@@ -50,6 +50,7 @@ import 'features/status/screens/status_list_screen.dart';
 import 'features/status/screens/create_status_screen.dart';
 import 'features/status/screens/status_viewer_screen.dart';
 import 'features/profile/providers/settings_provider.dart';
+import 'shared/widgets/holographic_glitch_transition.dart';
 
 /// GoRouter provider — created ONCE, uses refreshListenable to re-run redirect
 final routerProvider = Provider<GoRouter>((ref) {
@@ -217,22 +218,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               partnerName: state.uri.queryParameters['partnerName'] ?? '',
               partnerPhoto: state.uri.queryParameters['partnerPhoto'],
             ),
-            transitionsBuilder: (
-              context,
-              animation,
-              secondaryAnimation,
-              child,
-            ) {
-              return SlideTransition(
-                position: animation.drive(
-                  Tween(
-                    begin: const Offset(1.0, 0.0),
-                    end: Offset.zero,
-                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
-                ),
-                child: child,
-              );
-            },
+            transitionsBuilder: HolographicGlitchTransition.transitionBuilder,
           );
         },
       ),
@@ -354,22 +340,7 @@ final routerProvider = Provider<GoRouter>((ref) {
             (context, state) => CustomTransitionPage(
               key: state.pageKey,
               child: const ProfileScreen(),
-              transitionsBuilder: (
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              ) {
-                return SlideTransition(
-                  position: animation.drive(
-                    Tween(
-                      begin: const Offset(0.0, 1.0),
-                      end: Offset.zero,
-                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
-                  ),
-                  child: child,
-                );
-              },
+              transitionsBuilder: HolographicGlitchTransition.transitionBuilder,
             ),
       ),
       GoRoute(

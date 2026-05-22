@@ -62,13 +62,18 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView>
     for (int i = 0; i < widget.messages.length; i++) {
       final msg = widget.messages[i];
       if (!_positions.containsKey(msg.id)) {
-        // Arrange in a spiral pattern by default
-        final angle = i * 0.8;
-        final radius = 80.0 + i * 35.0;
-        _positions[msg.id] = Offset(
-          400 + radius * cos(angle),
-          400 + radius * sin(angle),
-        );
+        // Use Firestore-persisted coordinates if available,
+        // otherwise fall back to a spiral layout.
+        if (msg.canvasX != null && msg.canvasY != null) {
+          _positions[msg.id] = Offset(msg.canvasX!, msg.canvasY!);
+        } else {
+          final angle = i * 0.8;
+          final radius = 80.0 + i * 35.0;
+          _positions[msg.id] = Offset(
+            400 + radius * cos(angle),
+            400 + radius * sin(angle),
+          );
+        }
       }
     }
   }
@@ -76,8 +81,23 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView>
   @override
   void didUpdateWidget(SpatialCanvasView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    // Add positions for any new messages
     if (widget.messages.length != oldWidget.messages.length) {
       _initializePositions();
+    }
+
+    // Sync remote coordinate updates for messages NOT currently
+    // being dragged — this allows real-time multi-user canvas sync.
+    for (final msg in widget.messages) {
+      if (msg.id == _draggingId) continue; // don't override active drag
+      if (_velocities.containsKey(msg.id)) continue; // in inertia flight
+      if (msg.canvasX != null && msg.canvasY != null) {
+        final remote = Offset(msg.canvasX!, msg.canvasY!);
+        final local = _positions[msg.id];
+        if (local == null || (remote - local).distance > 2) {
+          _positions[msg.id] = remote;
+        }
+      }
     }
   }
 

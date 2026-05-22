@@ -30,7 +30,7 @@ service cloud.firestore {
                  'friendRequests', 'friends', 'blockedUsers', 'oneSignalPlayerId',
                  'rippleScore', 'totalMessagesSent', 'totalImagesSent',
                  'totalVoiceMessages', 'totalFriends', 'translatorUsed',
-                 'aiFeaturesUsed'
+                 'aiFeaturesUsed', 'secretChats'
                ]))
         || (isSignedIn()
             && request.resource.data.diff(resource.data).affectedKeys()

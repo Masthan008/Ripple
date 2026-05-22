@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:noise_meter/noise_meter.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/ai_service.dart';
 
@@ -33,12 +34,28 @@ class _SonicWhisperOverlayState extends State<SonicWhisperOverlay> {
   bool _showTranscription = false;
   bool _isLoudEnvironment = false;
   bool _hasCheckedNoise = false;
+  bool _isFeatureEnabled = true;
   double _ambientDecibels = 0;
+  double _decibelThreshold = 60.0;
   StreamSubscription? _noiseSub;
 
   @override
   void initState() {
     super.initState();
+    _loadPreferencesAndCheck();
+  }
+
+  Future<void> _loadPreferencesAndCheck() async {
+    final prefs = await SharedPreferences.getInstance();
+    _isFeatureEnabled = prefs.getBool('sonic_whispers_enabled') ?? true;
+    _decibelThreshold = prefs.getDouble('sonic_decibel_threshold') ?? 60.0;
+
+    if (!_isFeatureEnabled) {
+      // Feature disabled — skip noise checking
+      if (mounted) setState(() => _hasCheckedNoise = true);
+      return;
+    }
+
     if (!widget.isMe) {
       _checkAmbientNoise();
     }
@@ -78,7 +95,7 @@ class _SonicWhisperOverlayState extends State<SonicWhisperOverlay> {
           if (mounted) {
             setState(() {
               _ambientDecibels = avgDb;
-              _isLoudEnvironment = avgDb > 60; // >60dB = loud
+              _isLoudEnvironment = avgDb > _decibelThreshold;
               _hasCheckedNoise = true;
             });
 
@@ -136,6 +153,8 @@ class _SonicWhisperOverlayState extends State<SonicWhisperOverlay> {
 
   @override
   Widget build(BuildContext context) {
+    // If the feature is disabled, just render the original voice bubble
+    if (!_isFeatureEnabled) return widget.child;
     return Column(
       crossAxisAlignment:
           widget.isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,

@@ -55,7 +55,7 @@ class BlackHoleRippleOverlayState extends State<BlackHoleRippleOverlay>
   }
 
   /// Call this from message bubble's onLongPressStart
-  void activate(Offset globalPosition) {
+  void triggerBlackHole(Offset globalPosition) {
     final box = context.findRenderObject() as RenderBox?;
     if (box == null) return;
 

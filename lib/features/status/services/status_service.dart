@@ -132,16 +132,13 @@ class StatusService {
     final uids = friendUids.take(30).toList();
     debugPrint('🔍 getFriendsStatuses: Querying statuses for ${uids.length} friends');
 
+    // Use simple query (no composite index needed) with client-side expiry filter
     return _fs
         .collection('statuses')
         .where('uid', whereIn: uids)
-        .where('expiresAt', isGreaterThan: Timestamp.now())
         .snapshots()
         .handleError((e) {
           debugPrint('❌ getFriendsStatuses stream error: $e');
-          // If composite index not created, fall back to simpler query
-          debugPrint('💡 TIP: If you see a "requires an index" error, '
-              'click the link in the error message to create it in Firebase Console');
         })
         .map((snap) {
           debugPrint('📊 getFriendsStatuses: Got ${snap.docs.length} status docs');
