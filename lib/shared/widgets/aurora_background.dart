@@ -3,6 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/theme_provider.dart';
+import 'water_droplet_background.dart';
 
 /// Semantic Aurora Background
 /// A beautiful, slowly shifting mesh gradient background using the current theme's primary/secondary colors.
@@ -57,6 +58,12 @@ class _AuroraBackgroundState extends ConsumerState<AuroraBackground>
   @override
   Widget build(BuildContext context) {
     final theme = ref.watch(rippleThemeProvider);
+
+    if (theme.id == 'ios_27') {
+      return WaterDropletBackground(
+        child: widget.child,
+      );
+    }
 
     final colors = widget.customColors ?? [
       theme.colors.primary.withOpacity(0.3),

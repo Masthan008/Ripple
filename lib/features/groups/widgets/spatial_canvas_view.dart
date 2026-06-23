@@ -41,6 +41,9 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView>
   final _random = Random();
   String? _draggingId;
 
+  // Track the timestamp of the last local update to prevent remote overwrites due to latency
+  final Map<String, DateTime> _lastLocalChange = {};
+
   // Zero-Gravity Inertia™ state
   final Map<String, Offset> _velocities = {};
   late final Ticker _physicsTicker;
@@ -87,10 +90,17 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView>
     }
 
     // Sync remote coordinate updates for messages NOT currently
-    // being dragged — this allows real-time multi-user canvas sync.
+    // being dragged or recently modified locally — this allows real-time multi-user canvas sync.
+    final now = DateTime.now();
     for (final msg in widget.messages) {
       if (msg.id == _draggingId) continue; // don't override active drag
       if (_velocities.containsKey(msg.id)) continue; // in inertia flight
+
+      final lastLocal = _lastLocalChange[msg.id];
+      if (lastLocal != null && now.difference(lastLocal).inMilliseconds < 1500) {
+        continue; // ignore remote updates for 1.5 seconds after local change to prevent race conditions
+      }
+
       if (msg.canvasX != null && msg.canvasY != null) {
         final remote = Offset(msg.canvasX!, msg.canvasY!);
         final local = _positions[msg.id];
@@ -132,6 +142,7 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView>
       _velocities[id] = vel;
 
       if (_positions.containsKey(id) && _draggingId != id) {
+        _lastLocalChange[id] = DateTime.now();
         _positions[id] = _positions[id]! + vel;
         needsRebuild = true;
       }
@@ -246,6 +257,7 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView>
                               details.delta.dy / scale,
                             );
                             _lastDragDelta = scaledDelta;
+                            _lastLocalChange[msg.id] = DateTime.now();
                             setState(() {
                               _positions[msg.id] = Offset(
                                 pos.dx + scaledDelta.dx,
@@ -257,6 +269,7 @@ class _SpatialCanvasViewState extends ConsumerState<SpatialCanvasView>
                         onPanEnd: (_) {
                           // Impart momentum based on last drag velocity
                           _velocities[msg.id] = _lastDragDelta * 1.5;
+                          _lastLocalChange[msg.id] = DateTime.now();
                           _lastDragDelta = Offset.zero;
                           _draggingId = null;
                         },

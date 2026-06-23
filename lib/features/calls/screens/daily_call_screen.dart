@@ -181,6 +181,7 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
     // Disable camera for audio-only calls
     if (!widget.isVideo) {
       params['startVideoOff'] = 'true';
+      params['cameraOff'] = 'true';
     }
 
     final query =

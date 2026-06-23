@@ -635,6 +635,102 @@ class ThemePresets {
   );
 
   // ═══════════════════════════════════════════════════════════════════
+  // iOS 27 - Light themed liquid glass with white light & water droplets
+  // ═══════════════════════════════════════════════════════════════════
+  static final RippleTheme ios27 = RippleTheme(
+    id: 'ios_27',
+    name: 'iOS 27',
+    description: 'Liquid glass with glossy white light & water droplets',
+    isDark: false,
+    colors: const ThemeColors(
+      primary: Color(0xFF007AFF), // Classic iOS Blue
+      secondary: Color(0xFF5856D6), // iOS Indigo
+      accent: Color(0xFF30D158), // iOS Green
+      background: Color(0xFFFFFFFF), // Pure White
+      surface: Color(0xFFF2F2F7), // iOS System Light Grey
+      surfaceHighlight: Color(0xFFE5E5EA),
+      textPrimary: Color(0xFF1C1C1E), // Light-mode deep grey
+      textSecondary: Color(0xFF3A3A3C),
+      textMuted: Color(0xFF8E8E93),
+      success: Color(0xFF34C759),
+      error: Color(0xFFFF3B30),
+      warning: Color(0xFFFF9500),
+      online: Color(0xFF34C759),
+      glassBorder: Color(0x2B8E8E93),
+      glassSurface: Color(0xC0FFFFFF), // Very glossy white glass
+      bubbleIncoming: Color(0xFFE5E5EA),
+      bubbleOutgoing: Color(0xFF007AFF),
+    ),
+    gradients: ThemeGradients(
+      primary: const LinearGradient(
+        colors: [Color(0xFF007AFF), Color(0xFF5856D6)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      surface: const LinearGradient(
+        colors: [Color(0xFFFFFFFF), Color(0xFFF2F2F7)],
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+      ),
+      bubbleOutgoing: const LinearGradient(
+        colors: [Color(0xFF007AFF), Color(0xFF0A84FF)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      shimmer: const LinearGradient(
+        colors: [Color(0x33FFFFFF), Colors.transparent, Color(0x1A007AFF)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      glass: LinearGradient(
+        colors: [
+          Colors.white.withOpacity(0.95),
+          Colors.white.withOpacity(0.8),
+        ],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+    ),
+    shadows: ThemeShadows(
+      primaryGlow: [
+        BoxShadow(
+          color: Colors.white, // White light glow
+          blurRadius: 25,
+          spreadRadius: 4,
+          offset: Offset.zero,
+        ),
+        BoxShadow(
+          color: const Color(0xFF007AFF).withOpacity(0.15),
+          blurRadius: 15,
+          spreadRadius: -2,
+        ),
+      ],
+      secondaryGlow: [
+        BoxShadow(
+          color: Colors.white.withOpacity(0.8),
+          blurRadius: 20,
+          spreadRadius: 2,
+          offset: Offset.zero,
+        ),
+      ],
+      accentGlow: [
+        BoxShadow(
+          color: Colors.white,
+          blurRadius: 30,
+          spreadRadius: 6,
+        ),
+      ],
+      soft: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 10,
+          spreadRadius: 0,
+        ),
+      ],
+    ),
+  );
+
+  // ═══════════════════════════════════════════════════════════════════
   // GET ALL THEMES
   // ═══════════════════════════════════════════════════════════════════
   static List<RippleTheme> get all => [
@@ -644,6 +740,7 @@ class ThemePresets {
     emeraldDepth,
     goldenSand,
     crystalWater,
+    ios27,
   ];
 
   static RippleTheme getById(String id) {

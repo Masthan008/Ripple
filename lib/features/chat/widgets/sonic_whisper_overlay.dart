@@ -38,6 +38,7 @@ class _SonicWhisperOverlayState extends State<SonicWhisperOverlay> {
   double _ambientDecibels = 0;
   double _decibelThreshold = 60.0;
   StreamSubscription? _noiseSub;
+  bool _micPermissionDenied = false;
 
   @override
   void initState() {
@@ -75,6 +76,7 @@ class _SonicWhisperOverlayState extends State<SonicWhisperOverlay> {
         setState(() {
           _isLoudEnvironment = true;
           _hasCheckedNoise = true;
+          _micPermissionDenied = true;
         });
         _transcribe();
         return;
@@ -171,39 +173,63 @@ class _SonicWhisperOverlayState extends State<SonicWhisperOverlay> {
           children: [
             // Environment indicator
             if (_hasCheckedNoise && !widget.isMe)
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: (_isLoudEnvironment
-                          ? const Color(0xFFF59E0B)
-                          : const Color(0xFF10B981))
-                      .withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _isLoudEnvironment
-                          ? Icons.volume_up_rounded
-                          : Icons.volume_down_rounded,
-                      size: 11,
-                      color: _isLoudEnvironment
-                          ? const Color(0xFFF59E0B)
-                          : const Color(0xFF10B981),
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      _isLoudEnvironment ? 'Loud' : 'Quiet',
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: _isLoudEnvironment
-                            ? const Color(0xFFF59E0B)
-                            : const Color(0xFF10B981),
+              GestureDetector(
+                onTap: _micPermissionDenied
+                    ? () async {
+                        final req = await Permission.microphone.request();
+                        if (req.isGranted) {
+                          setState(() {
+                            _micPermissionDenied = false;
+                            _hasCheckedNoise = false;
+                          });
+                          _checkAmbientNoise();
+                        }
+                      }
+                    : null,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (_micPermissionDenied
+                            ? const Color(0xFFEF4444)
+                            : (_isLoudEnvironment
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFF10B981)))
+                        .withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _micPermissionDenied
+                            ? Icons.mic_off_rounded
+                            : (_isLoudEnvironment
+                                ? Icons.volume_up_rounded
+                                : Icons.volume_down_rounded),
+                        size: 11,
+                        color: _micPermissionDenied
+                            ? const Color(0xFFEF4444)
+                            : (_isLoudEnvironment
+                                ? const Color(0xFFF59E0B)
+                                : const Color(0xFF10B981)),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 3),
+                      Text(
+                        _micPermissionDenied
+                            ? 'No Mic Permission (Tap to allow)'
+                            : (_isLoudEnvironment ? 'Loud' : 'Quiet'),
+                        style: TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: _micPermissionDenied
+                              ? const Color(0xFFEF4444)
+                              : (_isLoudEnvironment
+                                  ? const Color(0xFFF59E0B)
+                                  : const Color(0xFF10B981)),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
 
@@ -286,7 +312,7 @@ class _SonicWhisperOverlayState extends State<SonicWhisperOverlay> {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'SONIC WHISPER',
+                      _micPermissionDenied ? 'SONIC WHISPER (FALLBACK)' : 'SONIC WHISPER',
                       style: TextStyle(
                         fontSize: 8,
                         fontWeight: FontWeight.w800,

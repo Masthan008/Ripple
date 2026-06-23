@@ -69,7 +69,11 @@ void main() async {
           );
         } else {
           debugPrint('✅ OneSignal ID loaded: $oneSignalId');
-          OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+          // Only enable verbose logging in debug mode
+          assert(() {
+            OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+            return true;
+          }());
           OneSignal.initialize(oneSignalId);
           OneSignal.consentRequired(false);
           OneSignal.consentGiven(true);

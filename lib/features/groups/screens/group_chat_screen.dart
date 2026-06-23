@@ -47,6 +47,7 @@ import '../../chat/widgets/gaze_lock_overlay.dart';
 import '../widgets/spatial_canvas_view.dart';
 import '../../../core/services/sentience_engine.dart';
 import '../../../core/utils/haptic_feedback.dart';
+import '../../stickers/widgets/sticker_picker_sheet.dart';
 
 /// Group Chat Screen — PRD §6.6
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -848,6 +849,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   onGif: () => _showGifPicker(),
                   onVoiceRecorded: _sendVoiceMessage,
                   onVideoRecorded: _sendCircularVideoMessage,
+                  onSticker: () => _showStickerPicker(context),
                 ),
 
                 // Emoji picker
@@ -1529,6 +1531,39 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               }
             },
           ),
+    );
+  }
+
+  // ── Sticker Picker ───────────────────────────────────────
+  void _showStickerPicker(BuildContext ctx) {
+    showModalBottomSheet(
+      context: ctx,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (_) => StickerPickerSheet(
+        onStickerSelected: (stickerEmoji) async {
+          setState(() => _isSending = true);
+          try {
+            await ref.read(groupServiceProvider).sendGroupMessage(
+                  groupId: widget.groupId,
+                  text: stickerEmoji,
+                  type: 'sticker',
+                );
+            _scrollToBottom();
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Failed to send sticker: $e'),
+                  backgroundColor: AppColors.errorRed,
+                ),
+              );
+            }
+          } finally {
+            if (mounted) setState(() => _isSending = false);
+          }
+        },
+      ),
     );
   }
 

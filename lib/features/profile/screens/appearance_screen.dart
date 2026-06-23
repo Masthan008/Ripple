@@ -83,8 +83,8 @@ class AppearanceScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // NEW 5 Bioluminescent Themes
-                _sectionHeader('Bioluminescent Themes (NEW - 5 Themes)', rippleTheme.colors.primary.withOpacity(0.7)),
+                // NEW Bioluminescent & Liquid Themes
+                _sectionHeader('Bioluminescent & Liquid Themes', rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 SizedBox(
                   height: 140,
@@ -137,7 +137,7 @@ class AppearanceScreen extends ConsumerWidget {
                                   theme.name,
                                   style: AppTextStyles.caption.copyWith(
                                     fontSize: 11,
-                                    color: isSelected ? theme.colors.primary : Colors.white,
+                                    color: isSelected ? theme.colors.primary : (theme.isDark ? Colors.white : Colors.black87),
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                                   ),
                                   textAlign: TextAlign.center,
