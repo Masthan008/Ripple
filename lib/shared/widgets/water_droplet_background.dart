@@ -258,7 +258,7 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
 
               // Physical Water Droplet Custom Paint
               CustomPaint(
-                painter: WaterDropletPainter(
+                painter: _WaterDropletPainter(
                   droplets: _droplets,
                   ripples: _ripples,
                 ),
@@ -314,11 +314,11 @@ class _Ripple {
 }
 
 /// Custom Painter that renders high-fidelity glass water droplets and expanding rings
-class WaterDropletPainter extends CustomPainter {
+class _WaterDropletPainter extends CustomPainter {
   final List<_Droplet> droplets;
   final List<_Ripple> ripples;
 
-  WaterDropletPainter({
+  _WaterDropletPainter({
     required this.droplets,
     required this.ripples,
   });
