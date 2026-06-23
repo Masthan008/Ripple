@@ -36,7 +36,13 @@ class _ChatLockSettingsScreenState extends State<ChatLockSettingsScreen> {
       backgroundColor: const Color(0xFF060D1A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A1628),
-        title: const Text('🔒 Chat Lock'),
+        title: const Row(
+          children: [
+            Icon(Icons.lock_outline_rounded, color: Color(0xFF0EA5E9), size: 22),
+            SizedBox(width: 8),
+            Text('Chat Lock'),
+          ],
+        ),
         foregroundColor: Colors.white,
       ),
       body: Column(
@@ -53,7 +59,7 @@ class _ChatLockSettingsScreenState extends State<ChatLockSettingsScreen> {
             ),
             child: const Row(
               children: [
-                Text('🔒', style: TextStyle(fontSize: 24)),
+                Icon(Icons.lock_rounded, color: Color(0xFF0EA5E9), size: 24),
                 SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -77,7 +83,7 @@ class _ChatLockSettingsScreenState extends State<ChatLockSettingsScreen> {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text('🔓', style: TextStyle(fontSize: 64)),
+                            Icon(Icons.lock_open_rounded, color: Colors.white24, size: 64),
                             SizedBox(height: 16),
                             Text('No locked chats',
                                 style: TextStyle(

@@ -51,10 +51,15 @@ class _FakePasscodeScreenState extends State<FakePasscodeScreen> {
     }
 
     return Scaffold(
-      backgroundColor: const Color(0xFF060D1A),
       appBar: AppBar(
         backgroundColor: const Color(0xFF0A1628),
-        title: const Text('🎭 Fake Passcode'),
+        title: const Row(
+          children: [
+            Icon(Icons.theater_comedy_rounded, color: Color(0xFF0EA5E9), size: 22),
+            SizedBox(width: 8),
+            Text('Fake Passcode'),
+          ],
+        ),
         foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
@@ -76,7 +81,7 @@ class _FakePasscodeScreenState extends State<FakePasscodeScreen> {
                 children: [
                   const Row(
                     children: [
-                      Text('⚠️', style: TextStyle(fontSize: 18)),
+                      Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
                       SizedBox(width: 8),
                       Text('How It Works',
                           style: TextStyle(
@@ -218,7 +223,7 @@ class _FakePasscodeScreenState extends State<FakePasscodeScreen> {
 
                   if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-                        content: Text('🎭 Fake passcode set!'),
+                        content: Text('Fake passcode set!'),
                         backgroundColor: Color(0xFF22C55E)));
                   }
                 },

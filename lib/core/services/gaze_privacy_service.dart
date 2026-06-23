@@ -49,13 +49,14 @@ class GazePrivacyService {
 
   // Timing: avoid spamming state changes
   DateTime _lastUpdate = DateTime.now();
-  static const _updateInterval = Duration(milliseconds: 150);
+  static const _updateInterval = Duration(milliseconds: 100); // Faster frame processing (100ms)
 
   // Consecutive frame counters for stability
   int _consecutiveNoFace = 0;
   int _consecutiveMultiFace = 0;
   int _consecutiveSingleFace = 0;
   static const _stabilityThreshold = 3; // frames before state change
+  static const _unblurStabilityThreshold = 5; // frames required to unblur after shoulder surfer leaves
 
   /// Initialize the camera + face detector pipeline.
   /// Call once when the chat screen mounts and telepathy is enabled.
@@ -71,7 +72,7 @@ class GazePrivacyService {
 
       _cameraController = CameraController(
         frontCamera,
-        ResolutionPreset.low, // minimal battery impact
+        ResolutionPreset.medium, // Upgraded to medium for higher accuracy and wider angle detection
         enableAudio: false,
         imageFormatGroup: ImageFormatGroup.nv21,
       );
@@ -133,7 +134,12 @@ class GazePrivacyService {
         _consecutiveNoFace = 0;
         _consecutiveMultiFace = 0;
 
-        if (_consecutiveSingleFace >= _stabilityThreshold) {
+        // Apply a longer security buffer (5 frames) to unblur if we were just locked/alerted
+        final requiredFrames = _currentState.isShoulderSurferDetected
+            ? _unblurStabilityThreshold
+            : _stabilityThreshold;
+
+        if (_consecutiveSingleFace >= requiredFrames) {
           final face = faces.first;
           final leftEye = face.leftEyeOpenProbability ?? 0.5;
           final rightEye = face.rightEyeOpenProbability ?? 0.5;
@@ -157,7 +163,8 @@ class GazePrivacyService {
         _consecutiveNoFace = 0;
         _consecutiveSingleFace = 0;
 
-        if (_consecutiveMultiFace >= _stabilityThreshold) {
+        // Instant activation (1 frame threshold) for shoulder surfing protection
+        if (_consecutiveMultiFace >= 1) {
           _emitState(const GazePrivacyState(
             isUserPresent: true,
             isShoulderSurferDetected: true,
