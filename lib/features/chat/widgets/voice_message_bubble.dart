@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/ai_service.dart';
+import '../../../core/services/steganography_service.dart';
 import '../../../core/utils/haptic_feedback.dart';
 import '../../../core/utils/l10n.dart';
 import '../../../shared/widgets/bio_acoustic_waveform.dart';
@@ -76,7 +78,38 @@ class _VoiceMessageBubbleState extends ConsumerState<VoiceMessageBubble> {
       } else {
         AppHaptics.mediumTap();
         if (_player.audioSource == null) {
-          await _player.setUrl(widget.audioUrl);
+          String playUrl = widget.audioUrl;
+          if (widget.audioUrl.toLowerCase().contains('.wav') || widget.audioUrl.toLowerCase().contains('/raw')) {
+            try {
+              final tempDir = await getTemporaryDirectory();
+              final localStegoPath = '${tempDir.path}/stego_${DateTime.now().millisecondsSinceEpoch}.wav';
+              
+              // Download stego file
+              await Dio().download(widget.audioUrl, localStegoPath);
+              final stegoBytes = await File(localStegoPath).readAsBytes();
+              
+              // Attempt to decode stego payload
+              final decodedPayload = await SteganographyService.decode(stegoWavBytes: stegoBytes);
+              if (decodedPayload != null && decodedPayload.isNotEmpty) {
+                final decodedBytes = base64.decode(decodedPayload);
+                final decodedFile = File('${tempDir.path}/decoded_voice_${DateTime.now().millisecondsSinceEpoch}.m4a');
+                await decodedFile.writeAsBytes(decodedBytes);
+                playUrl = decodedFile.path;
+              }
+              
+              // Clean up stego WAV file
+              final f = File(localStegoPath);
+              if (await f.exists()) await f.delete();
+            } catch (e) {
+              debugPrint('⚠️ Steganography playback decoding error: $e');
+            }
+          }
+          
+          if (playUrl.startsWith('http')) {
+            await _player.setUrl(playUrl);
+          } else {
+            await _player.setFilePath(playUrl);
+          }
         }
         await _player.play();
       }

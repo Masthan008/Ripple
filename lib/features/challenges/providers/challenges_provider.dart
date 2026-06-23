@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/challenge_model.dart';
-import '../models/badge_model.dart';
 import '../services/challenges_service.dart';
 
 // ─── Challenges Providers ──────────────────────────────────────────

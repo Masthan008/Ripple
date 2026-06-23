@@ -13,6 +13,9 @@ import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/presence_service.dart';
 import '../../../core/utils/app_lifecycle_observer.dart';
+import '../../privacy/widgets/pin_entry_dialog.dart';
+import '../../../core/services/decoy_provider.dart';
+import '../../../core/services/decoy_matrix_generator.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -408,8 +411,24 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
             // Chat list
             Expanded(
-              child:
-                  currentUser == null
+              child: ref.watch(decoyModeProvider)
+                  ? ListView.builder(
+                      physics: const BouncingScrollPhysics(),
+                      itemCount: DecoyMatrixGenerator.getDecoyChats().length + 1,
+                      itemBuilder: (ctx, i) {
+                        if (i == 0) {
+                          return _savedMessagesTile(context);
+                        }
+                        final chat = DecoyMatrixGenerator.getDecoyChats()[i - 1];
+                        return _DecoyChatTile(
+                          chatId: chat['id'] as String,
+                          name: chat['partnerName'] as String,
+                          preview: chat['lastMessage']['text'] as String,
+                          unreadCount: chat['unreadCount'] as int,
+                        );
+                      },
+                    )
+                  : currentUser == null
                       ? const SizedBox.shrink()
                       : StreamBuilder<DocumentSnapshot>(
                         stream:
@@ -1824,6 +1843,131 @@ class _GlassIconButton extends StatelessWidget {
   }
 }
 
+class _DecoyChatTile extends ConsumerWidget {
+  final String chatId;
+  final String name;
+  final String preview;
+  final int unreadCount;
+
+  const _DecoyChatTile({
+    required this.chatId,
+    required this.name,
+    required this.preview,
+    required this.unreadCount,
+    super.key,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final timeStr = DateFormat.jm().format(DateTime.now().subtract(const Duration(minutes: 10)));
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Stack(
+        children: [
+          if (unreadCount > 0)
+            Positioned.fill(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(14),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.aquaCore.withValues(alpha: 0.15),
+                      blurRadius: 10,
+                      spreadRadius: 1,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          GlassCard(
+            borderRadius: 14,
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            child: InkWell(
+              onTap: () {
+                GoRouter.of(context).push(
+                  '/chat?chatId=$chatId&partnerUid=decoy_user_partner&partnerName=${Uri.encodeComponent(name)}&partnerPhoto=&isDecoy=true',
+                );
+              },
+              child: Row(
+                children: [
+                  AquaAvatar(
+                    imageUrl: null,
+                    name: name,
+                    size: 44,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                name,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          preview,
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 12,
+                            color: AppColors.textMuted,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        timeStr,
+                        style: AppTextStyles.caption.copyWith(fontSize: 10),
+                      ),
+                      if (unreadCount > 0) ...[
+                        const SizedBox(height: 4),
+                        Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: const BoxDecoration(
+                            color: AppColors.aquaCore,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Text(
+                            unreadCount.toString(),
+                            style: const TextStyle(
+                              color: Colors.black,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Chat tile that fetches partner info and displays last message
 class _ChatTile extends ConsumerStatefulWidget {
   final String chatId;
@@ -1966,10 +2110,14 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
                       widget.chatId,
                     );
                     if (isLocked) {
-                      final auth = await ChatLockService.authenticate(
-                        reason: '${L10n.s(ref, "chatLocked")}: $name',
+                      final auth = await showDialog<bool>(
+                        context: context,
+                        barrierDismissible: false,
+                        builder: (_) => PinEntryDialog(
+                          title: '${L10n.s(ref, "chatLocked")}: $name',
+                        ),
                       );
-                      if (!auth) return;
+                      if (auth != true) return;
 
                       // Fix: Unlock the chat once authenticated via tap
                       await PrivacyService.unlockChatLock(widget.chatId);
@@ -2149,6 +2297,49 @@ class _GroupsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(decoyModeProvider)) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Text(L10n.s(ref, 'groups'), style: AppTextStyles.heading),
+                  const Spacer(),
+                  _GlassIconButton(
+                    icon: Icons.group_add_rounded,
+                    onTap: () {},
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.group_outlined,
+                        color: AppColors.aquaCore.withValues(alpha: 0.3),
+                        size: 64,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        L10n.s(ref, 'noGroups') ?? 'No groups',
+                        style: AppTextStyles.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final groups = ref.watch(myGroupsProvider);
 
     return SafeArea(
@@ -2268,6 +2459,39 @@ class _CallsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    if (ref.watch(decoyModeProvider)) {
+      return SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(L10n.s(ref, 'calls'), style: AppTextStyles.heading),
+              const SizedBox(height: 16),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.call_end_rounded,
+                        color: AppColors.aquaCore.withValues(alpha: 0.2),
+                        size: 64,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(L10n.s(ref, 'noCallHistory') ?? 'No call history', style: AppTextStyles.body),
+                      const SizedBox(height: 4),
+                      Text(L10n.s(ref, 'callsAppearHere') ?? 'Calls appear here', style: AppTextStyles.caption),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final authState = ref.watch(authStateProvider);
     final currentUser = authState.valueOrNull;
     if (currentUser == null) {

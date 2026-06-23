@@ -217,6 +217,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               partnerUid: state.uri.queryParameters['partnerUid'] ?? '',
               partnerName: state.uri.queryParameters['partnerName'] ?? '',
               partnerPhoto: state.uri.queryParameters['partnerPhoto'],
+              isDecoy: state.uri.queryParameters['isDecoy'] == 'true',
             ),
             transitionsBuilder: HolographicGlitchTransition.transitionBuilder,
           );

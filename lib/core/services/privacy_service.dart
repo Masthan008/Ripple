@@ -291,6 +291,16 @@ class PrivacyService {
     return prefs.getBool('fake_passcode_enabled') ?? false;
   }
 
+  static Future<void> setSteganographyEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('steganography_enabled', enabled);
+  }
+
+  static Future<bool> isSteganographyEnabled() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('steganography_enabled') ?? false;
+  }
+
   static String _hashPasscode(String passcode) {
     final bytes = utf8.encode('ripple_$passcode');
     return sha256.convert(bytes).toString();

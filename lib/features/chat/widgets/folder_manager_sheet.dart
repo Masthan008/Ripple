@@ -80,7 +80,7 @@ class _FolderManagerSheetState extends State<FolderManagerSheet> {
               children: [
                 Text(
                   'Chat Folders',
-                  style: AppTextStyles.heading3,
+                  style: AppTextStyles.heading,
                 ),
                 const Spacer(),
                 if (_isCreating)
@@ -121,7 +121,7 @@ class _FolderManagerSheetState extends State<FolderManagerSheet> {
               children: [
                 Text(
                   'Create New Folder',
-                  style: AppTextStyles.bodyLarge.copyWith(
+                  style: AppTextStyles.headingSmall.copyWith(
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -130,10 +130,10 @@ class _FolderManagerSheetState extends State<FolderManagerSheet> {
                 // Folder name input
                 TextField(
                   controller: _nameController,
-                  style: AppTextStyles.bodyMedium,
+                  style: AppTextStyles.body,
                   decoration: InputDecoration(
                     hintText: 'Folder name (e.g., Work, Family)',
-                    hintStyle: AppTextStyles.bodyMedium.copyWith(
+                    hintStyle: AppTextStyles.body.copyWith(
                       color: Colors.white54,
                     ),
                     filled: true,
@@ -373,10 +373,10 @@ class _FolderManagerSheetState extends State<FolderManagerSheet> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF0A1628),
-        title: Text('Delete Folder?', style: AppTextStyles.heading4),
+        title: Text('Delete Folder?', style: AppTextStyles.headingSmall),
         content: Text(
           'Chats in this folder will remain in your main chat list.',
-          style: AppTextStyles.bodyMedium,
+          style: AppTextStyles.body,
         ),
         actions: [
           TextButton(

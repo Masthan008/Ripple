@@ -3,6 +3,10 @@ import '../../groups/widgets/create_poll_sheet.dart';
 import '../../groups/models/poll_model.dart';
 import 'cloud_drive_screen.dart';
 import 'dart:io';
+import 'dart:convert';
+import 'dart:math' as math;
+import '../../../core/services/decoy_matrix_generator.dart';
+import '../../../core/services/steganography_service.dart';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:emoji_picker_flutter/emoji_picker_flutter.dart';
@@ -75,6 +79,7 @@ class ChatScreen extends ConsumerStatefulWidget {
   final String partnerUid;
   final String partnerName;
   final String? partnerPhoto;
+  final bool isDecoy;
 
   const ChatScreen({
     super.key,
@@ -82,6 +87,7 @@ class ChatScreen extends ConsumerStatefulWidget {
     required this.partnerUid,
     required this.partnerName,
     this.partnerPhoto,
+    this.isDecoy = false,
   });
 
   @override
@@ -94,6 +100,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   late final SensoryTextController _sensoryController;
   bool _isSending = false;
   bool _showEmojiPicker = false;
+
+  // Decoy messages state
+  List<MessageModel> _decoyMessages = [];
 
   // Phase 1 state
   ReplyData? _replyTo;
@@ -130,6 +139,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _sensoryController = SensoryTextController(controller: _messageController);
     // Track active chat for foreground notification suppression
     NotificationService.currentActiveChatId = widget.chatId;
+
+    if (widget.isDecoy) {
+      final decoyChat = DecoyMatrixGenerator.getDecoyChats().firstWhere(
+        (c) => c['id'] == widget.chatId,
+        orElse: () => <String, dynamic>{},
+      );
+      final myUid = ref.read(chatServiceProvider).myUid;
+      if (decoyChat['messages'] is List) {
+        final messagesList = decoyChat['messages'] as List;
+        _decoyMessages = messagesList.map((m) {
+          final map = m as Map<String, dynamic>;
+          return MessageModel(
+            id: 'decoy_msg_${const Uuid().v4()}',
+            senderId: map['senderId'] == 'current_user' ? myUid : map['senderId'] as String,
+            text: map['text'] as String,
+            type: 'text',
+            createdAt: DateTime.now().subtract(Duration(minutes: messagesList.length - messagesList.indexOf(m))),
+            seenBy: [myUid],
+          );
+        }).toList();
+      }
+    }
     // Mark messages as read when opening chat
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(chatServiceProvider).markAsRead(widget.chatId);
@@ -223,6 +254,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
+
+    if (widget.isDecoy) {
+      setState(() => _isSending = true);
+      _messageController.clear();
+      setState(() => _replyTo = null);
+      await _sendDecoyMessage(text);
+      setState(() => _isSending = false);
+      return;
+    }
 
     // Check for @ripple bot command
     if (text.contains('@ripple')) {
@@ -681,7 +721,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     final partner = ref.watch(chatPartnerProvider(widget.partnerUid));
-    final messages = ref.watch(chatMessagesProvider(widget.chatId));
+    final messages = widget.isDecoy
+        ? AsyncValue.data(_decoyMessages)
+        : ref.watch(chatMessagesProvider(widget.chatId));
     final currentUser = ref.read(chatServiceProvider).myUid;
     final currentTheme = ref.watch(themeProvider);
 
@@ -1838,6 +1880,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     String type, {
     String? fileName,
   }) async {
+    if (widget.isDecoy) {
+      setState(() => _isSending = true);
+      try {
+        await _sendDecoyMessage(fileName ?? '[$type]', type: type, mediaUrl: file.path, fileName: fileName);
+      } finally {
+        if (mounted) setState(() => _isSending = false);
+      }
+      return;
+    }
+
     setState(() => _isSending = true);
     try {
       String? url;
@@ -1902,6 +1954,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       builder:
           (_) => GifPickerSheet(
             onGifSelected: (gifUrl, previewUrl) async {
+              if (widget.isDecoy) {
+                await _sendDecoyMessage('', type: 'gif', mediaUrl: gifUrl);
+                return;
+              }
               setState(() => _isSending = true);
               try {
                 final chatService = ref.read(chatServiceProvider);
@@ -1937,6 +1993,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       isScrollControlled: true,
       builder: (_) => StickerPickerSheet(
         onStickerSelected: (stickerEmoji) async {
+          if (widget.isDecoy) {
+            await _sendDecoyMessage(stickerEmoji, type: 'sticker');
+            return;
+          }
           setState(() => _isSending = true);
           try {
             final chatService = ref.read(chatServiceProvider);
@@ -2219,11 +2279,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     Duration duration,
     List<double> waveformData,
   ) async {
+    if (widget.isDecoy) {
+      setState(() => _isSending = true);
+      try {
+        await _sendDecoyMessage('🎙️ Voice message (${duration.inSeconds}s)', type: 'voice', mediaUrl: filePath);
+      } finally {
+        if (mounted) setState(() => _isSending = false);
+      }
+      return;
+    }
+
     setState(() => _isSending = true);
     try {
       final file = File(filePath);
+      
+      final isSteg = await PrivacyService.isSteganographyEnabled();
+      File finalFile = file;
+      bool hasSteg = false;
+      
+      if (isSteg) {
+        final voiceBytes = await file.readAsBytes();
+        final payloadBase64 = base64.encode(voiceBytes);
+        final coverWavBytes = SteganographyService.generateRainfallWav(
+          ((payloadBase64.length * 8) / 16000).ceil() + 2
+        );
+        final stegoBytes = await SteganographyService.encode(
+          coverWavBytes: coverWavBytes,
+          payload: payloadBase64,
+        );
+        final tempDir = await getTemporaryDirectory();
+        final stegoFile = File('${tempDir.path}/stego_voice_${DateTime.now().millisecondsSinceEpoch}.wav');
+        await stegoFile.writeAsBytes(stegoBytes);
+        finalFile = stegoFile;
+        hasSteg = true;
+      }
+
       // Upload to Cloudinary as raw/auto
-      final url = await CloudinaryService.uploadVideo(file);
+      final url = await CloudinaryService.uploadVideo(finalFile);
       if (url == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -2247,7 +2339,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             'mediaUrl': url,
             'duration': duration.inSeconds,
             'waveformData': waveformData,
-            'text': null,
+            'text': hasSteg ? 'Acoustic Steganography Active' : null,
+            'steganography': hasSteg,
             'createdAt': FieldValue.serverTimestamp(),
             'isDeleted': false,
             'isEdited': false,
@@ -3647,6 +3740,64 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         },
       ),
     );
+  }
+
+  Future<void> _sendDecoyMessage(String text, {String type = 'text', String? mediaUrl, String? fileName}) async {
+    final myUid = ref.read(chatServiceProvider).myUid;
+    final newMsg = MessageModel(
+      id: 'decoy_msg_${const Uuid().v4()}',
+      senderId: myUid,
+      text: text.isNotEmpty ? text : null,
+      type: type,
+      mediaUrl: mediaUrl,
+      fileName: fileName,
+      createdAt: DateTime.now(),
+      seenBy: [myUid],
+    );
+    setState(() {
+      _decoyMessages.add(newMsg);
+    });
+    _scrollToBottom();
+
+    // Auto mock reply
+    Future.delayed(const Duration(seconds: 2), () {
+      if (!mounted) return;
+      final replyText = type == 'text' ? _generateMockReply(text) : 'That looks cool!';
+      final replyMsg = MessageModel(
+        id: 'decoy_msg_${const Uuid().v4()}',
+        senderId: widget.partnerUid,
+        text: replyText,
+        type: 'text',
+        createdAt: DateTime.now(),
+        seenBy: [myUid],
+      );
+      setState(() {
+        _decoyMessages.add(replyMsg);
+      });
+      _scrollToBottom();
+    });
+  }
+
+  String _generateMockReply(String userMessage) {
+    final lower = userMessage.toLowerCase();
+    if (lower.contains('hello') || lower.contains('hi') || lower.contains('hey')) {
+      return 'Hey there! How is your day going?';
+    } else if (lower.contains('work') || lower.contains('project') || lower.contains('task')) {
+      return 'Yeah, let\'s sync up on that tomorrow. I have the files ready.';
+    } else if (lower.contains('dinner') || lower.contains('eat') || lower.contains('food')) {
+      return 'Sounds good! I\'ll grab something in a bit.';
+    } else if (lower.contains('gym') || lower.contains('workout') || lower.contains('exercise')) {
+      return 'Count me in for tomorrow morning!';
+    } else {
+      final responses = [
+        'Awesome, talk to you in a bit!',
+        'Interesting, let me check and get back to you.',
+        'Sounds good!',
+        'No problem, take your time.',
+        'Okay, let know if you need anything else.',
+      ];
+      return responses[math.Random().nextInt(responses.length)];
+    }
   }
 }
 

@@ -71,12 +71,7 @@ class AmbientCaptureService {
       if (!file.existsSync()) return null;
 
       // Upload to Supabase Storage
-      final storagePath = 'ambient/$fileName';
-      final publicUrl = await SupabaseService.uploadFile(
-        bucket: 'voice-messages',
-        path: storagePath,
-        file: file,
-      );
+      final publicUrl = await SupabaseService.uploadFile(file, fileName);
 
       // Clean up local file
       try {

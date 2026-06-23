@@ -7,6 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/privacy_service.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../widgets/liquid_wave_exchange_dialog.dart';
 
 /// Privacy Dashboard — centralized view of permissions and security score
 class PrivacyDashboardScreen extends ConsumerWidget {
@@ -96,6 +97,16 @@ class PrivacyDashboardScreen extends ConsumerWidget {
               _stealthModeTile(privacy['stealthMode'] as bool? ?? false),
               const SizedBox(height: 20),
               
+              // Acoustic Steganography
+              _sectionHeader('Acoustic Steganography'),
+              _buildSteganographyTile(context, ref),
+              const SizedBox(height: 20),
+
+              // Visual Key Exchange
+              _sectionHeader('Visual Key Exchange'),
+              _buildLiquidWaveExchangeTile(context, uid),
+              const SizedBox(height: 20),
+
               // Locked Chats
               _sectionHeader('Locked Chats'),
               _buildLockedChatsSection(privacy['lockedChats'] as List<dynamic>? ?? []),
@@ -372,6 +383,70 @@ class PrivacyDashboardScreen extends ConsumerWidget {
           }),
         ],
       ),
+    );
+  }
+
+  Widget _buildSteganographyTile(BuildContext context, WidgetRef ref) {
+    return FutureBuilder<bool>(
+      future: PrivacyService.isSteganographyEnabled(),
+      builder: (context, snapshot) {
+        final isEnabled = snapshot.data ?? false;
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return ListTile(
+              leading: const Icon(
+                Icons.waves_rounded,
+                color: AppColors.aquaCore,
+                size: 20,
+              ),
+              title: const Text(
+                'Acoustic Steganography',
+                style: TextStyle(color: Colors.white),
+              ),
+              subtitle: const Text(
+                'Mask voice messages as pleasant water soundscapes',
+                style: TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              trailing: Switch(
+                value: isEnabled,
+                activeColor: AppColors.aquaCore,
+                onChanged: (value) async {
+                  await PrivacyService.setSteganographyEnabled(value);
+                  setState(() {});
+                },
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildLiquidWaveExchangeTile(BuildContext context, String uid) {
+    return ListTile(
+      leading: const Icon(
+        Icons.water_rounded,
+        color: AppColors.aquaCore,
+        size: 20,
+      ),
+      title: const Text(
+        'Liquid Wave Key Exchange',
+        style: TextStyle(color: Colors.white),
+      ),
+      subtitle: const Text(
+        'Verify E2E keys visually using polarized wave vectors',
+        style: TextStyle(color: Colors.white54, fontSize: 12),
+      ),
+      trailing: const Icon(
+        Icons.chevron_right,
+        color: Colors.white38,
+      ),
+      onTap: () {
+        showDialog(
+          context: context,
+          builder: (_) => LiquidWaveExchangeDialog(uid: uid),
+        );
+      },
     );
   }
 
