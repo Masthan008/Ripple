@@ -34,13 +34,6 @@
       ]
     },
     {
-      "collectionGroup": "statuses",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "expiresAt", "order": "ASCENDING" }
-      ]
-    },
-    {
       "collectionGroup": "groups",
       "queryScope": "COLLECTION",
       "fields": [
@@ -112,34 +105,6 @@
       "fields": [
         { "fieldPath": "recipientId", "order": "ASCENDING" },
         { "fieldPath": "receivedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users/giftsSent",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "sentAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users/giftsReceived",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "receivedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users/challengeProgress",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "updatedAt", "order": "DESCENDING" }
-      ]
-    },
-    {
-      "collectionGroup": "users/badges",
-      "queryScope": "COLLECTION",
-      "fields": [
-        { "fieldPath": "earnedAt", "order": "DESCENDING" }
       ]
     },
     {

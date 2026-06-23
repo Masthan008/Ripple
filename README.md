@@ -49,6 +49,31 @@ The source code is organized within the `lib/` directory under a modular feature
 
 ## 🔒 Security & Deployment
 
-- **Firestore Rules**: Securing user documents and message sub-collections. Rules are declared in [firestore.rules](file:///c:/valli/RIPPLE/ripple/firestore.rules).
+- **Firestore Rules**: Securing user documents, messages, prekeys, and secret chat handshakes. Rules are declared in [firestore.rules](file:///c:/valli/RIPPLE/ripple/firestore.rules).
 - **Database Indexes**: Optimized query mappings are defined in [firestore.indexes.json](file:///c:/valli/RIPPLE/ripple/firestore.indexes.json).
 - **Release Guidelines**: When prepping the app for production deployment, make sure to configure ProGuard rules and release signing. Follow the checklist in the [Indus App Store Release Guide](file:///c:/valli/RIPPLE/ripple/RELEASE.md).
+
+---
+
+## 🛡️ E2E Encryption & Advanced Privacy System
+
+Ripple integrates state-of-the-art E2EE and sensory-security features to guarantee communication privacy:
+
+### 1. Automated E2EE Protocol (Curve25519 X3DH + Double Ratchet)
+- **Handshake**: Extended Triple Diffie-Hellman (X3DH) automatically establishes shared master keys on Firestore upon chat entry. It publishes prekey bundles under `users/{uid}/prekeys/bundle` and exchanges metadata under `secretChats/{chatId}/handshake/init`.
+- **Encryption**: Messages are encrypted via **AES-256-GCM** with dynamic key rotations on every message bubble for Forward Secrecy and Post-Compromise Security.
+- **Key Storage**: Identity and session keys are kept exclusively on-device inside Android's EncryptedSharedPreferences and iOS's Keychain via `flutter_secure_storage`.
+
+### 2. Steganography (Acoustic Stealth)
+- **Cover Audio**: High-fidelity rain/ocean noise WAV file generator.
+- **LSB Encoding**: Compresses and encrypts audio message payloads, hiding binary bits within the least significant bits of the wav file's sample arrays.
+- **Isolate Processing**: Runs bitwise encoding/decoding off the UI thread via Dart isolate workers (`compute`) to prevent screen frame drops.
+- **On-the-fly Recovery**: Automatically detects cover WAV files on play, extracts LSB payloads, and decrypts the audio stream for seamless reproduction.
+
+### 3. Liquid Wave Polarized Key Verification
+- **Aesthetic Representation**: Draws dynamic public keys as dynamic vector canvas ripples with frequency, phase-offset, and HSL color cycles using custom `LiquidWavePainter`.
+- **Temporal QR-Alternative**: Prevents static photo/screenshot spoofing since key verification is verified through animation movement cycles.
+
+### 4. Sentient Decoy Matrix
+- **Stealth Pin Access**: Logins using the decoy passcode redirect users to a clean, fully simulated chat sandbox.
+- **Dialogue Engine**: Local generator populates mock threads with dynamic conversations, blurry media placeholders, and auto-replies to deflect physical inspection.
