@@ -77,3 +77,32 @@ Ripple integrates state-of-the-art E2EE and sensory-security features to guarant
 ### 4. Sentient Decoy Matrix
 - **Stealth Pin Access**: Logins using the decoy passcode redirect users to a clean, fully simulated chat sandbox.
 - **Dialogue Engine**: Local generator populates mock threads with dynamic conversations, blurry media placeholders, and auto-replies to deflect physical inspection.
+
+---
+
+## 🎨 Premium Visuals, Diagnostics, & Storage Systems
+
+Ripple now includes enhanced visuals, diagnostic metrics, and granular local resource tools:
+
+### 1. Dynamic Splash Screen
+- **Concurrent Checks**: Parallelizes user auth checks and Firestore profile fetches during the entrance animations, accelerating launch times.
+- **Morphing Liquid Blobs**: Draws organic drifting liquid blobs using a custom `_LiquidOrbsPainter` alongside expanding ripple waves.
+
+### 2. Live Storage Scanner & Category Clearing
+- **Recursive Directory Scan**: Computes actual cache sizes across local directories and partitions usage into Images, Videos, and Documents.
+- **Selective Purge**: Allows users to clear files category-by-category.
+- **Storage Ring representation**: Visualizes resource usage through a custom circular storage distribution ring widget.
+
+### 3. Persistent Data Tracker
+- **Traffic Tracking**: Displays cellular and Wi-Fi data statistics (sent and received) tracked persistently using local configurations.
+- **Reset Option**: Offers a simple reset option to clear statistics to zero.
+
+### 4. Diagnostics & Support Center
+- **FAQ search**: Adds real-time query searching and category filter chips to Help/FAQ.
+- **Direct Ticket Creation**: Features a glassmorphic Contact Support form that submits ticket details directly to the Firestore `/support_tickets` collection.
+- **Live Latency Ping**: Dynamically measures connection latency and gRPC/Firestore network operational health.
+
+### 5. Premium Stickers & Emojis-to-Icons Overhaul
+- **Sticker Achievement Lock**: Locks Premium Sticker categories (Love, Gaming) behind customizable achievement tiers streamed from Firestore.
+- **Chronos Messages Icon Update**: Replaces all text emojis in the Chronos Messages UI with modern Material Design icons.
+

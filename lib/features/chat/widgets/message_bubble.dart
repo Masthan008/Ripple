@@ -33,6 +33,7 @@ import '../../../core/utils/reaction_icons.dart';
 import 'impact_text.dart';
 import 'quantum_vault_bubble.dart';
 import 'sonic_whisper_overlay.dart';
+import '../../stickers/widgets/special_sticker_widget.dart';
 import '../../../core/services/sentience_engine.dart';
 import '../../../shared/widgets/black_hole_ripple.dart';
 
@@ -571,8 +572,18 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
     );
   }
 
+  bool _isSpecialSticker(String emoji) {
+    return [
+      '🌀', '🪼', '🪐', '⚡', '⚛️', '🔮', '💎', '✨', // NeoGlass
+      '🌊', '🔷', '🔆', '❄️', '💧', '🌌', '💜', '🔵', // Ripple Signature
+    ].contains(emoji);
+  }
+
   Widget _buildStickerContent() {
     final sticker = widget.message.text ?? '';
+    if (_isSpecialSticker(sticker)) {
+      return SpecialStickerWidget(emoji: sticker);
+    }
     return Container(
       padding: const EdgeInsets.all(8),
       child: Text(

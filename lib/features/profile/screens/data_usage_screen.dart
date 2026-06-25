@@ -1,20 +1,22 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../providers/settings_provider.dart';
 
-class DataUsageScreen extends StatefulWidget {
+class DataUsageScreen extends ConsumerStatefulWidget {
   const DataUsageScreen({super.key});
 
   @override
-  State<DataUsageScreen> createState() => _DataUsageScreenState();
+  ConsumerState<DataUsageScreen> createState() => _DataUsageScreenState();
 }
 
-class _DataUsageScreenState extends State<DataUsageScreen> {
+class _DataUsageScreenState extends ConsumerState<DataUsageScreen> {
   bool _autoImages = true;
   bool _autoVideos = false;
   bool _autoFiles = false;
@@ -47,8 +49,33 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
     await prefs.setString('upload_quality', value);
   }
 
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    if (bytes < 1024 * 1024 * 1024) return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  Future<void> _resetStats() async {
+    await ref.read(dataUsageProvider.notifier).resetStats();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Statistics reset successfully!'),
+          backgroundColor: AppColors.onlineGreen,
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final dataUsage = ref.watch(dataUsageProvider);
+    final cellularSent = dataUsage.cellularSent;
+    final cellularReceived = dataUsage.cellularReceived;
+    final wifiSent = dataUsage.wifiSent;
+    final wifiReceived = dataUsage.wifiReceived;
+
     return Scaffold(
       backgroundColor: AppColors.abyssBackground,
       appBar: AppBar(
@@ -65,7 +92,8 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
             children: AnimationConfiguration.toStaggeredList(
               duration: const Duration(milliseconds: 450),
               childAnimationBuilder: (w) => SlideAnimation(
-                verticalOffset: 50, curve: Curves.easeOutBack,
+                verticalOffset: 50,
+                curve: Curves.easeOutBack,
                 child: FadeInAnimation(child: w),
               ),
               children: [
@@ -140,10 +168,76 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
+
+                _sectionHeader('Network Statistics'),
+                const SizedBox(height: 8),
+                GlassCard(
+                  borderRadius: 16,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      _statRow('Cellular Sent', cellularSent, Icons.upload_rounded, AppColors.warningAmber),
+                      const Divider(color: Colors.white10),
+                      _statRow('Cellular Received', cellularReceived, Icons.download_rounded, AppColors.warningAmber),
+                      const Divider(color: Colors.white10),
+                      _statRow('Wi-Fi Sent', wifiSent, Icons.upload_rounded, AppColors.aquaCore),
+                      const Divider(color: Colors.white10),
+                      _statRow('Wi-Fi Received', wifiReceived, Icons.download_rounded, AppColors.aquaCore),
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text(
+                            'Total Network Usage',
+                            style: AppTextStyles.body.copyWith(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          Text(
+                            _formatBytes(cellularSent + cellularReceived + wifiSent + wifiReceived),
+                            style: AppTextStyles.body.copyWith(
+                                color: AppColors.aquaCore, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: OutlinedButton.icon(
+                          onPressed: _resetStats,
+                          icon: const Icon(Icons.refresh_rounded, size: 18),
+                          label: const Text('Reset Statistics'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.errorRed.withOpacity(0.8),
+                            side: BorderSide(color: AppColors.errorRed.withOpacity(0.3)),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Widget _statRow(String label, int value, IconData icon, Color color) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 16),
+          const SizedBox(width: 10),
+          Text(label, style: AppTextStyles.caption.copyWith(color: Colors.white70, fontSize: 12)),
+          const Spacer(),
+          Text(_formatBytes(value), style: AppTextStyles.body.copyWith(fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
@@ -171,10 +265,12 @@ class _DataUsageScreenState extends State<DataUsageScreen> {
   }
 
   Widget _sectionHeader(String title) => Text(
-    title.toUpperCase(),
-    style: AppTextStyles.caption.copyWith(
-      fontSize: 11, fontWeight: FontWeight.w600,
-      letterSpacing: 1.2, color: AppColors.aquaCore.withValues(alpha: 0.7),
-    ),
-  );
+        title.toUpperCase(),
+        style: AppTextStyles.caption.copyWith(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.2,
+          color: AppColors.aquaCore.withValues(alpha: 0.7),
+        ),
+      );
 }

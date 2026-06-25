@@ -260,7 +260,7 @@ class AiService {
       systemPrompt:
           'You are a creative social media caption generator. Generate a single '
           'engaging, short caption (under 15 words) for a status update. '
-          'Be trendy, fun, and use 1-2 emojis. Return ONLY the caption text, nothing else.',
+          'Be trendy, fun, and engaging. Do not use emojis. Return ONLY the caption text, nothing else.',
       prompt: 'Generate a caption for this status: $context.$moodHint',
       maxTokens: 60,
     );

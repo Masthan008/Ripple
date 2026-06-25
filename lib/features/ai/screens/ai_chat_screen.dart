@@ -141,7 +141,7 @@ class _AiChatScreenState extends ConsumerState<AiChatScreen> {
                 border: Border.all(color: color.withValues(alpha: 0.5)),
               ),
               alignment: Alignment.center,
-              child: Text(bot.emoji, style: const TextStyle(fontSize: 18)),
+              child: Icon(bot.icon, color: color, size: 18),
             ),
             const SizedBox(width: 12),
             Column(

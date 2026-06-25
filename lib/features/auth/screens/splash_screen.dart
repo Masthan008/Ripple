@@ -111,17 +111,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       duration: const Duration(milliseconds: 1500),
     )..repeat();
 
-    // ── Glow breathing (continuous) ──
+    // Glow breathing (continuous)
     _glowController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 3000),
-    )..repeat(reverse: true);
+      duration: const Duration(milliseconds: 6000), // Slower, more liquid drift
+    )..repeat(reverse: false); // Loop continuously for smooth drift
 
     // Orchestrate the animation sequence
     _startAnimationSequence();
 
-    // Auto-navigate after splash
-    Future.delayed(const Duration(seconds: 3), _checkAuthAndNavigate);
+    // Auto-navigate after splash checks are complete
+    _checkAuthAndNavigate();
   }
 
   void _startAnimationSequence() async {
@@ -137,52 +137,48 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   }
 
   Future<void> _checkAuthAndNavigate() async {
-    if (!mounted) return;
+    final minTimeFuture = Future.delayed(const Duration(milliseconds: 2200));
+    String targetPath = '/login';
+    
+    try {
+      final user = FirebaseService.auth.currentUser;
+      if (user != null) {
+        final doc = await FirebaseService.usersCollection
+            .doc(user.uid)
+            .get();
 
-    final user = FirebaseService.auth.currentUser;
+        if (doc.exists) {
+          final data = doc.data();
+          final hasRegFlag =
+              data?.containsKey('isRegistrationComplete') ?? false;
 
-    if (user == null) {
-      if (mounted) context.go('/login');
-      return;
+          bool isComplete;
+          if (hasRegFlag) {
+            isComplete = data!['isRegistrationComplete'] as bool? ?? false;
+          } else {
+            final name = data?['name'] as String? ?? '';
+            isComplete = name.isNotEmpty;
+          }
+
+          if (isComplete) {
+            targetPath = '/home';
+          } else {
+            targetPath = '/register?uid=${user.uid}'
+                '&name=${Uri.encodeComponent(data?['name'] ?? user.displayName ?? '')}'
+                '&email=${Uri.encodeComponent(user.email ?? '')}'
+                '&photoUrl=${Uri.encodeComponent(data?['photoUrl'] ?? user.photoURL ?? '')}'
+                '&isGoogleSignIn=true';
+          }
+        }
+      }
+    } catch (_) {
+      targetPath = '/login';
     }
 
-    try {
-      final doc = await FirebaseService.usersCollection
-          .doc(user.uid)
-          .get();
-
-      if (!mounted) return;
-
-      if (!doc.exists) {
-        context.go('/login');
-        return;
-      }
-
-      final data = doc.data();
-      final hasRegFlag =
-          data?.containsKey('isRegistrationComplete') ?? false;
-
-      bool isComplete;
-      if (hasRegFlag) {
-        isComplete = data!['isRegistrationComplete'] as bool? ?? false;
-      } else {
-        final name = data?['name'] as String? ?? '';
-        isComplete = name.isNotEmpty;
-      }
-
-      if (isComplete) {
-        context.go('/home');
-      } else {
-        context.go(
-          '/register?uid=${user.uid}'
-          '&name=${Uri.encodeComponent(data?['name'] ?? user.displayName ?? '')}'
-          '&email=${Uri.encodeComponent(user.email ?? '')}'
-          '&photoUrl=${Uri.encodeComponent(data?['photoUrl'] ?? user.photoURL ?? '')}'
-          '&isGoogleSignIn=true',
-        );
-      }
-    } catch (e) {
-      if (mounted) context.go('/login');
+    // Wait for the minimum splash duration to play entrance animations
+    await minTimeFuture;
+    if (mounted) {
+      context.go(targetPath);
     }
   }
 
@@ -205,54 +201,23 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
       backgroundColor: theme.colors.background,
       body: Stack(
         children: [
-          // Floating particles background
-          const FloatingParticles(particleCount: 8),
-
-          // Animated glowing background orbs
+          // Animated drifting liquid background orbs
           AnimatedBuilder(
             animation: _glowController,
-            builder: (_, __) {
-              final breathe = 0.8 + (_glowController.value * 0.4);
-              return Stack(
-                children: [
-                  Positioned(
-                    top: -60,
-                    left: -40,
-                    child: Container(
-                      width: 250 * breathe,
-                      height: 250 * breathe,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            theme.colors.primary.withOpacity(0.12),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: -80,
-                    right: -50,
-                    child: Container(
-                      width: 300 * breathe,
-                      height: 300 * breathe,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        gradient: RadialGradient(
-                          colors: [
-                            theme.colors.secondary.withOpacity(0.08),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            builder: (context, _) {
+              return CustomPaint(
+                size: screenSize,
+                painter: _LiquidOrbsPainter(
+                  progress: _glowController.value,
+                  primaryColor: theme.colors.primary,
+                  secondaryColor: theme.colors.secondary,
+                ),
               );
             },
           ),
+
+          // Floating particles background
+          const FloatingParticles(particleCount: 8),
 
           // Center content
           Center(
@@ -468,5 +433,76 @@ class _WaveLoaderPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _WaveLoaderPainter oldDelegate) =>
+      oldDelegate.progress != progress;
+}
+
+/// Paints drifting, organic liquid color blobs for background
+class _LiquidOrbsPainter extends CustomPainter {
+  final double progress;
+  final Color primaryColor;
+  final Color secondaryColor;
+
+  _LiquidOrbsPainter({
+    required this.progress,
+    required this.primaryColor,
+    required this.secondaryColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final width = size.width;
+    final height = size.height;
+
+    // Orb 1: Primary color drifting top-left
+    final x1 = width * (0.2 + 0.15 * math.sin(progress * 2 * math.pi));
+    final y1 = height * (0.2 + 0.12 * math.cos(progress * 2 * math.pi));
+    final r1 = width * 0.55;
+
+    final paint1 = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          primaryColor.withOpacity(0.12),
+          primaryColor.withOpacity(0.03),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(x1, y1), radius: r1));
+    canvas.drawCircle(Offset(x1, y1), r1, paint1);
+
+    // Orb 2: Secondary color drifting bottom-right
+    final x2 = width * (0.8 + 0.15 * math.cos(progress * 2 * math.pi + 1.0));
+    final y2 = height * (0.8 + 0.12 * math.sin(progress * 2 * math.pi + 1.0));
+    final r2 = width * 0.65;
+
+    final paint2 = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          secondaryColor.withOpacity(0.09),
+          secondaryColor.withOpacity(0.02),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(x2, y2), radius: r2));
+    canvas.drawCircle(Offset(x2, y2), r2, paint2);
+
+    // Orb 3: Cyan/Aqua light beam drifting center-left
+    final x3 = width * (0.4 + 0.2 * math.sin(progress * 2 * math.pi + 2.0));
+    final y3 = height * (0.5 + 0.15 * math.cos(progress * 2 * math.pi + 2.0));
+    final r3 = width * 0.48;
+
+    final paint3 = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          const Color(0xFF00E5FF).withOpacity(0.06),
+          const Color(0xFF00E5FF).withOpacity(0.01),
+          Colors.transparent,
+        ],
+        stops: const [0.0, 0.5, 1.0],
+      ).createShader(Rect.fromCircle(center: Offset(x3, y3), radius: r3));
+    canvas.drawCircle(Offset(x3, y3), r3, paint3);
+  }
+
+  @override
+  bool shouldRepaint(covariant _LiquidOrbsPainter oldDelegate) =>
       oldDelegate.progress != progress;
 }

@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:sensors_plus/sensors_plus.dart';
 import '../../core/theme/theme_models.dart';
 
 /// Interactive physics-based Water Droplet Background
@@ -32,17 +34,32 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
   Size _screenSize = Size.zero;
   bool _initialized = false;
 
+  StreamSubscription? _accelerometerSubscription;
+  double _tiltX = 0.0;
+  double _tiltY = 0.0;
+
   @override
   void initState() {
     super.initState();
     // 60 FPS animation ticker
     _ticker = createTicker(_onTick);
     _ticker.start();
+
+    // Accelerometer stream subscription for 3D physics tilt
+    _accelerometerSubscription = accelerometerEventStream().listen((event) {
+      if (mounted) {
+        setState(() {
+          _tiltX = -event.x / 9.81;
+          _tiltY = event.y / 9.81;
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
     _ticker.dispose();
+    _accelerometerSubscription?.cancel();
     super.dispose();
   }
 
@@ -65,12 +82,23 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
         final d = _droplets[i];
 
         if (d.isSliding) {
-          // Slide downwards with variable speeds
-          d.y += d.speed;
+          // Slide downwards with variable speeds modified by accelerometer tilt
+          double forceX = _tiltX * 3.0;
+          double forceY = (1.0 + _tiltY) * d.speed;
+
+          d.x += forceX;
+          d.y += forceY;
+
+          // Wrap horizontally
+          if (d.x < -20) {
+            d.x = _screenSize.width + 20;
+          } else if (d.x > _screenSize.width + 20) {
+            d.x = -20;
+          }
           
           // Wobble horizontally to simulate surface friction
           d.wobblePhase += d.wobbleSpeed;
-          d.x += sin(d.wobblePhase) * 0.25;
+          d.x += sin(d.wobblePhase) * 0.15;
 
           // Drag trail effect
           if (d.y - d.lastTrailY > d.radius * 2.5) {
@@ -109,8 +137,8 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
           }
         }
 
-        // Reset droplet if it runs off screen bottom
-        if (d.y > _screenSize.height + 20) {
+        // Reset droplet if it runs off screen bottom or top
+        if (d.y > _screenSize.height + 20 || d.y < -20.0) {
           _resetDroplet(d);
         }
       }
@@ -289,6 +317,8 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
                   droplets: _droplets,
                   ripples: _ripples,
                   theme: widget.theme,
+                  tiltX: _tiltX,
+                  tiltY: _tiltY,
                 ),
                 size: Size.infinite,
               ),
@@ -346,11 +376,15 @@ class _WaterDropletPainter extends CustomPainter {
   final List<_Droplet> droplets;
   final List<_Ripple> ripples;
   final RippleTheme? theme;
+  final double tiltX;
+  final double tiltY;
 
   _WaterDropletPainter({
     required this.droplets,
     required this.ripples,
     this.theme,
+    required this.tiltX,
+    required this.tiltY,
   });
 
   @override
@@ -405,13 +439,17 @@ class _WaterDropletPainter extends CustomPainter {
       }
 
       // B. Drop Shadow (Physical offset volume)
+      final shadowOffset = Offset(
+        (isLightTheme ? 1.2 : 1.0) - (tiltX * d.radius * 0.15),
+        (isLightTheme ? 2.2 : 1.8) + (tiltY * d.radius * 0.15),
+      );
       final shadowPaint = Paint()
         ..color = isLightTheme 
             ? const Color(0x35000000) // Stronger shadow for light theme
             : const Color(0x18000000)
         ..maskFilter = MaskFilter.blur(BlurStyle.normal, isLightTheme ? 3.0 : 2.5);
       canvas.drawCircle(
-        center + Offset(isLightTheme ? 1.2 : 1.0, isLightTheme ? 2.2 : 1.8),
+        center + shadowOffset,
         d.radius,
         shadowPaint,
       );
@@ -459,9 +497,13 @@ class _WaterDropletPainter extends CustomPainter {
       final highlightPaint = Paint()
         ..color = Colors.white.withOpacity(0.88);
       
-      // Top-Left glare circle
+      // Top-Left glare circle shifted by tilt
+      final highlightOffset = Offset(
+        -d.radius * 0.35 + (tiltX * d.radius * 0.15),
+        -d.radius * 0.35 - (tiltY * d.radius * 0.15),
+      );
       canvas.drawCircle(
-        center + Offset(-d.radius * 0.35, -d.radius * 0.35),
+        center + highlightOffset,
         d.radius * 0.22,
         highlightPaint,
       );
@@ -469,8 +511,12 @@ class _WaterDropletPainter extends CustomPainter {
       // Subtle opposite bounce reflection (Bottom-Right crescent glow)
       final secondaryHighlightPaint = Paint()
         ..color = Colors.white.withOpacity(0.28);
+      final secondaryHighlightOffset = Offset(
+        d.radius * 0.28 + (tiltX * d.radius * 0.08),
+        d.radius * 0.28 - (tiltY * d.radius * 0.08),
+      );
       canvas.drawCircle(
-        center + Offset(d.radius * 0.28, d.radius * 0.28),
+        center + secondaryHighlightOffset,
         d.radius * 0.15,
         secondaryHighlightPaint,
       );

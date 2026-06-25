@@ -22,6 +22,10 @@ class LanguageScreen extends ConsumerWidget {
     {'name': 'Russian', 'native': 'Русский'},
     {'name': 'Japanese', 'native': '日本語'},
     {'name': 'Chinese', 'native': '中文'},
+    {'name': 'Portuguese', 'native': 'Português'},
+    {'name': 'Italian', 'native': 'Italiano'},
+    {'name': 'Korean', 'native': '한국어'},
+    {'name': 'Turkish', 'native': 'Türkçe'},
   ];
 
   @override

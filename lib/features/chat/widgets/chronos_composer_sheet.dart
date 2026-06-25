@@ -67,7 +67,11 @@ class _ChronosComposerSheetState extends State<ChronosComposerSheet> {
                     ),
                   ),
                   child: const Center(
-                    child: Text('⏳', style: TextStyle(fontSize: 20)),
+                    child: Icon(
+                      Icons.hourglass_bottom_rounded,
+                      color: Colors.white,
+                      size: 20,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -102,10 +106,10 @@ class _ChronosComposerSheetState extends State<ChronosComposerSheet> {
               spacing: 10,
               runSpacing: 10,
               children: [
-                _buildConditionChip('battery', '🔋', 'Battery Level'),
-                _buildConditionChip('time', '⏰', 'Scheduled Time'),
-                _buildConditionChip('location', '📍', 'Location'),
-                _buildConditionChip('shake', '📳', 'Shake to Open'),
+                _buildConditionChip('battery', Icons.battery_alert_rounded, 'Battery Level'),
+                _buildConditionChip('time', Icons.access_time_rounded, 'Scheduled Time'),
+                _buildConditionChip('location', Icons.location_on_rounded, 'Location'),
+                _buildConditionChip('shake', Icons.vibration_rounded, 'Shake to Open'),
               ],
             ),
           ),
@@ -136,13 +140,20 @@ class _ChronosComposerSheetState extends State<ChronosComposerSheet> {
                       borderRadius: BorderRadius.circular(14),
                     ),
                   ),
-                  child: const Text(
-                    'Lock Message ⏳',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                      color: Colors.white,
-                    ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Icon(Icons.lock_rounded, color: Colors.white, size: 16),
+                      const SizedBox(width: 8),
+                      const Text(
+                        'Lock Message',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -154,7 +165,7 @@ class _ChronosComposerSheetState extends State<ChronosComposerSheet> {
     );
   }
 
-  Widget _buildConditionChip(String type, String icon, String label) {
+  Widget _buildConditionChip(String type, IconData icon, String label) {
     final isSelected = _selectedType == type;
     final color = _getColor(type);
 
@@ -185,7 +196,11 @@ class _ChronosComposerSheetState extends State<ChronosComposerSheet> {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Text(icon, style: const TextStyle(fontSize: 18)),
+            Icon(
+              icon,
+              color: isSelected ? color : Colors.white60,
+              size: 18,
+            ),
             const SizedBox(width: 8),
             Text(
               label,

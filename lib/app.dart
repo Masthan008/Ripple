@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_provider.dart';
+import 'core/theme/theme_models.dart';
 import 'core/utils/l10n.dart';
 import 'core/services/notification_service.dart';
 import 'features/profile/providers/accessibility_provider.dart';
@@ -1049,7 +1050,7 @@ class App extends ConsumerWidget {
     return MaterialApp.router(
       title: 'Ripple',
       debugShowCheckedModeBanner: false,
-      theme: AppTheme.fromRippleTheme(currentTheme),
+      theme: _buildTheme(currentTheme, accessibility),
       routerConfig: router,
       locale: L10n.supportedLocales[currentLang] ?? const Locale('en'),
       localizationsDelegates: const [
@@ -1059,15 +1060,66 @@ class App extends ConsumerWidget {
       ],
       supportedLocales: L10n.supportedLocales.values.toList(),
       builder: (context, child) {
-        // Apply accessibility settings globally
-        return MediaQuery(
+        Widget result = child ?? const SizedBox.shrink();
+
+        // 1. Apply text scaling and bold text globally
+        result = MediaQuery(
           data: MediaQuery.of(context).copyWith(
             textScaler: TextScaler.linear(accessibility.effectiveTextScale),
             boldText: accessibility.highContrast,
+            // Disable animations at the system level when reduced motion is on
+            disableAnimations: accessibility.reducedMotion,
           ),
-          child: child ?? const SizedBox.shrink(),
+          child: result,
         );
+
+        // 2. Apply color blind friendly filter (deuteranopia simulation)
+        if (accessibility.colorBlindMode) {
+          result = ColorFiltered(
+            colorFilter: const ColorFilter.matrix(<double>[
+              0.625, 0.375, 0.0, 0.0, 0.0,
+              0.7,   0.3,   0.0, 0.0, 0.0,
+              0.0,   0.3,   0.7, 0.0, 0.0,
+              0.0,   0.0,   0.0, 1.0, 0.0,
+            ]),
+            child: result,
+          );
+        }
+
+        // 3. Apply high contrast overlay
+        if (accessibility.highContrast) {
+          result = ColorFiltered(
+            colorFilter: const ColorFilter.matrix(<double>[
+              1.5,  0.0,  0.0, 0.0, -40.0,
+              0.0,  1.5,  0.0, 0.0, -40.0,
+              0.0,  0.0,  1.5, 0.0, -40.0,
+              0.0,  0.0,  0.0, 1.0,   0.0,
+            ]),
+            child: result,
+          );
+        }
+
+        return result;
       },
     );
   }
+
+  /// Build theme data with high contrast adjustments when enabled
+  ThemeData _buildTheme(RippleTheme currentTheme, AccessibilitySettings accessibility) {
+    final base = AppTheme.fromRippleTheme(currentTheme);
+
+    if (!accessibility.highContrast) return base;
+
+    // Enhance borders, outlines, and text contrast for high contrast mode
+    return base.copyWith(
+      dividerColor: Colors.white,
+      dividerTheme: const DividerThemeData(color: Colors.white70, thickness: 1.5),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          side: const BorderSide(color: Colors.white, width: 2),
+        ),
+      ),
+    );
+  }
 }
+

@@ -89,9 +89,10 @@ class AiBotPicker extends ConsumerWidget {
                             shape: BoxShape.circle,
                           ),
                           alignment: Alignment.center,
-                          child: Text(
-                            bot.emoji,
-                            style: const TextStyle(fontSize: 32),
+                          child: Icon(
+                            bot.icon,
+                            color: color,
+                            size: 30,
                           ),
                         ),
                         const SizedBox(height: 12),

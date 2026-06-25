@@ -42,8 +42,129 @@ class AppearanceScreen extends ConsumerWidget {
                 child: FadeInAnimation(child: w),
               ),
               children: [
+                // Live Theme Preview Card
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: rippleTheme.gradients.surface,
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: rippleTheme.colors.primary.withOpacity(0.3),
+                      width: 1.5,
+                    ),
+                    boxShadow: rippleTheme.shadows.primaryGlow,
+                  ),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              gradient: rippleTheme.gradients.primary,
+                              shape: BoxShape.circle,
+                              boxShadow: rippleTheme.shadows.primaryGlow,
+                            ),
+                            child: const Icon(Icons.palette_outlined, color: Colors.white, size: 24),
+                          ),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  rippleTheme.name,
+                                  style: TextStyle(
+                                    color: rippleTheme.colors.textPrimary,
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.w700,
+                                    letterSpacing: 0.3,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Active Theme',
+                                  style: TextStyle(
+                                    color: rippleTheme.colors.textMuted,
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          // Color swatches
+                          Row(
+                            children: [
+                              _colorDot(rippleTheme.colors.primary),
+                              const SizedBox(width: 4),
+                              _colorDot(rippleTheme.colors.surface),
+                              const SizedBox(width: 4),
+                              _colorDot(rippleTheme.colors.background),
+                            ],
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      // Mini chat bubble preview
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                gradient: rippleTheme.gradients.primary,
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(16),
+                                  topRight: Radius.circular(16),
+                                  bottomRight: Radius.circular(16),
+                                  bottomLeft: Radius.circular(4),
+                                ),
+                              ),
+                              child: const Text(
+                                'Hey! Look at this theme ✨',
+                                style: TextStyle(color: Colors.white, fontSize: 13),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 50),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const SizedBox(width: 50),
+                          Expanded(
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                              decoration: BoxDecoration(
+                                color: rippleTheme.colors.glassSurface,
+                                border: Border.all(color: rippleTheme.colors.glassBorder),
+                                borderRadius: const BorderRadius.only(
+                                  topLeft: Radius.circular(16),
+                                  topRight: Radius.circular(16),
+                                  bottomLeft: Radius.circular(16),
+                                  bottomRight: Radius.circular(4),
+                                ),
+                              ),
+                              child: Text(
+                                'Looks amazing! 💙',
+                                style: TextStyle(
+                                  color: rippleTheme.colors.textPrimary,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+
                 // ORIGINAL 3 Themes (now mapped to Ripple Themes)
-                _sectionHeader('Classic Themes', rippleTheme.colors.primary.withOpacity(0.7)),
+                _sectionHeaderWithIcon(Icons.auto_awesome_outlined, 'Classic Themes', rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -84,7 +205,7 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // NEW Bioluminescent & Liquid Themes
-                _sectionHeader('Bioluminescent & Liquid Themes', rippleTheme.colors.primary.withOpacity(0.7)),
+                _sectionHeaderWithIcon(Icons.water_drop_outlined, 'Bioluminescent & Liquid', rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 SizedBox(
                   height: 140,
@@ -154,7 +275,7 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // Smart Theme Switcher section
-                _sectionHeader('Smart Theme Switcher', rippleTheme.colors.primary.withOpacity(0.7)),
+                _sectionHeaderWithIcon(Icons.auto_mode_outlined, 'Smart Theme Switcher', rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 GestureDetector(
                   onTap: () {
@@ -229,7 +350,7 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 32),
 
                 // Bubble style section
-                _sectionHeader(L10n.s(ref, 'chatBubbleStyle'), rippleTheme.colors.primary.withOpacity(0.7)),
+                _sectionHeaderWithIcon(Icons.chat_bubble_outline_rounded, L10n.s(ref, 'chatBubbleStyle'), rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -258,7 +379,7 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // Font size section
-                _sectionHeader(L10n.s(ref, 'fontSize'), rippleTheme.colors.primary.withOpacity(0.7)),
+                _sectionHeaderWithIcon(Icons.text_fields_rounded, L10n.s(ref, 'fontSize'), rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 GlassCard(
                   borderRadius: 16,
@@ -307,11 +428,27 @@ class AppearanceScreen extends ConsumerWidget {
     return 'XL';
   }
 
-  Widget _sectionHeader(String title, Color color) => Text(
-    title.toUpperCase(),
-    style: AppTextStyles.caption.copyWith(
-      fontSize: 11, fontWeight: FontWeight.w600,
-      letterSpacing: 1.2, color: color,
+  Widget _sectionHeaderWithIcon(IconData icon, String title, Color color) => Row(
+    children: [
+      Icon(icon, size: 16, color: color),
+      const SizedBox(width: 6),
+      Text(
+        title.toUpperCase(),
+        style: AppTextStyles.caption.copyWith(
+          fontSize: 11, fontWeight: FontWeight.w600,
+          letterSpacing: 1.2, color: color,
+        ),
+      ),
+    ],
+  );
+
+  Widget _colorDot(Color color) => Container(
+    width: 16,
+    height: 16,
+    decoration: BoxDecoration(
+      color: color,
+      shape: BoxShape.circle,
+      border: Border.all(color: Colors.white24, width: 1),
     ),
   );
 }

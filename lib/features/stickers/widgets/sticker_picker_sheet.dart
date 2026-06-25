@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 import '../../../core/constants/app_colors.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../social/models/achievement_model.dart';
+import '../../social/services/social_service.dart';
 import '../models/sticker_model.dart';
 
 /// Glassmorphism sticker picker sheet
-class StickerPickerSheet extends StatefulWidget {
+class StickerPickerSheet extends ConsumerStatefulWidget {
   final Function(String stickerEmoji) onStickerSelected;
 
   const StickerPickerSheet({
@@ -14,10 +18,10 @@ class StickerPickerSheet extends StatefulWidget {
   });
 
   @override
-  State<StickerPickerSheet> createState() => _StickerPickerSheetState();
+  ConsumerState<StickerPickerSheet> createState() => _StickerPickerSheetState();
 }
 
-class _StickerPickerSheetState extends State<StickerPickerSheet>
+class _StickerPickerSheetState extends ConsumerState<StickerPickerSheet>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
   String _selectedCategory = 'ripple';
@@ -42,8 +46,34 @@ class _StickerPickerSheetState extends State<StickerPickerSheet>
     super.dispose();
   }
 
+  bool _isCategoryLocked(StickerCategory category, List<AchievementModel> achievements) {
+    if (!category.isLocked) return false;
+    if (category.id == 'love') {
+      return achievements.isEmpty;
+    }
+    if (category.id == 'gaming') {
+      return achievements.length < 3;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final uid = ref.watch(authStateProvider).valueOrNull?.uid;
+    if (uid == null) {
+      return _buildPickerContent([]);
+    }
+
+    return StreamBuilder<List<AchievementModel>>(
+      stream: SocialService.getAchievements(uid),
+      builder: (context, snapshot) {
+        final achievements = snapshot.data ?? [];
+        return _buildPickerContent(achievements);
+      },
+    );
+  }
+
+  Widget _buildPickerContent(List<AchievementModel> achievements) {
     return Container(
       height: 400,
       decoration: BoxDecoration(
@@ -62,11 +92,11 @@ class _StickerPickerSheetState extends State<StickerPickerSheet>
           _buildHeader(),
           
           // Category tabs
-          _buildCategoryTabs(),
+          _buildCategoryTabs(achievements),
           
           // Sticker grid
           Expanded(
-            child: _buildStickerGrid(),
+            child: _buildStickerGrid(achievements),
           ),
         ],
       ),
@@ -116,7 +146,7 @@ class _StickerPickerSheetState extends State<StickerPickerSheet>
     );
   }
 
-  Widget _buildCategoryTabs() {
+  Widget _buildCategoryTabs(List<AchievementModel> achievements) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: TabBar(
@@ -127,6 +157,7 @@ class _StickerPickerSheetState extends State<StickerPickerSheet>
         labelColor: AppColors.aquaCore,
         unselectedLabelColor: Colors.white54,
         tabs: RippleStickers.categories.map((category) {
+          final isLocked = _isCategoryLocked(category, achievements);
           return Tab(
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -135,7 +166,7 @@ class _StickerPickerSheetState extends State<StickerPickerSheet>
                   category.icon,
                   style: const TextStyle(fontSize: 20),
                 ),
-                if (category.isLocked) ...[
+                if (isLocked) ...[
                   const SizedBox(width: 4),
                   const Icon(
                     Icons.lock,
@@ -151,12 +182,16 @@ class _StickerPickerSheetState extends State<StickerPickerSheet>
     );
   }
 
-  Widget _buildStickerGrid() {
-    final categoryStickers = RippleStickers.defaultStickers
-        .where((s) => s.category == _selectedCategory)
-        .toList();
+  Widget _buildStickerGrid(List<AchievementModel> achievements) {
+    final selectedCategoryObj = RippleStickers.categories.firstWhere(
+      (c) => c.id == _selectedCategory,
+      orElse: () => RippleStickers.categories.first,
+    );
+    final isLocked = _isCategoryLocked(selectedCategoryObj, achievements);
 
-    if (categoryStickers.isEmpty) {
+    if (isLocked) {
+      final requiredCount = _selectedCategory == 'love' ? 1 : 3;
+      final currentCount = achievements.length;
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -168,21 +203,57 @@ class _StickerPickerSheetState extends State<StickerPickerSheet>
             ),
             const SizedBox(height: 12),
             Text(
-              'Premium Category',
+              'Premium Category: ${selectedCategoryObj.name}',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.7),
                 fontSize: 16,
+                fontWeight: FontWeight.bold,
               ),
             ),
             const SizedBox(height: 8),
             Text(
-              'Unlock with achievements',
+              'Unlock with achievements ($currentCount/$requiredCount)',
               style: TextStyle(
                 color: Colors.white.withOpacity(0.5),
                 fontSize: 12,
               ),
             ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.05),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.1)),
+              ),
+              child: Text(
+                _selectedCategory == 'love'
+                    ? 'Earn at least 1 achievement to unlock'
+                    : 'Earn at least 3 achievements to unlock',
+                style: const TextStyle(
+                  color: AppColors.aquaCyan,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ),
           ],
+        ),
+      );
+    }
+
+    final categoryStickers = RippleStickers.defaultStickers
+        .where((s) => s.category == _selectedCategory)
+        .toList();
+
+    if (categoryStickers.isEmpty) {
+      return Center(
+        child: Text(
+          'No stickers in this category',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.5),
+            fontSize: 14,
+          ),
         ),
       );
     }

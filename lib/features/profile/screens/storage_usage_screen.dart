@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
@@ -17,21 +19,81 @@ class StorageUsageScreen extends StatefulWidget {
 
 class _StorageUsageScreenState extends State<StorageUsageScreen> {
   int _cacheSize = 0;
+  int _imagesSize = 0;
+  int _videosSize = 0;
+  int _docsSize = 0;
   bool _isLoading = true;
   bool _isClearing = false;
+  Timer? _periodicTimer;
 
   @override
   void initState() {
     super.initState();
     _calculateCache();
+    _periodicTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (mounted && !_isClearing) {
+        _calculateCache();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _periodicTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _calculateCache() async {
     try {
       final tempDir = await getTemporaryDirectory();
+      final appDir = await getApplicationDocumentsDirectory();
+
       _cacheSize = await _dirSize(tempDir);
-    } catch (_) {}
-    if (mounted) setState(() => _isLoading = false);
+
+      int imagesSize = 0;
+      int videosSize = 0;
+      int docsSize = 0;
+
+      void scanFile(File file) {
+        final path = file.path.toLowerCase();
+        final ext = path.split('.').last;
+        try {
+          final len = file.lengthSync();
+          if (['jpg', 'jpeg', 'png', 'gif', 'webp'].contains(ext)) {
+            imagesSize += len;
+          } else if (['mp4', 'mov', 'avi', 'mkv', '3gp'].contains(ext)) {
+            videosSize += len;
+          } else if (['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar'].contains(ext)) {
+            docsSize += len;
+          }
+        } catch (_) {}
+      }
+
+      Future<void> scanDirectory(Directory dir) async {
+        if (!dir.existsSync()) return;
+        try {
+          await for (final entity in dir.list(recursive: true, followLinks: false)) {
+            if (entity is File) {
+              scanFile(entity);
+            }
+          }
+        } catch (_) {}
+      }
+
+      await scanDirectory(tempDir);
+      await scanDirectory(appDir);
+
+      if (mounted) {
+        setState(() {
+          _imagesSize = imagesSize;
+          _videosSize = videosSize;
+          _docsSize = docsSize;
+          _isLoading = false;
+        });
+      }
+    } catch (_) {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<int> _dirSize(Directory dir) async {
@@ -61,11 +123,12 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
         await tempDir.delete(recursive: true);
         await tempDir.create(); // Recreate empty temp dir
       }
+      
+      // Reset variables and recalculate
+      await _calculateCache();
+
       if (mounted) {
-        setState(() {
-          _cacheSize = 0;
-          _isClearing = false;
-        });
+        setState(() => _isClearing = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Cache cleared! ${_formatBytes(freed)} freed'),
@@ -86,8 +149,63 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
     }
   }
 
+  Future<void> _clearCategory(String category, List<String> extensions) async {
+    setState(() => _isClearing = true);
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final appDir = await getApplicationDocumentsDirectory();
+      int freedBytes = 0;
+
+      Future<void> clearFiles(Directory dir) async {
+        if (!dir.existsSync()) return;
+        try {
+          await for (final entity in dir.list(recursive: true, followLinks: false)) {
+            if (entity is File) {
+              final ext = entity.path.toLowerCase().split('.').last;
+              if (extensions.contains(ext)) {
+                final len = await entity.length();
+                await entity.delete();
+                freedBytes += len;
+              }
+            }
+          }
+        } catch (_) {}
+      }
+
+      await clearFiles(tempDir);
+      await clearFiles(appDir);
+
+      await _calculateCache();
+
+      if (mounted) {
+        setState(() => _isClearing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('$category cleared! ${_formatBytes(freedBytes)} freed'),
+            backgroundColor: AppColors.onlineGreen,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isClearing = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to clear $category: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final totalMedia = _imagesSize + _videosSize + _docsSize;
+    final imagesFraction = totalMedia > 0 ? _imagesSize / totalMedia : 0.0;
+    final videosFraction = totalMedia > 0 ? _videosSize / totalMedia : 0.0;
+    final docsFraction = totalMedia > 0 ? _docsSize / totalMedia : 0.0;
+
     return Scaffold(
       backgroundColor: AppColors.abyssBackground,
       appBar: AppBar(
@@ -97,8 +215,11 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
         iconTheme: const IconThemeData(color: AppColors.aquaCore),
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator(
-              valueColor: AlwaysStoppedAnimation(AppColors.aquaCore)))
+          ? const Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
+              ),
+            )
           : AnimationLimiter(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(20),
@@ -107,11 +228,76 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
                   children: AnimationConfiguration.toStaggeredList(
                     duration: const Duration(milliseconds: 450),
                     childAnimationBuilder: (w) => SlideAnimation(
-                      verticalOffset: 50, curve: Curves.easeOutBack,
+                      verticalOffset: 50,
+                      curve: Curves.easeOutBack,
                       child: FadeInAnimation(child: w),
                     ),
                     children: [
-                      _sectionHeader('Cache'),
+                      // Storage distribution visual card
+                      GlassCard(
+                        borderRadius: 16,
+                        padding: const EdgeInsets.all(20),
+                        child: Row(
+                          children: [
+                            // Circular custom ring
+                            SizedBox(
+                              width: 100,
+                              height: 100,
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  CustomPaint(
+                                    size: const Size(100, 100),
+                                    painter: _StorageRingPainter(
+                                      imagesFraction: imagesFraction,
+                                      videosFraction: videosFraction,
+                                      docsFraction: docsFraction,
+                                    ),
+                                  ),
+                                  Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Text(
+                                        _formatBytes(totalMedia),
+                                        style: AppTextStyles.heading.copyWith(
+                                          fontSize: 14,
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Used',
+                                        style: AppTextStyles.caption.copyWith(
+                                          fontSize: 10,
+                                          color: AppColors.textMuted,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 24),
+                            // Details legend
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  _legendItem('Images', _imagesSize, AppColors.aquaCore),
+                                  const SizedBox(height: 6),
+                                  _legendItem('Videos', _videosSize, AppColors.warningAmber),
+                                  const SizedBox(height: 6),
+                                  _legendItem('Documents', _docsSize, AppColors.onlineGreen),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      _sectionHeader('Cache Management'),
                       const SizedBox(height: 8),
                       GlassCard(
                         borderRadius: 16,
@@ -127,7 +313,7 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Cache Size',
+                                      Text('Temporary Cache',
                                           style: AppTextStyles.body),
                                       Text(_formatBytes(_cacheSize),
                                           style: AppTextStyles.heading.copyWith(
@@ -164,7 +350,7 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
                                             strokeWidth: 2,
                                             valueColor: AlwaysStoppedAnimation(Colors.white)))
                                       : const Icon(Icons.cleaning_services_rounded, size: 18),
-                                  label: Text(_isClearing ? 'Clearing...' : 'Clear Cache',
+                                  label: Text(_isClearing ? 'Clearing...' : 'Clear All Temporary Cache',
                                       style: AppTextStyles.button),
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: Colors.transparent,
@@ -181,27 +367,14 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
                       ),
                       const SizedBox(height: 24),
 
-                      _sectionHeader('Media Storage'),
+                      _sectionHeader('Individual Storage Breakdown'),
                       const SizedBox(height: 8),
-                      ...[
-                        _MediaCard('Images', Icons.image_rounded, AppColors.aquaCore),
-                        _MediaCard('Videos', Icons.videocam_rounded, AppColors.warningAmber),
-                        _MediaCard('Documents', Icons.description_rounded, AppColors.onlineGreen),
-                      ].map((card) => Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: GlassCard(
-                          borderRadius: 14,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                          child: Row(
-                            children: [
-                              Icon(card.icon, color: card.color, size: 22),
-                              const SizedBox(width: 14),
-                              Expanded(child: Text(card.label, style: AppTextStyles.body.copyWith(fontSize: 14))),
-                              Text('Calculating...', style: AppTextStyles.caption.copyWith(fontSize: 11)),
-                            ],
-                          ),
-                        ),
-                      )),
+                      _categoryCard('Images', _imagesSize, Icons.image_rounded, AppColors.aquaCore,
+                          ['jpg', 'jpeg', 'png', 'gif', 'webp']),
+                      _categoryCard('Videos', _videosSize, Icons.videocam_rounded, AppColors.warningAmber,
+                          ['mp4', 'mov', 'avi', 'mkv', '3gp']),
+                      _categoryCard('Documents & Archives', _docsSize, Icons.description_rounded, AppColors.onlineGreen,
+                          ['pdf', 'txt', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'zip', 'rar']),
                     ],
                   ),
                 ),
@@ -210,18 +383,142 @@ class _StorageUsageScreenState extends State<StorageUsageScreen> {
     );
   }
 
+  Widget _legendItem(String label, int size, Color color) {
+    return Row(
+      children: [
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: AppTextStyles.caption.copyWith(color: Colors.white70, fontSize: 12),
+        ),
+        const Spacer(),
+        Text(
+          _formatBytes(size),
+          style: AppTextStyles.body.copyWith(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+      ],
+    );
+  }
+
+  Widget _categoryCard(String label, int size, IconData icon, Color color, List<String> extensions) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: GlassCard(
+        borderRadius: 14,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        child: Row(
+          children: [
+            Icon(icon, color: color, size: 22),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: AppTextStyles.body.copyWith(fontSize: 14)),
+                  const SizedBox(height: 2),
+                  Text(_formatBytes(size), style: AppTextStyles.caption.copyWith(fontSize: 11)),
+                ],
+              ),
+            ),
+            if (size > 0)
+              TextButton(
+                onPressed: _isClearing ? null : () => _clearCategory(label, extensions),
+                child: Text(
+                  'Clear',
+                  style: TextStyle(
+                    color: AppColors.errorRed.withOpacity(0.8),
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              )
+            else
+              Text(
+                'Empty',
+                style: AppTextStyles.caption.copyWith(fontSize: 11, color: AppColors.textMuted),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _sectionHeader(String title) => Text(
-    title.toUpperCase(),
-    style: AppTextStyles.caption.copyWith(
-      fontSize: 11, fontWeight: FontWeight.w600,
-      letterSpacing: 1.2, color: AppColors.aquaCore.withValues(alpha: 0.7),
-    ),
-  );
+        title.toUpperCase(),
+        style: AppTextStyles.caption.copyWith(
+          fontSize: 11,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 1.2,
+          color: AppColors.aquaCore.withValues(alpha: 0.7),
+        ),
+      );
 }
 
-class _MediaCard {
-  final String label;
-  final IconData icon;
-  final Color color;
-  const _MediaCard(this.label, this.icon, this.color);
+class _StorageRingPainter extends CustomPainter {
+  final double imagesFraction;
+  final double videosFraction;
+  final double docsFraction;
+
+  _StorageRingPainter({
+    required this.imagesFraction,
+    required this.videosFraction,
+    required this.docsFraction,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = math.min(size.width, size.height) / 2 - 8;
+    const strokeWidth = 10.0;
+
+    final basePaint = Paint()
+      ..color = Colors.white.withOpacity(0.05)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth;
+
+    canvas.drawCircle(center, radius, basePaint);
+
+    final totalFraction = imagesFraction + videosFraction + docsFraction;
+    if (totalFraction <= 0) return;
+
+    double startAngle = -math.pi / 2;
+
+    void drawSegment(double fraction, Color color) {
+      if (fraction <= 0) return;
+      final sweepAngle = fraction * 2 * math.pi;
+      final paint = Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
+        ..strokeWidth = strokeWidth;
+
+      canvas.drawArc(
+        Rect.fromCircle(center: center, radius: radius),
+        startAngle,
+        sweepAngle - 0.08, // Subtle spacing gap between segments
+        false,
+        paint,
+      );
+      startAngle += sweepAngle;
+    }
+
+    drawSegment(imagesFraction, AppColors.aquaCore);
+    drawSegment(videosFraction, AppColors.warningAmber);
+    drawSegment(docsFraction, AppColors.onlineGreen);
+  }
+
+  @override
+  bool shouldRepaint(covariant _StorageRingPainter oldDelegate) {
+    return oldDelegate.imagesFraction != imagesFraction ||
+        oldDelegate.videosFraction != videosFraction ||
+        oldDelegate.docsFraction != docsFraction;
+  }
 }

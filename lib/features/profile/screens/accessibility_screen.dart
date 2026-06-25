@@ -47,6 +47,10 @@ class AccessibilityScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Active features status banner
+          _buildStatusBanner(ref, accessibility),
+          const SizedBox(height: 16),
+
           // Visual section
           _sectionHeader('Visual', theme.colors.primary),
           const SizedBox(height: 12),
@@ -110,6 +114,21 @@ class AccessibilityScreen extends ConsumerWidget {
             value: accessibility.reducedMotion,
             onToggle: (value) {
               ref.read(accessibilityProvider.notifier).toggleReducedMotion(value);
+            },
+          ),
+
+          const SizedBox(height: 12),
+
+          // Haptic Feedback
+          _buildToggleCard(
+            context,
+            ref,
+            icon: Icons.vibration,
+            title: 'Haptic Feedback',
+            subtitle: 'Vibrate on button presses and interactions',
+            value: !accessibility.reducedMotion,
+            onToggle: (value) {
+              // Haptic is inversely tied to reduced motion for now
             },
           ),
 
@@ -195,6 +214,96 @@ class AccessibilityScreen extends ConsumerWidget {
           _buildPreviewCard(context, ref),
 
           const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusBanner(WidgetRef ref, AccessibilitySettings accessibility) {
+    final theme = ref.watch(rippleThemeProvider);
+    final activeCount = [
+      accessibility.highContrast,
+      accessibility.reducedMotion,
+      accessibility.largerText,
+      accessibility.screenReaderOptimized,
+      accessibility.colorBlindMode,
+      accessibility.textScale != 1.0,
+    ].where((v) => v).length;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: activeCount > 0
+            ? LinearGradient(
+                colors: [
+                  theme.colors.primary.withOpacity(0.15),
+                  theme.colors.primary.withOpacity(0.05),
+                ],
+              )
+            : null,
+        color: activeCount == 0 ? theme.colors.glassSurface : null,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: activeCount > 0
+              ? theme.colors.primary.withOpacity(0.4)
+              : theme.colors.glassBorder,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: activeCount > 0 ? theme.gradients.primary : null,
+              color: activeCount == 0 ? theme.colors.glassSurface : null,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              activeCount > 0 ? Icons.accessibility_new : Icons.accessibility_outlined,
+              color: activeCount > 0 ? Colors.white : theme.colors.textMuted,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  activeCount > 0 ? '$activeCount feature${activeCount > 1 ? 's' : ''} active' : 'All defaults',
+                  style: TextStyle(
+                    color: theme.colors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  activeCount > 0 ? 'Accessibility settings are customized' : 'No accessibility adjustments applied',
+                  style: TextStyle(
+                    color: theme.colors.textMuted,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (activeCount > 0)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                gradient: theme.gradients.primary,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Text(
+                'ON',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
         ],
       ),
     );

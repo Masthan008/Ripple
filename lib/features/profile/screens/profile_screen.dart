@@ -19,11 +19,14 @@ import 'notifications_settings_screen.dart';
 import 'appearance_screen.dart';
 import 'accessibility_screen.dart';
 import 'language_screen.dart';
+import 'app_icon_screen.dart';
 import '../providers/settings_provider.dart'; // Add this
 import 'storage_usage_screen.dart';
 import 'data_usage_screen.dart';
 import 'help_screen.dart';
 import 'about_screen.dart';
+import 'contact_support_screen.dart';
+import 'system_status_screen.dart';
 import '../../chat/screens/saved_messages_screen.dart';
 import '../../social/services/social_service.dart';
 import '../../social/widgets/achievements_section.dart';
@@ -468,6 +471,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           ),
                         ),
                   ),
+                  _SettingsTile(
+                    icon: Icons.app_settings_alt_rounded,
+                    title: 'App Icon',
+                    subtitle: 'Change app launcher icon',
+                    iconColor: const Color(0xFFFF9800),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AppIconScreen(),
+                          ),
+                        ),
+                  ),
 
                   const SizedBox(height: 20),
 
@@ -517,6 +533,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         () => Navigator.push(
                           context,
                           MaterialPageRoute(builder: (_) => const HelpScreen()),
+                        ),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.contact_support_outlined,
+                    title: 'Contact Support',
+                    subtitle: 'Submit a feedback or bug report ticket',
+                    iconColor: const Color(0xFF00E676),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ContactSupportScreen(),
+                          ),
+                        ),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.analytics_outlined,
+                    title: 'System Diagnostics',
+                    subtitle: 'Check Firebase server latency & status',
+                    iconColor: const Color(0xFFE040FB),
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const SystemStatusScreen(),
+                          ),
                         ),
                   ),
                   _SettingsTile(

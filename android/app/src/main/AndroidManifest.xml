@@ -45,6 +45,45 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+
+        <activity-alias
+            android:name=".MainActivityAbyss"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_abyss"
+            android:label="Ripple"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivityGold"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_gold"
+            android:label="Ripple"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
+
+        <activity-alias
+            android:name=".MainActivityGlitch"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@drawable/ic_launcher_glitch"
+            android:label="Ripple"
+            android:targetActivity=".MainActivity">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity-alias>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data
