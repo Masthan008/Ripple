@@ -61,6 +61,7 @@ class _AuroraBackgroundState extends ConsumerState<AuroraBackground>
 
     if (theme.id == 'ios_27') {
       return WaterDropletBackground(
+        theme: theme,
         child: widget.child,
       );
     }

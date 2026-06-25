@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/utils/l10n.dart'; // Add this
+import '../../../core/theme/theme_provider.dart'; // Add this
 import 'navbar_item_widget.dart';
 import 'navbar_background.dart';
 import 'navbar_providers.dart';
@@ -98,6 +99,7 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
     final navbarState = ref.watch(liquidNavbarStateProvider);
     final notifier = ref.read(liquidNavbarStateProvider.notifier);
     final labels = _getLabels(ref); // Get localized labels
+    final theme = ref.watch(rippleThemeProvider); // Watch active theme
 
     final screenWidth = MediaQuery.of(context).size.width;
     final itemCount = labels.length;
@@ -128,6 +130,7 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
             child: LiquidNavbarBackground(
               width: screenWidth - (widget.horizontalPadding * 2),
               height: widget.navbarHeight,
+              theme: theme,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(itemCount, (i) {
@@ -140,6 +143,8 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
                         isSelected ? _activeIcons[i] : _inactiveIcons[i],
                       ),
                       isSelected: isSelected,
+                      selectedColor: theme.colors.primary,
+                      unselectedColor: theme.colors.textMuted,
                       unreadCount: widget.unreadCounts[i],
                       userPhotoUrl: widget.userPhotoUrl,
                       isProfileTab: i == 5,

@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import '../../core/theme/theme_models.dart';
 
 /// Interactive physics-based Water Droplet Background
 /// Simulates physical dew condensation, gravity slide, merging, and user touch ripples.
@@ -8,12 +9,14 @@ class WaterDropletBackground extends StatefulWidget {
   final Widget child;
   final int maxDroplets;
   final bool enableTouchEffect;
+  final RippleTheme? theme;
 
   const WaterDropletBackground({
     super.key,
     required this.child,
     this.maxDroplets = 24,
     this.enableTouchEffect = true,
+    this.theme,
   });
 
   @override
@@ -205,17 +208,27 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
             children: [
               // Liquid gloss backdrop reflection
               Container(
-                decoration: const BoxDecoration(
-                  color: Colors.white,
-                  gradient: LinearGradient(
-                    colors: [
-                      Color(0xFFFFFFFF),
-                      Color(0xFFF9FAFB),
-                      Color(0xFFF3F4F6),
-                    ],
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                  ),
+                decoration: BoxDecoration(
+                  color: widget.theme?.colors.background ?? Colors.white,
+                  gradient: widget.theme != null
+                      ? LinearGradient(
+                          colors: [
+                            widget.theme!.colors.background,
+                            widget.theme!.colors.background.withOpacity(0.97),
+                            Color.lerp(widget.theme!.colors.background, const Color(0xFFD3E5F8), 0.12)!,
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        )
+                      : const LinearGradient(
+                          colors: [
+                            Color(0xFFFFFFFF),
+                            Color(0xFFF9FAFB),
+                            Color(0xFFF3F4F6),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
                 ),
               ),
               // Spotlights (White Light theme glow spots)
@@ -229,9 +242,16 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.95),
+                        color: widget.theme != null
+                            ? widget.theme!.colors.primary.withOpacity(0.08)
+                            : Colors.white.withOpacity(0.95),
                         blurRadius: 100,
                         spreadRadius: 20,
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.90),
+                        blurRadius: 80,
+                        spreadRadius: 10,
                       ),
                     ],
                   ),
@@ -247,9 +267,16 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.90),
+                        color: widget.theme != null
+                            ? widget.theme!.colors.secondary.withOpacity(0.06)
+                            : Colors.white.withOpacity(0.90),
                         blurRadius: 120,
                         spreadRadius: 30,
+                      ),
+                      BoxShadow(
+                        color: Colors.white.withOpacity(0.85),
+                        blurRadius: 100,
+                        spreadRadius: 15,
                       ),
                     ],
                   ),
@@ -261,6 +288,7 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
                 painter: _WaterDropletPainter(
                   droplets: _droplets,
                   ripples: _ripples,
+                  theme: widget.theme,
                 ),
                 size: Size.infinite,
               ),
@@ -317,18 +345,22 @@ class _Ripple {
 class _WaterDropletPainter extends CustomPainter {
   final List<_Droplet> droplets;
   final List<_Ripple> ripples;
+  final RippleTheme? theme;
 
   _WaterDropletPainter({
     required this.droplets,
     required this.ripples,
+    this.theme,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
+    final isLightTheme = theme != null && !theme!.isDark;
+
     // 1. Draw ripples first (background layer)
     for (final ripple in ripples) {
       final ripplePaint = Paint()
-        ..color = const Color(0xFF007AFF).withOpacity(ripple.opacity * 0.18)
+        ..color = (theme?.colors.primary ?? const Color(0xFF007AFF)).withOpacity(ripple.opacity * 0.18)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3.0;
 
@@ -339,7 +371,7 @@ class _WaterDropletPainter extends CustomPainter {
       );
 
       final outerRipplePaint = Paint()
-        ..color = const Color(0xFF5856D6).withOpacity(ripple.opacity * 0.08)
+        ..color = (theme?.colors.secondary ?? const Color(0xFF5856D6)).withOpacity(ripple.opacity * 0.08)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5;
 
@@ -374,10 +406,12 @@ class _WaterDropletPainter extends CustomPainter {
 
       // B. Drop Shadow (Physical offset volume)
       final shadowPaint = Paint()
-        ..color = const Color(0x18000000)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+        ..color = isLightTheme 
+            ? const Color(0x35000000) // Stronger shadow for light theme
+            : const Color(0x18000000)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, isLightTheme ? 3.0 : 2.5);
       canvas.drawCircle(
-        center + const Offset(1.0, 1.8),
+        center + Offset(isLightTheme ? 1.2 : 1.0, isLightTheme ? 2.2 : 1.8),
         d.radius,
         shadowPaint,
       );
@@ -387,9 +421,13 @@ class _WaterDropletPainter extends CustomPainter {
         center: const Alignment(-0.25, -0.25),
         radius: 0.85,
         colors: [
-          Colors.white.withOpacity(0.45), // Inner light center
-          Colors.blueGrey.withOpacity(0.03),
-          const Color(0x1B000000), // Darker edge refraction
+          Colors.white.withOpacity(isLightTheme ? 0.32 : 0.45), // Inner light center
+          isLightTheme
+              ? const Color(0xFFCBE2FA).withOpacity(0.12)
+              : Colors.blueGrey.withOpacity(0.03),
+          isLightTheme
+              ? const Color(0x28000000) // Darker refraction edge on light backgrounds
+              : const Color(0x1B000000), // Darker edge refraction
         ],
         stops: const [0.0, 0.7, 1.0],
       );
@@ -402,13 +440,17 @@ class _WaterDropletPainter extends CustomPainter {
 
       // D. Outer Refraction Edge (Adds sharp glass definition)
       final borderPaint = Paint()
-        ..color = Colors.white.withOpacity(0.7)
+        ..color = isLightTheme 
+            ? const Color(0x44000000) // Distinct dark edge border for visibility
+            : Colors.white.withOpacity(0.7)
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 0.65;
+        ..strokeWidth = isLightTheme ? 0.75 : 0.65;
       canvas.drawCircle(center, d.radius, borderPaint);
 
       final darkEdgePaint = Paint()
-        ..color = const Color(0x1E000000)
+        ..color = isLightTheme
+            ? const Color(0x26000000)
+            : const Color(0x1E000000)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 0.35;
       canvas.drawCircle(center, d.radius - 0.5, darkEdgePaint);

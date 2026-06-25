@@ -96,8 +96,8 @@ class LiquidNavbarItemWidget extends StatelessWidget {
                 minHeight: 14,
               ),
               decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF0EA5E9), Color(0xFF22D3EE)],
+                gradient: LinearGradient(
+                  colors: [selectedColor, selectedColor.withOpacity(0.8)],
                 ),
                 borderRadius: BorderRadius.circular(7),
               ),

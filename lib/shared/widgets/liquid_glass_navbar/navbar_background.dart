@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
+import '../../../core/theme/theme_models.dart';
 
 /// A glassmorphic background container for the navbar.
 ///
@@ -15,11 +16,15 @@ class LiquidNavbarBackground extends StatelessWidget {
   /// The child widget to display inside the background
   final Widget child;
 
+  /// The active theme data
+  final RippleTheme theme;
+
   const LiquidNavbarBackground({
     super.key,
     required this.width,
     required this.height,
     required this.child,
+    required this.theme,
   });
 
   @override
@@ -27,14 +32,25 @@ class LiquidNavbarBackground extends StatelessWidget {
     return LiquidGlassLayer(
       settings: const LiquidGlassSettings(thickness: 20, blur: 2),
       child: LiquidGlass(
-        shape: LiquidRoundedSuperellipse(borderRadius: 30),
+        shape: LiquidRoundedSuperellipse(borderRadius: 36),
         child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: 20),
           width: width,
           height: height,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(35),
-            color: const Color(0xFF0A1628).withOpacity(0.5), // Match RIPPLE theme a bit
+            borderRadius: BorderRadius.circular(36),
+            color: theme.colors.glassSurface,
+            border: Border.all(
+              color: theme.colors.glassBorder,
+              width: 1.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(theme.isDark ? 0.35 : 0.08),
+                blurRadius: 16,
+                spreadRadius: -4,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
           child: child,
         ),

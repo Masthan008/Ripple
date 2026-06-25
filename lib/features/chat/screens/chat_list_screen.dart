@@ -1491,7 +1491,7 @@ class _ChatShimmer extends StatelessWidget {
 }
 
 /// Filter chip widget
-class _FilterChip extends StatelessWidget {
+class _FilterChip extends ConsumerWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
@@ -1503,7 +1503,8 @@ class _FilterChip extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
@@ -1514,30 +1515,24 @@ class _FilterChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           color:
               selected
-                  ? AppColors.aquaCore.withValues(alpha: 0.15)
-                  : Colors.white.withValues(alpha: 0.05),
+                  ? theme.colors.primary.withOpacity(0.15)
+                  : theme.colors.glassSurface,
           border: Border.all(
             color:
                 selected
-                    ? AppColors.aquaCore.withValues(alpha: 0.5)
-                    : Colors.white.withValues(alpha: 0.1),
+                    ? theme.colors.primary.withOpacity(0.5)
+                    : theme.colors.glassBorder,
             width: 1,
           ),
           boxShadow:
               selected
-                  ? [
-                    BoxShadow(
-                      color: AppColors.aquaCore.withValues(alpha: 0.2),
-                      blurRadius: 12,
-                      spreadRadius: -2,
-                    ),
-                  ]
+                  ? theme.shadows.primaryGlow
                   : [],
         ),
         child: Text(
           label,
           style: TextStyle(
-            color: selected ? Colors.white : Colors.white.withValues(alpha: 0.5),
+            color: selected ? theme.colors.primary : theme.colors.textSecondary,
             fontSize: 13,
             fontWeight: selected ? FontWeight.bold : FontWeight.w500,
             letterSpacing: 0.2,
@@ -1642,6 +1637,7 @@ class _ChatSearchBarState extends ConsumerState<_ChatSearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(rippleThemeProvider);
     // Subscribe once to populate _allChats for search
     _subscribeToChats();
 
@@ -1666,25 +1662,19 @@ class _ChatSearchBarState extends ConsumerState<_ChatSearchBar> {
             decoration: BoxDecoration(
               color:
                   _isSearching
-                      ? AppColors.glassPanel.withValues(alpha: 0.25)
-                      : AppColors.glassPanel,
+                      ? theme.colors.glassSurface.withOpacity(0.25)
+                      : theme.colors.glassSurface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
                 color:
                     _isSearching
-                        ? AppColors.aquaCore.withValues(alpha: 0.4)
-                        : Colors.white.withValues(alpha: 0.1),
+                        ? theme.colors.primary.withOpacity(0.5)
+                        : theme.colors.glassBorder,
                 width: 1,
               ),
               boxShadow:
                   _isSearching
-                      ? [
-                        BoxShadow(
-                          color: AppColors.aquaCore.withValues(alpha: 0.1),
-                          blurRadius: 15,
-                          spreadRadius: -2,
-                        ),
-                      ]
+                      ? theme.shadows.primaryGlow
                       : [],
             ),
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1692,9 +1682,9 @@ class _ChatSearchBarState extends ConsumerState<_ChatSearchBar> {
                 _isSearching
                     ? Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.search_rounded,
-                          color: AppColors.aquaCore,
+                          color: theme.colors.primary,
                           size: 22,
                         ),
                         const SizedBox(width: 12),
@@ -1703,14 +1693,14 @@ class _ChatSearchBarState extends ConsumerState<_ChatSearchBar> {
                             controller: _controller,
                             focusNode: _focusNode,
                             onChanged: _onSearchChanged,
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: theme.colors.textPrimary,
                               fontSize: 15,
                             ),
                             decoration: InputDecoration(
                               hintText: L10n.s(ref, 'searchByName'),
                               hintStyle: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.3),
+                                color: theme.colors.textMuted.withOpacity(0.5),
                                 fontSize: 15,
                               ),
                               border: InputBorder.none,
@@ -1731,7 +1721,7 @@ class _ChatSearchBarState extends ConsumerState<_ChatSearchBar> {
                           },
                           child: Icon(
                             Icons.close_rounded,
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: theme.colors.textMuted,
                             size: 20,
                           ),
                         ),
@@ -1741,14 +1731,14 @@ class _ChatSearchBarState extends ConsumerState<_ChatSearchBar> {
                       children: [
                         Icon(
                           Icons.search_rounded,
-                          color: Colors.white.withValues(alpha: 0.4),
+                          color: theme.colors.textMuted,
                           size: 22,
                         ),
                         const SizedBox(width: 12),
                         Text(
                           L10n.s(ref, 'searchMessages'),
                           style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.4),
+                            color: theme.colors.textMuted,
                             fontSize: 15,
                           ),
                         ),
@@ -1805,14 +1795,15 @@ class _ChatSearchBarState extends ConsumerState<_ChatSearchBar> {
 }
 
 /// Small frosted glass icon button for header actions
-class _GlassIconButton extends StatelessWidget {
+class _GlassIconButton extends ConsumerWidget {
   final IconData icon;
   final VoidCallback onTap;
 
   const _GlassIconButton({required this.icon, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
     return GestureDetector(
       onTap: () {
         AppHaptics.lightTap();
@@ -1823,21 +1814,21 @@ class _GlassIconButton extends StatelessWidget {
         width: 40,
         height: 40,
         decoration: BoxDecoration(
-          color: AppColors.glassPanel,
+          color: theme.colors.glassSurface,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
-            color: AppColors.aquaCore.withValues(alpha: 0.3),
+            color: theme.colors.glassBorder,
             width: 0.5,
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
+              color: Colors.black.withOpacity(theme.isDark ? 0.1 : 0.04),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
           ],
         ),
-        child: Icon(icon, color: Colors.white, size: 20),
+        child: Icon(icon, color: theme.colors.textPrimary, size: 20),
       ),
     );
   }
@@ -1859,6 +1850,7 @@ class _DecoyChatTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
     final timeStr = DateFormat.jm().format(DateTime.now().subtract(const Duration(minutes: 10)));
 
     return Padding(
@@ -1872,7 +1864,7 @@ class _DecoyChatTile extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(14),
                   boxShadow: [
                     BoxShadow(
-                      color: AppColors.aquaCore.withValues(alpha: 0.15),
+                      color: theme.colors.primary.withOpacity(0.15),
                       blurRadius: 10,
                       spreadRadius: 1,
                     ),
@@ -1906,8 +1898,8 @@ class _DecoyChatTile extends ConsumerWidget {
                             Expanded(
                               child: Text(
                                 name,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: theme.colors.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1922,7 +1914,7 @@ class _DecoyChatTile extends ConsumerWidget {
                           preview,
                           style: AppTextStyles.caption.copyWith(
                             fontSize: 12,
-                            color: AppColors.textMuted,
+                            color: theme.colors.textMuted,
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -1936,7 +1928,10 @@ class _DecoyChatTile extends ConsumerWidget {
                     children: [
                       Text(
                         timeStr,
-                        style: AppTextStyles.caption.copyWith(fontSize: 10),
+                        style: AppTextStyles.caption.copyWith(
+                          fontSize: 10,
+                          color: theme.colors.textMuted,
+                        ),
                       ),
                       if (unreadCount > 0) ...[
                         const SizedBox(height: 4),
@@ -2032,6 +2027,7 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(rippleThemeProvider);
     return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
       future: _userFuture,
       builder: (ctx, snap) {
@@ -2092,7 +2088,7 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
                       borderRadius: BorderRadius.circular(14),
                       boxShadow: [
                         BoxShadow(
-                          color: AppColors.aquaCore.withValues(alpha: 0.15),
+                          color: theme.colors.primary.withOpacity(0.15),
                           blurRadius: 10,
                           spreadRadius: 1,
                         ),
@@ -2169,7 +2165,7 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
                               color: AppColors.onlineGreen,
                               shape: BoxShape.circle,
                               border: Border.all(
-                                color: AppColors.abyssBackground,
+                                color: theme.colors.background,
                                 width: 2,
                               ),
                             ),
@@ -2188,8 +2184,8 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
                             Expanded(
                               child: Text(
                                 name,
-                                style: const TextStyle(
-                                  color: Colors.white,
+                                style: TextStyle(
+                                  color: theme.colors.textPrimary,
                                   fontSize: 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -2223,10 +2219,7 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
                           preview,
                           style: AppTextStyles.caption.copyWith(
                             fontSize: 12,
-                            color:
-                                widget.lastMessage == null
-                                    ? AppColors.textMuted
-                                    : AppColors.textMuted,
+                            color: theme.colors.textMuted,
                             fontStyle:
                                 widget.lastMessage == null
                                     ? FontStyle.italic
@@ -2245,7 +2238,10 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
                       if (timeStr.isNotEmpty)
                         Text(
                           timeStr,
-                          style: AppTextStyles.caption.copyWith(fontSize: 10),
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 10,
+                            color: theme.colors.textMuted,
+                          ),
                         ),
                       if (widget.streak > 0 && _isStreakActive()) ...[
                         const SizedBox(height: 4),
