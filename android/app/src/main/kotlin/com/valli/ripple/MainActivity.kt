@@ -32,35 +32,21 @@ class MainActivity : FlutterFragmentActivity() {
         val pm = packageManager
         val packageName = packageName
         
-        // Only toggle aliases — NEVER disable MainActivity itself
-        // MainActivity must always stay enabled for flutter run/debug to work
-        val aliases = listOf("Abyss", "Gold", "Glitch")
+        // Toggle all aliases including Default. MainActivity remains enabled so target is valid.
+        val aliases = listOf("Default", "Abyss", "Gold", "Glitch")
         
-        if (iconName.equals("Default", ignoreCase = true)) {
-            // Default icon: disable all aliases, MainActivity uses its manifest icon
-            for (alias in aliases) {
-                val componentName = ComponentName(packageName, "$packageName.MainActivity$alias")
-                pm.setComponentEnabledSetting(
-                    componentName,
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-                    PackageManager.DONT_KILL_APP
-                )
+        for (alias in aliases) {
+            val componentName = ComponentName(packageName, "$packageName.MainActivity$alias")
+            val state = if (alias.equals(iconName, ignoreCase = true)) {
+                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
+            } else {
+                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
             }
-        } else {
-            // Custom icon: enable the matching alias, disable the rest
-            for (alias in aliases) {
-                val componentName = ComponentName(packageName, "$packageName.MainActivity$alias")
-                val state = if (alias.equals(iconName, ignoreCase = true)) {
-                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-                } else {
-                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED
-                }
-                pm.setComponentEnabledSetting(
-                    componentName,
-                    state,
-                    PackageManager.DONT_KILL_APP
-                )
-            }
+            pm.setComponentEnabledSetting(
+                componentName,
+                state,
+                0 // 0 flag restarts the app immediately to apply the icon refresh on the launcher
+            )
         }
     }
 

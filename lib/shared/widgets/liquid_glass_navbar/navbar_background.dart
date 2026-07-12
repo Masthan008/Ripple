@@ -32,6 +32,7 @@ class LiquidNavbarBackground extends StatelessWidget {
     return LiquidGlassLayer(
       settings: const LiquidGlassSettings(thickness: 20, blur: 2),
       child: LiquidGlass(
+        glassContainsChild: true,
         shape: LiquidRoundedSuperellipse(borderRadius: 36),
         child: Container(
           width: width,
