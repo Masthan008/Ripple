@@ -68,6 +68,12 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
 
   Future<void> _sendCallNotification() async {
     try {
+      final myDoc = await FirebaseService.firestore
+          .collection('users')
+          .doc(widget.currentUserId)
+          .get();
+      final myPhoto = myDoc.data()?['photoUrl'] as String? ?? '';
+
       if (widget.isGroup) {
         // For group calls, notify all group members
         final callDoc = await FirebaseService.firestore
@@ -94,6 +100,7 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
             channelName: widget.channelName,
             callType: widget.isVideo ? 'video' : 'audio',
             isGroup: widget.isGroup,
+            callerPhotoUrl: myPhoto,
           );
         }
       } else {
@@ -115,6 +122,7 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
           channelName: widget.channelName,
           callType: widget.isVideo ? 'video' : 'audio',
           isGroup: widget.isGroup,
+          callerPhotoUrl: myPhoto,
         );
       }
     } catch (e) {
@@ -212,12 +220,69 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
     return '$m:$s';
   }
 
+  Future<void> _sendMissedCallNotification() async {
+    try {
+      final myDoc = await FirebaseService.firestore
+          .collection('users')
+          .doc(widget.currentUserId)
+          .get();
+      final myPhoto = myDoc.data()?['photoUrl'] as String? ?? '';
+
+      if (widget.isGroup) {
+        final callDoc = await FirebaseService.firestore
+            .collection('calls')
+            .doc(widget.callId)
+            .get();
+        final memberIds = List<String>.from(callDoc.data()?['memberIds'] ?? []);
+
+        for (final memberId in memberIds) {
+          if (memberId == widget.currentUserId) continue;
+
+          final userDoc = await FirebaseService.usersCollection
+              .doc(memberId)
+              .get();
+          final playerId = userDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+          if (playerId.isEmpty) continue;
+
+          await NotificationService.sendMissedCallNotification(
+            recipientPlayerId: playerId,
+            callerName: widget.currentUserName,
+            callType: widget.isVideo ? 'video' : 'voice',
+            callerPhotoUrl: myPhoto,
+          );
+        }
+      } else {
+        if (widget.otherUserId == null || widget.otherUserId!.isEmpty) return;
+
+        final userDoc = await FirebaseService.usersCollection
+            .doc(widget.otherUserId)
+            .get();
+        final playerId = userDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+        if (playerId.isEmpty) return;
+
+        await NotificationService.sendMissedCallNotification(
+          recipientPlayerId: playerId,
+          callerName: widget.currentUserName,
+          callType: widget.isVideo ? 'video' : 'voice',
+          callerPhotoUrl: myPhoto,
+        );
+      }
+    } catch (e) {
+      debugPrint('⚠️ Failed to send missed call notification: $e');
+    }
+  }
+
   Future<void> _endCall({String status = 'ended'}) async {
     if (_isEnding) return;
     _isEnding = true;
     _durationTimer?.cancel();
     _timeoutTimer?.cancel();
     _callStatusSub?.cancel();
+
+    // Trigger missed call notifications if the call ended before acceptance
+    if (!_isConnected) {
+      _sendMissedCallNotification();
+    }
 
     // Leave Daily.co room via JS
     try {

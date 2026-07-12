@@ -32,8 +32,46 @@ class NotificationService {
   /// Initialize notification service.
   /// OneSignal is already initialized in main.dart before runApp().
   static Future<void> initialize() async {
-    // OneSignal handles everything — no local notification setup needed
-    debugPrint('🔔 NotificationService initialized (OneSignal-only mode)');
+    debugPrint('🔔 NotificationService initialized globally (OneSignal-only mode)');
+
+    // 1. OneSignal notification opened handler (runs globally at launch)
+    OneSignal.Notifications.addClickListener((event) {
+      final data = event.notification.additionalData ?? {};
+      debugPrint('🔔 Notification clicked with data: $data');
+      _handleGlobalNavigation(data);
+    });
+
+    // 2. Foreground will display listener (suppression logic)
+    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+      final data = event.notification.additionalData ?? {};
+      final type = data['type'] as String?;
+      final incomingChatId = data['chatId'] as String? ?? data['groupId'] as String?;
+
+      if ((type == 'chat' || type == 'group') &&
+          currentActiveChatId != null &&
+          incomingChatId == currentActiveChatId) {
+        // User is already in this chat — silently drop the notification
+        event.preventDefault();
+        debugPrint('🔕 Suppressed foreground notification for active chat: $incomingChatId');
+      }
+    });
+  }
+
+  static void _handleGlobalNavigation(Map<String, dynamic> data) {
+    final context = navigatorKey.currentState?.context;
+    if (context == null) {
+      debugPrint('⚠️ Navigator context is null. Retrying notification navigation in 500ms...');
+      Future.delayed(const Duration(milliseconds: 500), () => _handleGlobalNavigation(data));
+      return;
+    }
+    
+    try {
+      final router = GoRouter.of(context);
+      _handleNotificationNavigation(router, data);
+    } catch (e) {
+      debugPrint('⚠️ Failed to resolve GoRouter from context: $e. Retrying in 500ms...');
+      Future.delayed(const Duration(milliseconds: 500), () => _handleGlobalNavigation(data));
+    }
   }
 
   // ─── OneSignal Player ID Sync ───────────────────────────
@@ -103,31 +141,9 @@ class NotificationService {
   // ─── Notification Tap Handlers ──────────────────────────
 
   /// Setup notification tap handlers for navigation
+  /// [Deprecated] Handlers are now initialized globally inside [initialize].
   static void setupNotificationHandlers(BuildContext context) {
-    final router = GoRouter.of(context);
-
-    // OneSignal notification opened handler
-    OneSignal.Notifications.addClickListener((event) {
-      final data = event.notification.additionalData ?? {};
-      _handleNotificationNavigation(router, data);
-    });
-
-    // ── Foreground suppression ────────────────────────────
-    // Suppress push notifications when the user is already
-    // viewing the same chat that the notification belongs to.
-    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
-      final data = event.notification.additionalData ?? {};
-      final type = data['type'] as String?;
-      final incomingChatId = data['chatId'] as String? ?? data['groupId'] as String?;
-
-      if ((type == 'chat' || type == 'group') &&
-          currentActiveChatId != null &&
-          incomingChatId == currentActiveChatId) {
-        // User is already in this chat — silently drop the notification
-        event.preventDefault();
-        debugPrint('🔕 Suppressed foreground notification for active chat: $incomingChatId');
-      }
-    });
+    debugPrint('🔔 setupNotificationHandlers called (no-op, already initialized globally)');
   }
 
   static void _handleNotificationNavigation(
@@ -174,6 +190,9 @@ class NotificationService {
       case 'friend_request':
         router.push('/requests');
         break;
+      case 'missed_call':
+        router.go('/home');
+        break;
       case 'call':
         final callId = data['callId'] as String? ?? '';
         final channelName = data['channelName'] as String? ?? '';
@@ -211,11 +230,13 @@ class NotificationService {
     required String messageText,
     required String chatId,
     String senderUid = '',
+    String senderPhotoUrl = '',
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
       title: senderName,
       body: messageText,
+      largeIcon: senderPhotoUrl,
       data: {
         'type': 'chat',
         'chatId': chatId,
@@ -232,12 +253,14 @@ class NotificationService {
     required String groupName,
     required String messageText,
     required String groupId,
+    String groupPhotoUrl = '',
   }) async {
     if (recipientPlayerIds.isEmpty) return;
     await _sendOneSignalNotification(
       playerIds: recipientPlayerIds,
       title: groupName,
       body: '$senderName: $messageText',
+      largeIcon: groupPhotoUrl,
       data: {'type': 'group', 'groupId': groupId},
     );
   }
@@ -246,11 +269,13 @@ class NotificationService {
   static Future<void> sendFriendRequestNotification({
     required String recipientPlayerId,
     required String senderName,
+    String senderPhotoUrl = '',
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
       title: 'New Friend Request 👋',
       body: '$senderName wants to connect with you',
+      largeIcon: senderPhotoUrl,
       data: {'type': 'friend_request'},
     );
   }
@@ -260,11 +285,13 @@ class NotificationService {
     required String recipientPlayerId,
     required String reactorName,
     required String emoji,
+    String reactorPhotoUrl = '',
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
       title: 'Status Reaction',
       body: '$reactorName reacted $emoji to your status',
+      largeIcon: reactorPhotoUrl,
       data: {'type': 'status_reaction'},
     );
   }
@@ -278,6 +305,7 @@ class NotificationService {
     required String channelName,
     required String callType,
     required bool isGroup,
+    String callerPhotoUrl = '',
   }) async {
     final title = callType == 'video'
         ? '📹 Incoming Video Call'
@@ -286,6 +314,7 @@ class NotificationService {
       playerIds: [recipientPlayerId],
       title: title,
       body: '$callerName is calling you',
+      largeIcon: callerPhotoUrl,
       data: {
         'type': 'call',
         'callId': callId,
@@ -296,7 +325,26 @@ class NotificationService {
         'isGroup': isGroup.toString(),
       },
       ttl: 60,
-      androidChannelId: 'calls',
+    );
+  }
+
+  /// Send a missed call notification
+  static Future<void> sendMissedCallNotification({
+    required String recipientPlayerId,
+    required String callerName,
+    required String callType,
+    String callerPhotoUrl = '',
+  }) async {
+    final title = 'Missed Call 📞';
+    final body = 'You missed a $callType call from $callerName';
+    await _sendOneSignalNotification(
+      playerIds: [recipientPlayerId],
+      title: title,
+      body: body,
+      largeIcon: callerPhotoUrl,
+      data: {
+        'type': 'missed_call',
+      },
     );
   }
 
@@ -309,6 +357,7 @@ class NotificationService {
     Map<String, dynamic>? data,
     int? ttl,
     String? androidChannelId,
+    String? largeIcon,
   }) async {
     final appId = Env.oneSignalAppId;
     final restKey = Env.oneSignalRestApiKey;
@@ -344,6 +393,7 @@ class NotificationService {
           'include_player_ids': playerIds,
           'headings': {'en': title},
           'contents': {'en': body},
+          if (largeIcon != null && largeIcon.isNotEmpty) 'large_icon': largeIcon,
           if (data != null) 'data': data,
           'priority': 10,
           if (ttl != null) 'ttl': ttl,

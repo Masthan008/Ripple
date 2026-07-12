@@ -59,19 +59,23 @@ class NavbarStateNotifier extends StateNotifier<NavbarState> {
     );
   }
 
-  /// Initialize positions using actual icon sizes (GlobalKey)
-  void initMeasuredPositions(List<GlobalKey> iconKeys) {
+  /// Initialize positions using actual icon sizes relative to Stack container context
+  void initMeasuredPositions(List<GlobalKey> iconKeys, BuildContext context) {
+    final parentBox = context.findRenderObject() as RenderBox?;
+    if (parentBox == null) return;
+
     final positions = iconKeys.map((key) {
       final box = key.currentContext?.findRenderObject() as RenderBox?;
-      if (box != null) {
-        // center of the icon in global coordinates
-        final center = box.localToGlobal(Offset.zero).dx + box.size.width / 2;
+      if (box != null && box.hasSize) {
+        // center of the icon relative to the parent context (the bottom navigation container)
+        final localOffset = parentBox.globalToLocal(box.localToGlobal(Offset.zero));
+        final center = localOffset.dx + box.size.width / 2;
         return center;
       }
       return 0.0;
     }).toList();
 
-    if (positions.isNotEmpty) {
+    if (positions.isNotEmpty && !positions.every((p) => p == 0.0)) {
       state = state.copyWith(
         positions: positions,
         draggablePosition: positions[state.currentIndex < positions.length ? state.currentIndex : 0],

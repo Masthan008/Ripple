@@ -171,16 +171,25 @@ class ChatService {
         final notifText = type == 'text'
             ? text
             : type == 'image'
-                ? '📷 Sent a photo'
+                ? 'sent an image'
                 : type == 'video'
-                    ? '🎥 Sent a video'
-                    : '📎 Sent a file';
+                    ? 'sent a video'
+                    : type == 'voice'
+                        ? 'sent a voice message'
+                        : type == 'gif'
+                            ? 'sent a GIF'
+                            : type == 'sticker'
+                                ? 'sent a sticker'
+                                : type == 'poll'
+                                    ? 'sent a poll'
+                                    : 'sent a file';
         await NotificationService.sendMessageNotification(
           recipientPlayerId: playerId,
           senderName: myName,
           messageText: notifText,
           chatId: chatId,
           senderUid: _myUid,
+          senderPhotoUrl: myDoc.data()?['photoUrl'] as String? ?? '',
         );
       }
     } catch (_) {}

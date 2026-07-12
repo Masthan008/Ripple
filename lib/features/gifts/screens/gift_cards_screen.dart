@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -489,14 +490,49 @@ class _GiftPreviewSheet extends StatelessWidget {
                 const SizedBox(width: 16),
                 Expanded(
                   child: ElevatedButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Gift sent successfully! 🎁'),
-                          backgroundColor: AppColors.aquaCore,
-                        ),
+                    onPressed: () async {
+                      final upiUrl = Uri.parse(
+                        'upi://pay?pa=valli.ripple@okaxis'
+                        '&pn=Ripple%20Chat'
+                        '&am=${giftCard.amount}'
+                        '&cu=INR'
+                        '&tn=Ripple%20Gift%20Card%20-%20${Uri.encodeComponent(giftCard.title)}'
                       );
+                      try {
+                        if (await canLaunchUrl(upiUrl)) {
+                          await launchUrl(upiUrl, mode: LaunchMode.externalApplication);
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('UPI payment launched! 🎁'),
+                                backgroundColor: AppColors.aquaCore,
+                              ),
+                            );
+                          }
+                        } else {
+                          // Fallback to mock completed payment if no UPI app installed
+                          if (context.mounted) {
+                            Navigator.pop(context);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Gift sent successfully! (Sandbox Simulation) 🎁'),
+                                backgroundColor: AppColors.aquaCore,
+                              ),
+                            );
+                          }
+                        }
+                      } catch (e) {
+                        if (context.mounted) {
+                          Navigator.pop(context);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Gift sent successfully! (Sandbox Simulation) 🎁'),
+                              backgroundColor: AppColors.aquaCore,
+                            ),
+                          );
+                        }
+                      }
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.aquaCore,

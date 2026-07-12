@@ -646,8 +646,8 @@ class ThemePresets {
       primary: Color(0xFF007AFF), // Classic iOS Blue
       secondary: Color(0xFF5856D6), // iOS Indigo
       accent: Color(0xFF30D158), // iOS Green
-      background: Color(0xFFFFFFFF), // Pure White
-      surface: Color(0xFFF2F2F7), // iOS System Light Grey
+      background: Color(0xFFEBEFF5), // Soft pastel lavender-blue base instead of pure white
+      surface: Color(0xFFF2F5FA), // iOS System Light Grey
       surfaceHighlight: Color(0xFFE5E5EA),
       textPrimary: Color(0xFF1C1C1E), // Light-mode deep grey
       textSecondary: Color(0xFF3A3A3C),
@@ -656,8 +656,8 @@ class ThemePresets {
       error: Color(0xFFFF3B30),
       warning: Color(0xFFFF9500),
       online: Color(0xFF34C759),
-      glassBorder: Color(0x2B8E8E93),
-      glassSurface: Color(0xC0FFFFFF), // Very glossy white glass
+      glassBorder: Color(0x3D8E8E93), // Slightly more distinct border
+      glassSurface: Color(0xA0FFFFFF), // Glossy semi-transparent white glass
       bubbleIncoming: Color(0xFFE5E5EA),
       bubbleOutgoing: Color(0xFF007AFF),
     ),
@@ -668,7 +668,10 @@ class ThemePresets {
         end: Alignment.bottomRight,
       ),
       surface: const LinearGradient(
-        colors: [Color(0xFFFFFFFF), Color(0xFFF2F2F7)],
+        colors: [
+          Color(0xFFE6F0FA), // Soft sky blue
+          Color(0xFFF5E6FA), // Soft lavender
+        ],
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
       ),
@@ -694,30 +697,23 @@ class ThemePresets {
     shadows: ThemeShadows(
       primaryGlow: [
         BoxShadow(
-          color: Colors.white, // White light glow
-          blurRadius: 25,
-          spreadRadius: 4,
-          offset: Offset.zero,
-        ),
-        BoxShadow(
-          color: const Color(0xFF007AFF).withOpacity(0.15),
-          blurRadius: 15,
+          color: const Color(0xFF007AFF).withOpacity(0.12), // Subtle blue glow
+          blurRadius: 20,
           spreadRadius: -2,
         ),
       ],
       secondaryGlow: [
         BoxShadow(
-          color: Colors.white.withOpacity(0.8),
-          blurRadius: 20,
-          spreadRadius: 2,
-          offset: Offset.zero,
+          color: const Color(0xFF5856D6).withOpacity(0.10), // Subtle purple glow
+          blurRadius: 16,
+          spreadRadius: -1,
         ),
       ],
       accentGlow: [
         BoxShadow(
-          color: Colors.white,
-          blurRadius: 30,
-          spreadRadius: 6,
+          color: const Color(0xFF30D158).withOpacity(0.15),
+          blurRadius: 24,
+          spreadRadius: 2,
         ),
       ],
       soft: [

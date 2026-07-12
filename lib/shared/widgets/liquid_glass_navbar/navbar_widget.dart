@@ -6,6 +6,8 @@ import 'navbar_item_widget.dart';
 import 'navbar_background.dart';
 import 'navbar_providers.dart';
 
+import 'navbar_draggable_indicator.dart';
+
 class LiquidNavbarWidget extends ConsumerStatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -73,7 +75,7 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         final notifier = ref.read(liquidNavbarStateProvider.notifier);
-        notifier.initMeasuredPositions(_iconKeys);
+        notifier.initMeasuredPositions(_iconKeys, context);
 
         // Sync initial external index
         if (notifier.state.currentIndex != widget.currentIndex) {
@@ -110,6 +112,7 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
 
     final bottomSafeArea = MediaQuery.of(context).padding.bottom;
     final effectiveBottomPad = widget.bottomPadding + bottomSafeArea;
+    final parentWidth = screenWidth - (widget.horizontalPadding * 2);
 
     return Container(
       height: widget.navbarHeight + effectiveBottomPad,
@@ -122,15 +125,45 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // Background
+          // 1. Background
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
             child: LiquidNavbarBackground(
-              width: screenWidth - (widget.horizontalPadding * 2),
+              width: parentWidth,
               height: widget.navbarHeight,
               theme: theme,
+              child: const SizedBox.shrink(), // Background glass container only
+            ),
+          ),
+
+          // 2. Active Draggable Pill Indicator (placed between background and icon labels)
+          if (positions.isNotEmpty)
+            LiquidNavbarDraggableIndicator(
+              position: dragCenter,
+              baseSize: widget.indicatorWidth,
+              itemCount: itemCount,
+              snapPositions: positions,
+              parentWidth: parentWidth,
+              bottomOffset: 0, // Draw flat within Stack height
+              onDragUpdate: (pos) {
+                notifier.setDraggablePosition(pos);
+              },
+              onDragEnd: (index) {
+                notifier.setCurrentIndex(index);
+                widget.onTap(index);
+              },
+            ),
+
+          // 3. Tab Items Row (fully clickable on top)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SizedBox(
+              width: parentWidth,
+              height: widget.navbarHeight,
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(itemCount, (i) {

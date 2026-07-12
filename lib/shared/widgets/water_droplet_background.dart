@@ -239,15 +239,25 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
                 decoration: BoxDecoration(
                   color: widget.theme?.colors.background ?? Colors.white,
                   gradient: widget.theme != null
-                      ? LinearGradient(
-                          colors: [
-                            widget.theme!.colors.background,
-                            widget.theme!.colors.background.withOpacity(0.97),
-                            Color.lerp(widget.theme!.colors.background, const Color(0xFFD3E5F8), 0.12)!,
-                          ],
-                          begin: Alignment.topCenter,
-                          end: Alignment.bottomCenter,
-                        )
+                      ? (widget.theme!.id == 'ios_27'
+                          ? const LinearGradient(
+                              colors: [
+                                Color(0xFFE6F0FA), // Soft sky blue
+                                Color(0xFFF5E6FA), // Soft lavender
+                                Color(0xFFFAEBE6), // Soft peach
+                              ],
+                              begin: Alignment.topLeft,
+                              end: Alignment.bottomRight,
+                            )
+                          : LinearGradient(
+                              colors: [
+                                widget.theme!.colors.background,
+                                widget.theme!.colors.background.withOpacity(0.97),
+                                Color.lerp(widget.theme!.colors.background, const Color(0xFFD3E5F8), 0.12)!,
+                              ],
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                            ))
                       : const LinearGradient(
                           colors: [
                             Color(0xFFFFFFFF),
@@ -271,13 +281,17 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
                     boxShadow: [
                       BoxShadow(
                         color: widget.theme != null
-                            ? widget.theme!.colors.primary.withOpacity(0.08)
+                            ? (widget.theme!.id == 'ios_27'
+                                ? const Color(0xFF007AFF).withOpacity(0.12) // Blue glow
+                                : widget.theme!.colors.primary.withOpacity(0.08))
                             : Colors.white.withOpacity(0.95),
                         blurRadius: 100,
                         spreadRadius: 20,
                       ),
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.90),
+                        color: widget.theme != null && widget.theme!.id == 'ios_27'
+                            ? const Color(0xFF5856D6).withOpacity(0.08) // Purple glow
+                            : Colors.white.withOpacity(0.90),
                         blurRadius: 80,
                         spreadRadius: 10,
                       ),
@@ -296,13 +310,17 @@ class _WaterDropletBackgroundState extends State<WaterDropletBackground>
                     boxShadow: [
                       BoxShadow(
                         color: widget.theme != null
-                            ? widget.theme!.colors.secondary.withOpacity(0.06)
+                            ? (widget.theme!.id == 'ios_27'
+                                ? const Color(0xFF5856D6).withOpacity(0.08)
+                                : widget.theme!.colors.secondary.withOpacity(0.06))
                             : Colors.white.withOpacity(0.90),
                         blurRadius: 120,
                         spreadRadius: 30,
                       ),
                       BoxShadow(
-                        color: Colors.white.withOpacity(0.85),
+                        color: widget.theme != null && widget.theme!.id == 'ios_27'
+                            ? const Color(0xFF007AFF).withOpacity(0.06)
+                            : Colors.white.withOpacity(0.85),
                         blurRadius: 100,
                         spreadRadius: 15,
                       ),

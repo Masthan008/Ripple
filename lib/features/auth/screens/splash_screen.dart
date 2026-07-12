@@ -178,6 +178,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
     // Wait for the minimum splash duration to play entrance animations
     await minTimeFuture;
     if (mounted) {
+      final currentRoute = GoRouterState.of(context).uri.toString();
+      if (currentRoute != '/splash') {
+        debugPrint('🔔 SplashScreen: Navigation already handled by push notification ($currentRoute). Skipping redirect.');
+        return;
+      }
       context.go(targetPath);
     }
   }

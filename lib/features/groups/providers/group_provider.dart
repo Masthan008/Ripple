@@ -174,13 +174,29 @@ class GroupService {
       }
 
       if (playerIds.isNotEmpty) {
-        final notifText = type == 'text' ? text : '📎 Attachment';
+        final notifText = type == 'text'
+            ? text
+            : type == 'image'
+                ? 'sent an image'
+                : type == 'video'
+                    ? 'sent a video'
+                    : type == 'voice'
+                        ? 'sent a voice message'
+                        : type == 'gif'
+                            ? 'sent a GIF'
+                            : type == 'sticker'
+                                ? 'sent a sticker'
+                                : type == 'poll'
+                                    ? 'sent a poll'
+                                    : 'sent a file';
+        final groupPhoto = groupDoc.data()?['photoUrl'] as String? ?? '';
         await NotificationService.sendGroupMessageNotification(
           recipientPlayerIds: playerIds,
           senderName: myName,
           groupName: groupName,
           messageText: notifText,
           groupId: groupId,
+          groupPhotoUrl: groupPhoto,
         );
       }
     } catch (_) {}

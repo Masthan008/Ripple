@@ -9,6 +9,7 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
   final Function(double) onDragUpdate;
   final Function(int) onDragEnd;
   final double bottomOffset;
+  final double parentWidth; // Width of parent stack container
 
   const LiquidNavbarDraggableIndicator({
     super.key,
@@ -18,14 +19,13 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
     required this.snapPositions,
     required this.onDragUpdate,
     required this.onDragEnd,
+    required this.parentWidth,
     this.bottomOffset = 20,
   });
 
   @override
   Widget build(BuildContext context) {
     if (itemCount == 0 || snapPositions.isEmpty) return const SizedBox.shrink();
-    
-    final screenWidth = MediaQuery.of(context).size.width;
 
     // Adaptive width based on item count
     final adaptiveWidth = (baseSize * (3.5 / itemCount).clamp(1.0, 1.2));
@@ -33,7 +33,7 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
     // Clamp the center so indicator never goes off-screen
     final clampedCenter = position.clamp(
       adaptiveWidth / 2,
-      screenWidth - adaptiveWidth / 2,
+      parentWidth - adaptiveWidth / 2,
     );
 
     return Positioned(
@@ -43,7 +43,7 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
         onHorizontalDragUpdate: (details) {
           final newPos = (position + details.delta.dx).clamp(
             adaptiveWidth / 2,
-            screenWidth - adaptiveWidth / 2,
+            parentWidth - adaptiveWidth / 2,
           );
           onDragUpdate(newPos);
         },
