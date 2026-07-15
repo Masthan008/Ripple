@@ -46,6 +46,7 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
   bool _isUploadingPhoto = false;
   late TextEditingController _nameCtrl;
   late TextEditingController _descCtrl;
+  String _memberSearchQuery = '';
 
   @override
   void initState() {
@@ -353,6 +354,30 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     ),
                     const SizedBox(height: 10),
 
+                    // Members search input
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 12),
+                      child: GlassCard(
+                        borderRadius: 12,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+                        child: TextField(
+                          style: const TextStyle(color: Colors.white, fontSize: 13),
+                          decoration: InputDecoration(
+                            hintText: 'Search members...',
+                            hintStyle: TextStyle(color: Colors.white.withValues(alpha: 0.3), fontSize: 13),
+                            prefixIcon: Icon(Icons.search_rounded, color: Colors.white.withValues(alpha: 0.3), size: 18),
+                            border: InputBorder.none,
+                            isDense: true,
+                          ),
+                          onChanged: (val) {
+                            setState(() {
+                              _memberSearchQuery = val;
+                            });
+                          },
+                        ),
+                      ),
+                    ),
+
                     // Add Members button (admin or canAdd)
                     if (canAdd)
                       Padding(
@@ -398,9 +423,13 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                       error: (e, _) => Text('Error: $e',
                           style: AppTextStyles.caption),
                       data: (list) {
+                        final filteredList = list
+                            .where((m) => m.name.toLowerCase().contains(_memberSearchQuery.toLowerCase()))
+                            .toList();
+
                         return Column(
-                          children: List.generate(list.length, (i) {
-                            final member = list[i];
+                          children: List.generate(filteredList.length, (i) {
+                            final member = filteredList[i];
                             final isMe = member.uid == myUid;
                             final isMemberAdmin =
                                 admins.contains(member.uid);

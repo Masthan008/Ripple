@@ -85,6 +85,14 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   bool _incognitoKeyboard = false;
   int _selfDestructSeconds = 0;
 
+  // In-Chat Search state
+  bool _isSearching = false;
+  final _searchController = TextEditingController();
+
+  // Mentions state
+  bool _showMentionsOverlay = false;
+  String _mentionFilter = '';
+
   // AI Features state
   bool _isSummarizing = false;
   String? _summary;
@@ -95,6 +103,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   @override
   void initState() {
     super.initState();
+    _messageController.addListener(_onMessageTextChanged);
     // Track active chat for foreground notification suppression
     NotificationService.currentActiveChatId = widget.groupId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -110,10 +119,12 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
   @override
   void dispose() {
+    _messageController.removeListener(_onMessageTextChanged);
     // Clear active chat tracking
     NotificationService.currentActiveChatId = null;
     _messageController.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -622,10 +633,18 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   data: (msgs) {
                     _checkSelfDestruct(msgs);
 
-                    final filtered =
+                    var filtered =
                         msgs
                             .where((m) => !m.deletedFor.contains(myUid))
                             .toList();
+
+                    // Local message search filter
+                    if (_isSearching && _searchController.text.isNotEmpty) {
+                      final query = _searchController.text.toLowerCase();
+                      filtered = filtered.where((m) {
+                        return m.text != null && m.text!.toLowerCase().contains(query);
+                      }).toList();
+                    }
 
                     // Apply Semantic Currents™ topic filter
                     final topicFiltered = ref.watch(
@@ -832,6 +851,13 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   ),
                 ),
 
+              // Mentions overlay
+              if (!_isMultiSelectMode && _showMentionsOverlay)
+                members.maybeWhen(
+                  data: (list) => _buildMentionsOverlay(list),
+                  orElse: () => const SizedBox.shrink(),
+                ),
+
               // Input bar
               if (!_isMultiSelectMode) ...[
                 StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -999,6 +1025,59 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   }
 
   Widget _buildHeader(AsyncValue<List<UserModel>> members) {
+    if (_isSearching) {
+      return Container(
+        padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + 8,
+          left: 8,
+          right: 16,
+          bottom: 12,
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xE6060D1A),
+          border: Border(bottom: BorderSide(color: Color(0x0FFFFFFF), width: 1)),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+              onPressed: () {
+                setState(() {
+                  _isSearching = false;
+                  _searchController.clear();
+                });
+              },
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 15),
+                decoration: const InputDecoration(
+                  hintText: 'Search messages...',
+                  hintStyle: TextStyle(color: Colors.white30, fontSize: 15),
+                  border: InputBorder.none,
+                ),
+                onChanged: (val) {
+                  setState(() {});
+                },
+              ),
+            ),
+            if (_searchController.text.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.clear_rounded, color: Colors.white, size: 20),
+                onPressed: () {
+                  setState(() {
+                    _searchController.clear();
+                  });
+                },
+              ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 8,
@@ -1203,6 +1282,10 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                 );
               } else if (value == 'self_destruct') {
                 _showSelfDestructPicker();
+              } else if (value == 'search') {
+                setState(() {
+                  _isSearching = true;
+                });
               }
             },
             itemBuilder:
@@ -1232,6 +1315,23 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         SizedBox(width: 12),
                         Text(
                           'Self-Destruct Timer',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'search',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search_rounded,
+                          color: AppColors.aquaCore,
+                          size: 20,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Search Messages',
                           style: TextStyle(color: Colors.white),
                         ),
                       ],
@@ -2159,5 +2259,99 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     } finally {
       if (mounted) setState(() => _isSending = false);
     }
+  }
+
+  void _onMessageTextChanged() {
+    final text = _messageController.text;
+    final selection = _messageController.selection;
+    if (selection.baseOffset > 0) {
+      final textBeforeCursor = text.substring(0, selection.baseOffset);
+      final lastAtIdx = textBeforeCursor.lastIndexOf('@');
+      if (lastAtIdx != -1) {
+        final textAfterAt = textBeforeCursor.substring(lastAtIdx + 1);
+        if (!textAfterAt.contains(' ')) {
+          setState(() {
+            _showMentionsOverlay = true;
+            _mentionFilter = textAfterAt;
+          });
+          return;
+        }
+      }
+    }
+    if (_showMentionsOverlay) {
+      setState(() {
+        _showMentionsOverlay = false;
+        _mentionFilter = '';
+      });
+    }
+  }
+
+  Widget _buildMentionsOverlay(List<UserModel> list) {
+    final query = _mentionFilter.toLowerCase();
+    final filteredMembers = list.where((m) {
+      if (m.uid == ref.read(groupServiceProvider).myUid) return false;
+      return m.name.toLowerCase().contains(query);
+    }).toList();
+
+    if (filteredMembers.isEmpty) return const SizedBox.shrink();
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 180),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: BoxDecoration(
+        color: const Color(0xED0A1628),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(16),
+        child: ListView.builder(
+          shrinkWrap: true,
+          padding: EdgeInsets.zero,
+          itemCount: filteredMembers.length,
+          itemBuilder: (context, i) {
+            final m = filteredMembers[i];
+            return ListTile(
+              dense: true,
+              leading: AquaAvatar(
+                imageUrl: m.photoUrl,
+                name: m.name,
+                size: 28,
+              ),
+              title: Text(
+                m.name,
+                style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+              onTap: () {
+                final text = _messageController.text;
+                final selection = _messageController.selection;
+                if (selection.baseOffset > 0) {
+                  final textBeforeCursor = text.substring(0, selection.baseOffset);
+                  final lastAtIdx = textBeforeCursor.lastIndexOf('@');
+                  if (lastAtIdx != -1) {
+                    final newText = text.replaceRange(lastAtIdx, selection.baseOffset, '@${m.name} ');
+                    _messageController.text = newText;
+                    _messageController.selection = TextSelection.fromPosition(
+                      TextPosition(offset: lastAtIdx + m.name.length + 2),
+                    );
+                  }
+                }
+                setState(() {
+                  _showMentionsOverlay = false;
+                  _mentionFilter = '';
+                });
+              },
+            );
+          },
+        ),
+      ),
+    );
   }
 }

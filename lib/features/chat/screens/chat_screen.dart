@@ -139,6 +139,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   bool _isMuted = false;
 
+  // In-Chat Search state
+  bool _isSearching = false;
+  final _searchController = TextEditingController();
+
   @override
   void initState() {
     super.initState();
@@ -200,6 +204,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ChronosUnlockService.instance.stopMonitoring();
     _messageController.dispose();
     _scrollController.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -862,7 +867,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
                     // Filter out expired and deleted messages
                     final now = DateTime.now();
-                    final filtered =
+                    var filtered =
                         msgs.where((m) {
                           if (m.deletedFor.contains(currentUser)) return false;
                           // Vanish Mode check
@@ -872,6 +877,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           }
                           return true;
                         }).toList();
+
+                    // Local message search filter
+                    if (_isSearching && _searchController.text.isNotEmpty) {
+                      final query = _searchController.text.toLowerCase();
+                      filtered = filtered.where((m) {
+                        return m.text != null && m.text!.toLowerCase().contains(query);
+                      }).toList();
+                    }
 
                     if (filtered.isEmpty) {
                       return Center(
@@ -1416,6 +1429,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildHeader(AsyncValue<UserModel?> partner) {
+    if (_isSearching) {
+      return Container(
+        padding: EdgeInsets.only(
+          top: MediaQuery.of(context).padding.top + 8,
+          left: 8,
+          right: 16,
+          bottom: 12,
+        ),
+        decoration: const BoxDecoration(
+          color: Color(0xE6060D1A),
+          border: Border(bottom: BorderSide(color: Color(0x0FFFFFFF), width: 1)),
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
+              onPressed: () {
+                setState(() {
+                  _isSearching = false;
+                  _searchController.clear();
+                });
+              },
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white, fontSize: 15),
+                decoration: const InputDecoration(
+                  hintText: 'Search messages...',
+                  hintStyle: TextStyle(color: Colors.white30, fontSize: 15),
+                  border: InputBorder.none,
+                ),
+                onChanged: (val) {
+                  setState(() {});
+                },
+              ),
+            ),
+            if (_searchController.text.isNotEmpty)
+              IconButton(
+                icon: const Icon(Icons.clear_rounded, color: Colors.white, size: 20),
+                onPressed: () {
+                  setState(() {
+                    _searchController.clear();
+                  });
+                },
+              ),
+          ],
+        ),
+      );
+    }
+
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 8,
@@ -1619,6 +1685,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 NotificationService.showMuteDialog(context, widget.chatId);
               } else if (value == 'unmute') {
                 NotificationService.unmuteChat(widget.chatId);
+              } else if (value == 'search') {
+                setState(() {
+                  _isSearching = true;
+                });
               }
             },
             itemBuilder:
@@ -1721,6 +1791,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               ? 'Unmute Notifications'
                               : 'Mute Notifications',
                           style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'search',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.search_rounded,
+                          color: AppColors.aquaCore,
+                          size: 20,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Search Messages',
+                          style: TextStyle(color: Colors.white),
                         ),
                       ],
                     ),
