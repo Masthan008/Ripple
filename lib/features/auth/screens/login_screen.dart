@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_provider.dart';
+import '../../../core/services/daily_service.dart';
+import '../../../core/services/firebase_service.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/google_logo.dart';
@@ -117,6 +122,162 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _showGuestJoinDialog(BuildContext context) async {
+    final linkCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    bool dialogLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0A1628),
+              title: const Text('Join Meeting as Guest',
+                  style: TextStyle(color: Colors.white)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: linkCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: 'Meeting Link or ID',
+                      labelStyle: TextStyle(color: Colors.white54),
+                      enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white24)),
+                      focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: AppColors.aquaCore)),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    style: const TextStyle(color: Colors.white),
+                    decoration: const InputDecoration(
+                      labelText: 'Your Display Name',
+                      labelStyle: TextStyle(color: Colors.white54),
+                      enabledBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: Colors.white24)),
+                      focusedBorder: UnderlineInputBorder(
+                          borderSide: BorderSide(color: AppColors.aquaCore)),
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: const Text('Cancel',
+                      style: TextStyle(color: Colors.white54)),
+                ),
+                ElevatedButton(
+                  onPressed: dialogLoading
+                      ? null
+                      : () async {
+                          final rawInput = linkCtrl.text.trim();
+                          final name = nameCtrl.text.trim();
+                          if (rawInput.isEmpty || name.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text('Please enter all fields')),
+                            );
+                            return;
+                          }
+
+                          // Extract meeting ID from link: e.g. ripple://meeting/123 -> 123
+                          String meetingId = rawInput;
+                          if (rawInput.contains('meeting/')) {
+                            meetingId = rawInput
+                                .split('meeting/')
+                                .last
+                                .split('?')
+                                .first;
+                          }
+
+                          setDialogState(() {
+                            dialogLoading = true;
+                          });
+
+                          try {
+                            // 1. Verify meeting exists in Firestore
+                            final doc = await FirebaseService.firestore
+                                .collection('meetings')
+                                .doc(meetingId)
+                                .get();
+                            if (!doc.exists) {
+                              throw 'Meeting code not found. Check the ID and try again.';
+                            }
+
+                            final data = doc.data() as Map<String, dynamic>;
+                            final isVideo = data['isVideo'] as bool? ?? true;
+
+                            // 2. Sign in anonymously
+                            final userCred = await FirebaseAuth.instance
+                                .signInAnonymously();
+                            final uid = userCred.user?.uid;
+                            if (uid == null) {
+                              throw 'Anonymous authentication failed.';
+                            }
+
+                            // 3. Save profile display name
+                            await FirebaseService.firestore
+                                .collection('users')
+                                .doc(uid)
+                                .set({
+                              'name': name,
+                              'photoUrl': '',
+                              'createdAt': FieldValue.serverTimestamp(),
+                            }, SetOptions(merge: true));
+
+                            // 4. Spin up room on-demand or fetch URL
+                            final roomUrl =
+                                await DailyService.createRoom(meetingId);
+                            if (roomUrl == null) {
+                              throw 'Failed to construct video room.';
+                            }
+
+                            if (context.mounted) {
+                              Navigator.pop(ctx);
+                              context.go(
+                                  '/daily-call?roomUrl=${Uri.encodeComponent(roomUrl)}&callId=$meetingId&isVideo=$isVideo');
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Error: $e')),
+                              );
+                            }
+                          } finally {
+                            setDialogState(() {
+                              dialogLoading = false;
+                            });
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.aquaCore,
+                    foregroundColor: Colors.black,
+                  ),
+                  child: dialogLoading
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor:
+                                  AlwaysStoppedAnimation(Colors.black)),
+                        )
+                      : const Text('Join'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _submitEmail() async {
@@ -586,6 +747,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                           ),
                         ),
                       ],
+                    ),
+                    const SizedBox(height: 16),
+                    TextButton.icon(
+                      onPressed: () => _showGuestJoinDialog(context),
+                      icon: const Icon(Icons.video_chat_rounded,
+                          color: AppColors.aquaCore),
+                      label: const Text(
+                        'Join Meeting as Guest',
+                        style: TextStyle(
+                            color: AppColors.aquaCore,
+                            fontWeight: FontWeight.bold),
+                      ),
                     ),
                   ],
                 ),

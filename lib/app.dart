@@ -14,6 +14,7 @@ import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/chat/screens/cloud_drive_screen.dart';
 import 'features/chat/widgets/ripple_doc_viewer.dart';
+import 'features/chat/widgets/ripple_doc_scanner.dart';
 import 'features/chat/screens/video_player_screen.dart';
 import 'features/chat/screens/chat_media_gallery_screen.dart';
 import 'features/groups/screens/join_group_screen.dart';
@@ -29,8 +30,10 @@ import 'features/groups/screens/group_info_screen.dart';
 import 'features/groups/providers/group_provider.dart';
 import 'features/calls/screens/call_screen.dart';
 import 'features/calls/screens/daily_call_screen.dart';
+import 'features/calls/screens/meetings_screen.dart';
 import 'features/calls/screens/incoming_call_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
+import 'features/profile/screens/linked_devices_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/search/screens/global_search_screen.dart';
 import 'features/chat/screens/saved_messages_screen.dart';
@@ -987,6 +990,65 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           );
         },
+      ),
+      GoRoute(
+        path: '/ripple-doc-scanner',
+        pageBuilder: (context, state) {
+          final imagePath = state.uri.queryParameters['imagePath'] ?? '';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: RippleDocScanner(
+              imagePath: imagePath,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
+        },
+      ),
+      GoRoute(
+        path: '/meetings',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const MeetingsScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: animation.drive(
+                Tween(
+                  begin: const Offset(0.0, 1.0),
+                  end: Offset.zero,
+                ).chain(CurveTween(curve: Curves.easeOutQuart)),
+              ),
+              child: child,
+            );
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/linked-devices',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const LinkedDevicesScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return SlideTransition(
+              position: animation.drive(
+                Tween(
+                  begin: const Offset(0.0, 1.0),
+                  end: Offset.zero,
+                ).chain(CurveTween(curve: Curves.easeOutQuart)),
+              ),
+              child: child,
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/join-group',

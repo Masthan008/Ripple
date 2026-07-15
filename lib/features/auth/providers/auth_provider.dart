@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -277,6 +278,26 @@ class AuthService {
       } else {
         await _setOnlineStatus(user.uid, true);
       }
+      await _registerDeviceSession(user.uid);
+    } catch (_) {}
+  }
+
+  Future<void> _registerDeviceSession(String uid) async {
+    try {
+      final deviceId = 'device_${uid.hashCode}_${Platform.operatingSystem}';
+      final deviceName = '${Platform.operatingSystem} Client';
+
+      await _firestore
+          .collection('users')
+          .doc(uid)
+          .collection('devices')
+          .doc(deviceId)
+          .set({
+        'deviceName': deviceName,
+        'platform': Platform.operatingSystem,
+        'pairedAt': FieldValue.serverTimestamp(),
+        'lastActive': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
     } catch (_) {}
   }
 

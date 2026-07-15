@@ -362,5 +362,18 @@ service cloud.firestore {
     match /users/{userId}/giftsReceived/{giftId} {
       allow read, write: if isOwner(userId);
     }
+
+    // ═══════════════════════════════════════════════════════
+    // MEETINGS COLLECTION
+    // ═══════════════════════════════════════════════════════
+    match /meetings/{meetingId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn()
+        && request.resource.data.hostUid == request.auth.uid;
+      allow update: if isSignedIn()
+        && (resource.data.hostUid == request.auth.uid || request.auth.uid in resource.data.participants);
+      allow delete: if isSignedIn()
+        && resource.data.hostUid == request.auth.uid;
+    }
   }
 }

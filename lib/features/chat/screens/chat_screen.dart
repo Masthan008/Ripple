@@ -16,6 +16,7 @@ import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shimmer/shimmer.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
@@ -1964,7 +1965,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         );
                       },
                     ),
-                    const SizedBox(width: 52), // spacer
+                    _attachOption(
+                      icon: Icons.document_scanner_rounded,
+                      label: 'Scan Doc',
+                      color: const Color(0xFF10B981),
+                      onTap: () async {
+                        Navigator.pop(context);
+                        final file = await ImagePicker().pickImage(
+                          source: ImageSource.camera,
+                          imageQuality: 90,
+                        );
+                        if (file != null && context.mounted) {
+                          final scannedPath = await GoRouter.of(context)
+                              .push<String>(
+                                  '/ripple-doc-scanner?imagePath=${Uri.encodeComponent(file.path)}');
+                          if (scannedPath != null) {
+                            final scannedFile = File(scannedPath);
+                            _sendMediaMessage(
+                              scannedFile,
+                              'file',
+                              fileName:
+                                  'Scan_${DateTime.now().millisecondsSinceEpoch}.png',
+                            );
+                          }
+                        }
+                      },
+                    ),
                     const SizedBox(width: 52), // spacer
                   ],
                 ),

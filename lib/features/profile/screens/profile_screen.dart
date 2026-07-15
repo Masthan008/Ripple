@@ -15,6 +15,7 @@ import '../../auth/providers/auth_provider.dart';
 import 'edit_profile_screen.dart';
 import 'qr_code_screen.dart';
 import 'account_security_screen.dart';
+import 'linked_devices_screen.dart';
 import 'notifications_settings_screen.dart';
 import 'appearance_screen.dart';
 import 'accessibility_screen.dart';
@@ -383,6 +384,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           context,
                           MaterialPageRoute(
                             builder: (_) => const AccountSecurityScreen(),
+                          ),
+                        ),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.devices_other_rounded,
+                    title: 'Linked Devices',
+                    subtitle: 'Manage active companion sessions and pair devices',
+                    iconColor: AppColors.aquaCore,
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const LinkedDevicesScreen(),
                           ),
                         ),
                   ),

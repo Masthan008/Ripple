@@ -340,6 +340,11 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                 Text(L10n.s(ref, 'chats'), style: AppTextStyles.heading),
                 const Spacer(),
                 _GlassIconButton(
+                  icon: Icons.video_call_rounded,
+                  onTap: () => GoRouter.of(context).push('/meetings'),
+                ),
+                const SizedBox(width: 8),
+                _GlassIconButton(
                   icon: Icons.search_rounded,
                   onTap: () => GoRouter.of(context).push('/search'),
                 ),
