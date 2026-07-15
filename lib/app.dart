@@ -13,6 +13,7 @@ import 'features/auth/screens/splash_screen.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/chat/screens/cloud_drive_screen.dart';
+import 'features/chat/widgets/ripple_doc_viewer.dart';
 import 'features/chat/screens/video_player_screen.dart';
 import 'features/chat/screens/chat_media_gallery_screen.dart';
 import 'features/groups/screens/join_group_screen.dart';
@@ -959,6 +960,33 @@ final routerProvider = Provider<GoRouter>((ref) {
             );
           },
         ),
+      ),
+      GoRoute(
+        path: '/ripple-doc-viewer',
+        pageBuilder: (context, state) {
+          final filePath = state.uri.queryParameters['filePath'];
+          final fileUrl = state.uri.queryParameters['fileUrl'];
+          final fileName = state.uri.queryParameters['fileName'] ?? 'Document';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: RippleDocViewer(
+              filePath: filePath,
+              fileUrl: fileUrl,
+              fileName: fileName,
+            ),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(
+                    begin: const Offset(0.0, 1.0),
+                    end: Offset.zero,
+                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                ),
+                child: child,
+              );
+            },
+          );
+        },
       ),
       GoRoute(
         path: '/join-group',

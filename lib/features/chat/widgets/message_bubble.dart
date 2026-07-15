@@ -1332,19 +1332,9 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
 
-      // Open the file with system viewer
-      final result = await OpenFilex.open(savePath);
-      if (result.type != ResultType.done) {
-        if (!context.mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '${L10n.s(ref, 'downloaded')} $fileName ✓  ${L10n.s(ref, 'noAppToOpenFile')}',
-            ),
-            backgroundColor: const Color(0xFF1E293B),
-          ),
-        );
-      }
+      // Open in-app via RippleDocViewer
+      GoRouter.of(context).push(
+          '/ripple-doc-viewer?filePath=${Uri.encodeComponent(savePath)}&fileName=${Uri.encodeComponent(fileName)}');
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();

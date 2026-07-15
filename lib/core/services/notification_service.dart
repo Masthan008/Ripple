@@ -45,14 +45,27 @@ class NotificationService {
     OneSignal.Notifications.addForegroundWillDisplayListener((event) {
       final data = event.notification.additionalData ?? {};
       final type = data['type'] as String?;
-      final incomingChatId = data['chatId'] as String? ?? data['groupId'] as String?;
+      final incomingChatId =
+          data['chatId'] as String? ?? data['groupId'] as String?;
 
       if ((type == 'chat' || type == 'group') &&
           currentActiveChatId != null &&
           incomingChatId == currentActiveChatId) {
         // User is already in this chat — silently drop the notification
         event.preventDefault();
-        debugPrint('🔕 Suppressed foreground notification for active chat: $incomingChatId');
+        debugPrint(
+            '🔕 Suppressed foreground notification for active chat: $incomingChatId');
+        return;
+      }
+
+      if (incomingChatId != null) {
+        _isChatMuted(incomingChatId).then((isMuted) {
+          if (isMuted) {
+            event.preventDefault();
+            debugPrint(
+                '🔕 Suppressed foreground notification for muted chat: $incomingChatId');
+          }
+        });
       }
     });
   }
@@ -406,5 +419,97 @@ class NotificationService {
     } catch (e) {
       debugPrint('❌ OneSignal notification FAILED: $e');
     }
+  }
+
+  static Future<bool> _isChatMuted(String? chatId) async {
+    if (chatId == null || chatId.isEmpty) return false;
+    try {
+      final uid = FirebaseService.auth.currentUser?.uid;
+      if (uid == null) return false;
+
+      final doc = await FirebaseService.firestore.collection('users').doc(uid).get();
+      final muted = Map<String, dynamic>.from(doc.data()?['mutedChats'] as Map? ?? {});
+      if (!muted.containsKey(chatId)) return false;
+
+      final expiryStr = muted[chatId] as String?;
+      if (expiryStr == 'always') return true;
+      if (expiryStr != null) {
+        final expiry = DateTime.tryParse(expiryStr);
+        if (expiry != null && expiry.isAfter(DateTime.now())) {
+          return true;
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  static Future<void> showMuteDialog(BuildContext context, String chatId, {VoidCallback? onDone}) async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Mute Notifications',
+                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              const Text('Other participants will not see that you muted this chat.',
+                  style: TextStyle(color: Colors.white54, fontSize: 12)),
+              const SizedBox(height: 16),
+              ListTile(
+                title: const Text('8 Hours', style: TextStyle(color: Colors.white)),
+                onTap: () => _applyMute(ctx, chatId, '8_hours', onDone),
+              ),
+              ListTile(
+                title: const Text('1 Week', style: TextStyle(color: Colors.white)),
+                onTap: () => _applyMute(ctx, chatId, '1_week', onDone),
+              ),
+              ListTile(
+                title: const Text('Always', style: TextStyle(color: Colors.white)),
+                onTap: () => _applyMute(ctx, chatId, 'always', onDone),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  static Future<void> _applyMute(BuildContext context, String chatId, String duration, VoidCallback? onDone) async {
+    Navigator.pop(context);
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null) return;
+
+    final expiry = duration == '8_hours'
+        ? DateTime.now().add(const Duration(hours: 8)).toIso8601String()
+        : duration == '1_week'
+            ? DateTime.now().add(const Duration(days: 7)).toIso8601String()
+            : 'always';
+
+    await FirebaseService.firestore.collection('users').doc(uid).set({
+      'mutedChats': {chatId: expiry}
+    }, SetOptions(merge: true));
+
+    if (onDone != null) onDone();
+  }
+
+  static Future<void> unmuteChat(String chatId, {VoidCallback? onDone}) async {
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseService.firestore.collection('users').doc(uid).update({
+      'mutedChats.$chatId': FieldValue.delete()
+    });
+
+    if (onDone != null) onDone();
   }
 }

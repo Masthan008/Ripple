@@ -136,6 +136,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Quantum Vault™ state
   bool _isQuantumLocked = false;
 
+  bool _isMuted = false;
+
   @override
   void initState() {
     super.initState();
@@ -381,11 +383,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             final data = snap.data() as Map<String, dynamic>?;
             final privacy = data?['privacy'] as Map<String, dynamic>? ?? {};
 
+            final mutedChats =
+                Map<String, dynamic>.from(data?['mutedChats'] as Map? ?? {});
+            bool currentlyMuted = false;
+            if (mutedChats.containsKey(widget.chatId)) {
+              final expiryStr = mutedChats[widget.chatId] as String?;
+              if (expiryStr == 'always') {
+                currentlyMuted = true;
+              } else if (expiryStr != null) {
+                final expiry = DateTime.tryParse(expiryStr);
+                if (expiry != null && expiry.isAfter(DateTime.now())) {
+                  currentlyMuted = true;
+                }
+              }
+            }
+
             setState(() {
               _incognitoKeyboard = prefs.getBool('incognito_keyboard') ?? false;
               final stealth = privacy['stealthMode'] as bool? ?? false;
               final typing = privacy['typingIndicator'] as bool? ?? true;
               _canShowTyping = !stealth && typing;
+              _isMuted = currentlyMuted;
             });
           });
 
@@ -1596,6 +1614,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 );
               } else if (value == 'export') {
                 _exportChat();
+              } else if (value == 'mute') {
+                NotificationService.showMuteDialog(context, widget.chatId);
+              } else if (value == 'unmute') {
+                NotificationService.unmuteChat(widget.chatId);
               }
             },
             itemBuilder:
@@ -1677,6 +1699,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         Text(
                           'Export Chat',
                           style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  PopupMenuItem(
+                    value: _isMuted ? 'unmute' : 'mute',
+                    child: Row(
+                      children: [
+                        Icon(
+                          _isMuted
+                              ? Icons.volume_up_rounded
+                              : Icons.volume_off_rounded,
+                          color: AppColors.aquaCore,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          _isMuted
+                              ? 'Unmute Notifications'
+                              : 'Mute Notifications',
+                          style: const TextStyle(color: Colors.white),
                         ),
                       ],
                     ),

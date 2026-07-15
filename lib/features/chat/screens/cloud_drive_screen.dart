@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:open_filex/open_filex.dart';
@@ -212,9 +213,8 @@ class _CloudDriveScreenState extends ConsumerState<CloudDriveScreen> {
   }
 
   Future<void> _openFile(String url, String fileName) async {
-    // Open in browser or download and open
-    // For simplicity, just opening browser
-    OpenFilex.open(url);
+    GoRouter.of(context).push(
+        '/ripple-doc-viewer?fileUrl=${Uri.encodeComponent(url)}&fileName=${Uri.encodeComponent(fileName)}');
   }
 
   Future<void> _shareFileToChat(String fileName, String url, String type) async {

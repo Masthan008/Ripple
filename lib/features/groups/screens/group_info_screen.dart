@@ -14,6 +14,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/cloudinary_service.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
@@ -329,7 +330,10 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     const SizedBox(height: 28),
 
                     // ─── Invite Link Section ──────────────
-                    if (isAdmin) _buildInviteLinkSection(groupSnap.data),
+                    if (isAdmin) ...[
+                      _buildInviteLinkSection(groupSnap.data),
+                      _buildAdminSettingsSection(groupSnap.data),
+                    ],
 
                     // ─── Members Section ─────────────────
                     Row(
@@ -584,6 +588,54 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     ),
 
                     const SizedBox(height: 24),
+
+                    // Mute Group Toggle
+                    StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                      stream: FirebaseService.firestore
+                          .collection('users')
+                          .doc(myUid)
+                          .snapshots(),
+                      builder: (ctx, userSnap) {
+                        final mutedChats = Map<String, dynamic>.from(
+                            userSnap.data?.data()?['mutedChats'] as Map? ?? {});
+                        bool isMuted = false;
+                        if (mutedChats.containsKey(widget.groupId)) {
+                          final expiryStr = mutedChats[widget.groupId] as String?;
+                          if (expiryStr == 'always') {
+                            isMuted = true;
+                          } else if (expiryStr != null) {
+                            final expiry = DateTime.tryParse(expiryStr);
+                            if (expiry != null && expiry.isAfter(DateTime.now())) {
+                              isMuted = true;
+                            }
+                          }
+                        }
+
+                        return GlassCard(
+                          borderRadius: 16,
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          margin: const EdgeInsets.only(bottom: 20),
+                          child: SwitchListTile(
+                            title: const Text('Mute Notifications',
+                                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                            subtitle: Text(
+                                isMuted ? 'Muted' : 'Unmuted',
+                                style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                            value: isMuted,
+                            activeColor: AppColors.aquaCore,
+                            inactiveTrackColor: Colors.white10,
+                            contentPadding: EdgeInsets.zero,
+                            onChanged: (val) {
+                              if (val) {
+                                NotificationService.showMuteDialog(context, widget.groupId);
+                              } else {
+                                NotificationService.unmuteChat(widget.groupId);
+                              }
+                            },
+                          ),
+                        );
+                      },
+                    ),
 
                     // ─── Leave Group ─────────────────────
                     WaterRippleEffect(
@@ -1159,6 +1211,54 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               ],
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAdminSettingsSection(DocumentSnapshot<Map<String, dynamic>>? groupDoc) {
+    final onlyAdminsCanMessage = groupDoc?.data()?['onlyAdminsCanMessage'] as bool? ?? false;
+
+    return GlassCard(
+      borderRadius: 16,
+      padding: const EdgeInsets.all(16),
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.settings_rounded, color: AppColors.aquaCore, size: 18),
+              const SizedBox(width: 8),
+              Text('Group Settings',
+                  style: AppTextStyles.headingSmall.copyWith(fontSize: 14)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SwitchListTile(
+            title: const Text('Only Admins Can Message',
+                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+            subtitle: const Text('Restrict messaging to group administrators only',
+                style: TextStyle(color: Colors.white54, fontSize: 11)),
+            value: onlyAdminsCanMessage,
+            activeColor: AppColors.aquaCore,
+            inactiveTrackColor: Colors.white10,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (val) async {
+              try {
+                await FirebaseService.firestore
+                    .collection('groups')
+                    .doc(widget.groupId)
+                    .update({'onlyAdminsCanMessage': val});
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed to update group setting: $e')),
+                  );
+                }
+              }
+            },
+          ),
         ],
       ),
     );

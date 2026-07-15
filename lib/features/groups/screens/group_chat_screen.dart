@@ -834,24 +834,61 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
               // Input bar
               if (!_isMultiSelectMode) ...[
-                GlassInputBar(
-                  controller: _messageController,
-                  onSend: _sendMessage,
-                  isSending: _isSending,
-                  replyTo: _replyTo,
-                  onClearReply: () => setState(() => _replyTo = null),
-                  incognitoKeyboard: _incognitoKeyboard,
-                  onEmoji: () {
-                    setState(() => _showEmojiPicker = !_showEmojiPicker);
-                    if (_showEmojiPicker) {
-                      FocusScope.of(context).unfocus();
+                StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                  stream: FirebaseService.firestore
+                      .collection('groups')
+                      .doc(widget.groupId)
+                      .snapshots(),
+                  builder: (context, snapshot) {
+                    final gData = snapshot.data?.data();
+                    final onlyAdminsCanMessage =
+                        gData?['onlyAdminsCanMessage'] as bool? ?? false;
+                    final admins = List<String>.from(gData?['admins'] ?? []);
+                    final isUserAdmin = admins.contains(myUid);
+
+                    if (onlyAdminsCanMessage && !isUserAdmin) {
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                        decoration: BoxDecoration(
+                          color: AppColors.glassPanel,
+                          border: Border(
+                            top: BorderSide(color: AppColors.glassBorder),
+                          ),
+                        ),
+                        child: const Center(
+                          child: Text(
+                            'Only admins can send messages in this group',
+                            style: TextStyle(
+                              color: Colors.white54,
+                              fontSize: 13,
+                              fontStyle: FontStyle.italic,
+                            ),
+                          ),
+                        ),
+                      );
                     }
+
+                    return GlassInputBar(
+                      controller: _messageController,
+                      onSend: _sendMessage,
+                      isSending: _isSending,
+                      replyTo: _replyTo,
+                      onClearReply: () => setState(() => _replyTo = null),
+                      incognitoKeyboard: _incognitoKeyboard,
+                      onEmoji: () {
+                        setState(() => _showEmojiPicker = !_showEmojiPicker);
+                        if (_showEmojiPicker) {
+                          FocusScope.of(context).unfocus();
+                        }
+                      },
+                      onAttach: () => _showAttachmentSheet(context),
+                      onGif: () => _showGifPicker(),
+                      onVoiceRecorded: _sendVoiceMessage,
+                      onVideoRecorded: _sendCircularVideoMessage,
+                      onSticker: () => _showStickerPicker(context),
+                    );
                   },
-                  onAttach: () => _showAttachmentSheet(context),
-                  onGif: () => _showGifPicker(),
-                  onVoiceRecorded: _sendVoiceMessage,
-                  onVideoRecorded: _sendCircularVideoMessage,
-                  onSticker: () => _showStickerPicker(context),
                 ),
 
                 // Emoji picker

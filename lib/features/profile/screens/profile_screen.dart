@@ -19,6 +19,7 @@ import 'notifications_settings_screen.dart';
 import 'appearance_screen.dart';
 import 'accessibility_screen.dart';
 import 'language_screen.dart';
+import 'chat_backup_screen.dart';
 import 'app_icon_screen.dart';
 import '../providers/settings_provider.dart'; // Add this
 import 'storage_usage_screen.dart';
@@ -455,6 +456,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           context,
                           MaterialPageRoute(
                             builder: (_) => const AccessibilityScreen(),
+                          ),
+                        ),
+                  ),
+                  _SettingsTile(
+                    icon: Icons.cloud_upload_rounded,
+                    title: 'Chat Backup & Restore',
+                    subtitle: 'Back up and restore your chats to Cloud Drive',
+                    iconColor: AppColors.aquaCore,
+                    onTap:
+                        () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ChatBackupScreen(),
                           ),
                         ),
                   ),
