@@ -21,6 +21,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:uuid/uuid.dart';
 import 'package:video_thumbnail/video_thumbnail.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -55,6 +56,8 @@ import '../../../core/services/privacy_service.dart';
 import '../widgets/typing_indicator.dart';
 import '../widgets/chat_theme_picker.dart';
 import 'chat_media_gallery_screen.dart';
+import '../widgets/location_selector_sheet.dart';
+import '../widgets/contact_selector_sheet.dart';
 import '../../social/services/social_service.dart';
 import '../../privacy/services/vanish_mode_service.dart';
 import '../widgets/gaze_lock_overlay.dart';
@@ -737,15 +740,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final sentienceState = ref.watch(sentienceProvider(widget.chatId));
 
-    return Scaffold(
-      backgroundColor: bgColor,
-      body: SentientBreathingWrapper(
-        chatId: widget.chatId,
-        child: AuroraBackground(
-          customColors: sentienceState.intensity > 0 ? [sentienceState.primaryGlow, sentienceState.secondaryGlow, sentienceState.accentGlow] : null,
-          animationSpeed: sentienceState.animationSpeed,
-          child: Stack(
-            children: [
+    return StreamBuilder<DocumentSnapshot>(
+      stream: FirebaseService.firestore.collection('chats').doc(widget.chatId).snapshots(),
+      builder: (context, snapshot) {
+        final chatData = snapshot.data?.data() as Map<String, dynamic>?;
+        final themeData = chatData?['theme'] as Map<String, dynamic>?;
+        List<Color>? wallpaperColors;
+        if (themeData != null) {
+          final gradientColors = themeData['gradientColors'] as List? ?? [];
+          wallpaperColors = gradientColors
+              .map((c) => Color(int.parse('FF$c', radix: 16)))
+              .toList();
+        }
+
+        return Scaffold(
+          backgroundColor: bgColor,
+          body: SentientBreathingWrapper(
+            chatId: widget.chatId,
+            child: AuroraBackground(
+              customColors: sentienceState.intensity > 0
+                  ? [
+                      sentienceState.primaryGlow,
+                      sentienceState.secondaryGlow,
+                      sentienceState.accentGlow
+                    ]
+                  : (wallpaperColors != null && wallpaperColors.isNotEmpty
+                      ? wallpaperColors
+                      : null),
+              animationSpeed: sentienceState.animationSpeed,
+              child: Stack(
+                children: [
               // Gyroscopic parallax floating particles
               ParallaxLayer(
                 depthFactor: 1.5,
@@ -1287,6 +1311,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
       ),
     );
+      },
+    );
   }
 
   Widget _buildMultiSelectBar() {
@@ -1568,6 +1594,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         onThemeChanged: () => setState(() {}),
                       ),
                 );
+              } else if (value == 'export') {
+                _exportChat();
               }
             },
             itemBuilder:
@@ -1631,6 +1659,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         SizedBox(width: 12),
                         Text(
                           'Chat Theme',
+                          style: TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'export',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.import_export_rounded,
+                          color: AppColors.aquaCore,
+                          size: 20,
+                        ),
+                        SizedBox(width: 12),
+                        Text(
+                          'Export Chat',
                           style: TextStyle(color: Colors.white),
                         ),
                       ],
@@ -1733,15 +1778,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         );
                         if (pickedFiles.isEmpty) return;
                         final files = pickedFiles.take(10).toList();
-                        setState(() => _isSending = true);
-                        try {
-                          for (final xfile in files) {
-                            final compressed =
-                                await MediaCompressor.compressImage(xfile.path);
-                            await _sendMediaMessage(compressed, 'image');
+                        if (files.length == 1) {
+                          final compressed =
+                              await MediaCompressor.compressImage(files.first.path);
+                          _showMediaSendPreviewSheet(compressed, 'image');
+                        } else {
+                          setState(() => _isSending = true);
+                          try {
+                            for (final xfile in files) {
+                              final compressed =
+                                  await MediaCompressor.compressImage(xfile.path);
+                              await _sendMediaMessage(compressed, 'image');
+                            }
+                          } finally {
+                            if (mounted) setState(() => _isSending = false);
                           }
-                        } finally {
-                          if (mounted) setState(() => _isSending = false);
                         }
                       },
                     ),
@@ -1758,7 +1809,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         if (file != null) {
                           final compressed =
                               await MediaCompressor.compressImage(file.path);
-                          _sendMediaMessage(compressed, 'image');
+                          _showMediaSendPreviewSheet(compressed, 'image');
                         }
                       },
                     ),
@@ -1773,7 +1824,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           maxDuration: const Duration(seconds: 30),
                         );
                         if (file != null) {
-                          _sendVideoMessage(File(file.path));
+                          _showMediaSendPreviewSheet(File(file.path), 'video');
                         }
                       },
                     ),
@@ -1834,9 +1885,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         _showSchedulePicker(context);
                       },
                     ),
-                    const SizedBox(width: 52), // spacer
-                    const SizedBox(width: 52), // spacer
-                    const SizedBox(width: 52), // spacer
+                    _attachOption(
+                      icon: Icons.location_on_rounded,
+                      label: 'Location',
+                      color: const Color(0xFF10B981),
+                      onTap: () {
+                        Navigator.pop(context);
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (_) => LocationSelectorSheet(
+                            onLocationSelected: (lat, lng, {isLive = false}) {
+                              _sendLocationMessage(lat, lng, isLive: isLive);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                    _attachOption(
+                      icon: Icons.person_rounded,
+                      label: 'Contact',
+                      color: const Color(0xFFF59E0B),
+                      onTap: () {
+                        Navigator.pop(context);
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (_) => ContactSelectorSheet(
+                            onContactSelected: (name, uid) {
+                              _sendContactCard(name, uid);
+                            },
+                          ),
+                        );
+                      },
+                    ),
                     const SizedBox(width: 52), // spacer
                     const SizedBox(width: 52), // spacer
                   ],
@@ -1879,6 +1963,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     File file,
     String type, {
     String? fileName,
+    bool isViewOnce = false,
   }) async {
     if (widget.isDecoy) {
       setState(() => _isSending = true);
@@ -1924,6 +2009,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         mediaUrl: url,
         fileName: fileName,
         replyTo: _replyTo,
+        isViewOnce: isViewOnce,
       );
 
       final myUid = ref.read(chatServiceProvider).myUid;
@@ -1936,6 +2022,258 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  void _showMediaSendPreviewSheet(File file, String type, {String? fileName}) {
+    bool isViewOnce = false;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: const Color(0xFF0A1628),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              insetPadding: const EdgeInsets.all(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: double.infinity,
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.aquaCore.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    children: [
+                      // Preview Header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              type == 'video' ? 'Preview Video' : 'Preview Photo',
+                              style: AppTextStyles.heading.copyWith(fontSize: 16),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Media view container
+                      Expanded(
+                        child: Container(
+                          color: Colors.black26,
+                          width: double.infinity,
+                          child: type == 'video'
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.video_library_rounded, color: AppColors.aquaCore.withOpacity(0.5), size: 64),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        file.path.split('/').last,
+                                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Image.file(file, fit: BoxFit.contain),
+                        ),
+                      ),
+                      // View-Once toggle bar
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            // View Once badge button
+                            GestureDetector(
+                              onTap: () {
+                                setDialogState(() {
+                                  isViewOnce = !isViewOnce;
+                                });
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isViewOnce
+                                      ? AppColors.aquaCore.withOpacity(0.2)
+                                      : Colors.transparent,
+                                  border: Border.all(
+                                    color: isViewOnce
+                                        ? AppColors.aquaCore
+                                        : Colors.white24,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '1',
+                                    style: TextStyle(
+                                      color: isViewOnce
+                                          ? AppColors.aquaCore
+                                          : Colors.white70,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'View Once',
+                                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    isViewOnce
+                                        ? 'Recipient can open this media only once'
+                                        : 'Send as standard media message',
+                                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Send action button
+                            FloatingActionButton(
+                              mini: true,
+                              backgroundColor: AppColors.aquaCore,
+                              child: const Icon(Icons.send_rounded, color: Colors.black),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                if (type == 'video') {
+                                  _sendVideoMessage(file, isViewOnce: isViewOnce);
+                                } else {
+                                  _sendMediaMessage(file, type, fileName: fileName, isViewOnce: isViewOnce);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _sendLocationMessage(double lat, double lng, {bool isLive = false}) async {
+    setState(() => _isSending = true);
+    try {
+      final chatService = ref.read(chatServiceProvider);
+      await chatService.sendMessage(
+        chatId: widget.chatId,
+        text: isLive ? 'Live Location' : 'Static Location',
+        type: isLive ? 'live_location' : 'location',
+        mediaUrl: 'geo:$lat,$lng',
+      );
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send location: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _sendContactCard(String name, String uid) async {
+    setState(() => _isSending = true);
+    try {
+      final chatService = ref.read(chatServiceProvider);
+      await chatService.sendMessage(
+        chatId: widget.chatId,
+        text: name,
+        type: 'contact',
+        mediaUrl: uid,
+      );
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send contact card: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _exportChat() async {
+    setState(() => _isSending = true);
+    try {
+      final messagesSnap = await FirebaseService.firestore
+          .collection('chats')
+          .doc(widget.chatId)
+          .collection('messages')
+          .orderBy('createdAt', descending: false)
+          .get();
+
+      final buffer = StringBuffer();
+      buffer.writeln('--------------------------------------------------');
+      buffer.writeln('RIPPLE SECURE CHAT EXPORT');
+      buffer.writeln('Chat ID: ${widget.chatId}');
+      buffer.writeln('Partner: ${widget.partnerName}');
+      buffer.writeln('Export Date: ${DateTime.now().toLocal()}');
+      buffer.writeln('--------------------------------------------------\n');
+
+      for (final doc in messagesSnap.docs) {
+        final data = doc.data();
+        final senderId = data['senderId'] as String? ?? 'Unknown';
+        final text = data['text'] as String? ?? '';
+        final type = data['type'] as String? ?? 'text';
+        final createdAt = data['createdAt'] as Timestamp?;
+        final timeStr = createdAt != null ? createdAt.toDate().toLocal().toString() : 'N/A';
+
+        final senderLabel = senderId == ref.read(chatServiceProvider).myUid ? 'You' : widget.partnerName;
+        final content = type == 'text' ? text : '[$type] ${data['mediaUrl'] ?? ''}';
+
+        buffer.writeln('[$timeStr] $senderLabel: $content');
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/Ripple_Chat_${widget.partnerName.replaceAll(' ', '_')}.txt');
+      await file.writeAsString(buffer.toString());
+
+      await Share.shareXFiles([XFile(file.path)], text: 'Exported chat with ${widget.partnerName}');
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to export chat: $e'),
             backgroundColor: AppColors.errorRed,
           ),
         );
@@ -2378,7 +2716,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   // ── Phase 2: Video with Thumbnail ───────────────────────
-  Future<void> _sendVideoMessage(File videoFile) async {
+  Future<void> _sendVideoMessage(File videoFile, {bool isViewOnce = false}) async {
     setState(() => _isSending = true);
     try {
       // Generate thumbnail
@@ -2433,10 +2771,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             'seenBy': [chatService.myUid],
             'deletedFor': [],
             'starredBy': [],
+            'isViewOnce': isViewOnce,
+            'viewedBy': [],
           });
 
       await FirebaseService.chatsCollection.doc(widget.chatId).update({
-        'lastMessage': '🎬 Video',
+        'lastMessage': isViewOnce ? '🎬 View Once Video' : '🎬 Video',
         'lastMessageTimestamp': FieldValue.serverTimestamp(),
       });
 

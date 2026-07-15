@@ -69,7 +69,7 @@ class SmartReplyChips extends StatelessWidget {
               return _SuggestionChip(
                 text: suggestion,
                 onTap: () {
-                  AppHaptics.lightImpact();
+                  AppHaptics.lightTap();
                   DopamineEffects.showConfettiBurst(
                     context,
                     position: Offset(

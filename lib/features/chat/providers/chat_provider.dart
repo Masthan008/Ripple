@@ -73,6 +73,7 @@ class ChatService {
     String? chronosConditionValue,
     bool isChronosLocked = false,
     bool isQuantumLocked = false,
+    bool isViewOnce = false,
   }) async {
     if (_myUid.isEmpty) return; // Guard during auth transition
 
@@ -119,6 +120,7 @@ class ChatService {
       chronosConditionValue: chronosConditionValue,
       isChronosLocked: isChronosLocked,
       isQuantumLocked: isQuantumLocked,
+      isViewOnce: isViewOnce,
     );
 
     final chatRef = _firestore.collection('chats').doc(chatId);

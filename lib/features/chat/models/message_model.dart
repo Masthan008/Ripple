@@ -86,6 +86,10 @@ class MessageModel {
   // Sonic Whispers™ — cached voice transcription
   final String? voiceTranscription;
 
+  // View-Once Media
+  final bool isViewOnce;
+  final List<String> viewedBy;
+
   const MessageModel({
     required this.id,
     required this.senderId,
@@ -117,6 +121,8 @@ class MessageModel {
     this.canvasX,
     this.canvasY,
     this.voiceTranscription,
+    this.isViewOnce = false,
+    this.viewedBy = const [],
   });
 
   factory MessageModel.fromFirestore(
@@ -187,6 +193,8 @@ class MessageModel {
       canvasX: (data['canvasX'] as num?)?.toDouble(),
       canvasY: (data['canvasY'] as num?)?.toDouble(),
       voiceTranscription: data['voiceTranscription'] as String?,
+      isViewOnce: data['isViewOnce'] as bool? ?? false,
+      viewedBy: List<String>.from(data['viewedBy'] as List? ?? []),
     );
   }
 
@@ -221,6 +229,8 @@ class MessageModel {
       if (canvasX != null) 'canvasX': canvasX,
       if (canvasY != null) 'canvasY': canvasY,
       if (voiceTranscription != null) 'voiceTranscription': voiceTranscription,
+      'isViewOnce': isViewOnce,
+      'viewedBy': viewedBy,
     };
   }
 
@@ -254,6 +264,8 @@ class MessageModel {
     double? canvasX,
     double? canvasY,
     String? voiceTranscription,
+    bool? isViewOnce,
+    List<String>? viewedBy,
   }) {
     return MessageModel(
       id: id ?? this.id,
@@ -285,6 +297,8 @@ class MessageModel {
       canvasX: canvasX ?? this.canvasX,
       canvasY: canvasY ?? this.canvasY,
       voiceTranscription: voiceTranscription ?? this.voiceTranscription,
+      isViewOnce: isViewOnce ?? this.isViewOnce,
+      viewedBy: viewedBy ?? this.viewedBy,
     );
   }
 

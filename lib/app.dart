@@ -39,6 +39,9 @@ import 'features/privacy/screens/privacy_settings_screen.dart';
 import 'features/privacy/screens/privacy_dashboard_screen.dart';
 import 'features/privacy/screens/chat_lock_settings_screen.dart';
 import 'features/privacy/screens/fake_passcode_screen.dart';
+import 'features/privacy/screens/blocked_contacts_screen.dart';
+import 'features/privacy/screens/app_lock_settings_screen.dart';
+import 'features/chat/screens/view_once_media_viewer_screen.dart';
 import 'features/profile/screens/other_user_profile_screen.dart';
 import 'features/social/screens/achievements_screen.dart';
 import 'features/social/screens/leaderboard_screen.dart';
@@ -52,6 +55,7 @@ import 'features/status/screens/create_status_screen.dart';
 import 'features/status/screens/status_viewer_screen.dart';
 import 'features/profile/providers/settings_provider.dart';
 import 'shared/widgets/holographic_glitch_transition.dart';
+import 'shared/widgets/app_lock_gate.dart';
 
 /// GoRouter provider — created ONCE, uses refreshListenable to re-run redirect
 final routerProvider = Provider<GoRouter>((ref) {
@@ -533,6 +537,71 @@ final routerProvider = Provider<GoRouter>((ref) {
                 );
               },
             ),
+      ),
+      GoRoute(
+        path: '/blocked-contacts',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const BlockedContactsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
+        path: '/app-lock-settings',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const AppLockSettingsScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
+        path: '/view-once-media',
+        pageBuilder: (context, state) {
+          final mediaUrl = state.uri.queryParameters['mediaUrl'] ?? '';
+          final type = state.uri.queryParameters['type'] ?? 'image';
+          return CustomTransitionPage(
+            key: state.pageKey,
+            child: ViewOnceMediaViewerScreen(mediaUrl: mediaUrl, type: type),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return FadeTransition(
+                opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
+                child: child,
+              );
+            },
+          );
+        },
       ),
       GoRoute(
         path: '/other-profile',
@@ -1098,6 +1167,9 @@ class App extends ConsumerWidget {
             child: result,
           );
         }
+
+        // 4. App Lock Gate — biometric/PIN lock on resume
+        result = AppLockGate(child: result);
 
         return result;
       },

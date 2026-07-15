@@ -56,8 +56,10 @@ class _GazeLockOverlayState extends ConsumerState<GazeLockOverlay>
 
   @override
   Widget build(BuildContext context) {
-    final isEnabled = ref.watch(telepathyEnabledProvider);
-    if (!isEnabled) return widget.child;
+    final gazeEnabled = ref.watch(telepathyEnabledProvider);
+    final shoulderEnabled = ref.watch(antiShoulderSurfingEnabledProvider);
+    // If neither feature is on, show child directly
+    if (!gazeEnabled && !shoulderEnabled) return widget.child;
 
     final shouldShow = ref.watch(shouldShowMessagesProvider);
     final isShoulderSurfer = ref.watch(shoulderSurferDetectedProvider);
@@ -214,10 +216,10 @@ class _ShoulderSurferLockdownState extends ConsumerState<ShoulderSurferLockdown>
 
   @override
   Widget build(BuildContext context) {
-    final isEnabled = ref.watch(telepathyEnabledProvider);
+    final shoulderEnabled = ref.watch(antiShoulderSurfingEnabledProvider);
     final isShoulderSurfer = ref.watch(shoulderSurferDetectedProvider);
 
-    if (!isEnabled || !isShoulderSurfer) return const SizedBox.shrink();
+    if (!shoulderEnabled || !isShoulderSurfer) return const SizedBox.shrink();
 
     return Positioned.fill(
       child: AnimatedBuilder(
@@ -305,8 +307,9 @@ class TelepathyStatusIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isEnabled = ref.watch(telepathyEnabledProvider);
-    if (!isEnabled) return const SizedBox.shrink();
+    final gazeEnabled = ref.watch(telepathyEnabledProvider);
+    final shoulderEnabled = ref.watch(antiShoulderSurfingEnabledProvider);
+    if (!gazeEnabled && !shoulderEnabled) return const SizedBox.shrink();
 
     final shouldShow = ref.watch(shouldShowMessagesProvider);
 

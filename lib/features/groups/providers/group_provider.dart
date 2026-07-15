@@ -122,6 +122,7 @@ class GroupService {
     String? fileName,
     ReplyData? replyTo,
     bool isForwarded = false,
+    bool isViewOnce = false,
   }) async {
     final messageId = _uuid.v4();
     final message = MessageModel(
@@ -135,6 +136,7 @@ class GroupService {
       isForwarded: isForwarded,
       seenBy: [_myUid],
       createdAt: DateTime.now(),
+      isViewOnce: isViewOnce,
     );
 
     final groupRef = _firestore.collection('groups').doc(groupId);

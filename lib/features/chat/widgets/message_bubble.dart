@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -28,6 +29,8 @@ import '../../../shared/widgets/swipeable_message.dart';
 import 'gaze_lock_overlay.dart';
 import 'resonance_bubble_animation.dart';
 import 'chronos_locked_bubble.dart';
+import '../screens/view_once_media_viewer_screen.dart';
+import '../providers/chat_provider.dart';
 import 'ambient_playback_widget.dart';
 import '../../../core/utils/reaction_icons.dart';
 import 'impact_text.dart';
@@ -490,6 +493,10 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
   }
 
   Widget _buildContent(WidgetRef ref, double fontSize) {
+    if (widget.message.isViewOnce) {
+      return _buildViewOnceContent(ref, fontSize);
+    }
+
     // Quantum Vault™ — show scrambled message if quantum locked
     if (widget.message.isQuantumLocked && widget.message.isTextMessage) {
       return QuantumVaultBubble(
@@ -524,11 +531,307 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
         return _buildGifContent();
       case 'sticker':
         return _buildStickerContent();
+      case 'location':
+      case 'live_location':
+        return _buildLocationContent(ref, fontSize);
+      case 'contact':
+        return _buildContactContent(ref, fontSize);
       case 'text':
       case 'emoji':
       default:
         return _buildTextContent(fontSize);
     }
+  }
+
+  Widget _buildLocationContent(WidgetRef ref, double fontSize) {
+    final geoUrl = widget.message.mediaUrl ?? '';
+    final latLng = geoUrl.replaceFirst('geo:', '').split(',');
+    final lat = double.tryParse(latLng.first) ?? 0.0;
+    final lng = latLng.length > 1 ? (double.tryParse(latLng[1]) ?? 0.0) : 0.0;
+    final isLive = widget.message.type == 'live_location';
+
+    return GestureDetector(
+      onTap: () async {
+        final uri = Uri.parse('https://www.google.com/maps/search/?api=1&query=$lat,$lng');
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, mode: LaunchMode.externalApplication);
+        }
+      },
+      child: Container(
+        width: 220,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isLive ? Colors.green.withOpacity(0.3) : AppColors.aquaCore.withOpacity(0.2),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  isLive ? Icons.share_location_rounded : Icons.location_on_rounded,
+                  color: isLive ? Colors.green : AppColors.aquaCore,
+                  size: 24,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isLive ? 'Live Location' : 'Static Location',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: fontSize,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                if (isLive)
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Coordinates: ${lat.toStringAsFixed(4)}, ${lng.toStringAsFixed(4)}',
+              style: TextStyle(
+                color: Colors.white70,
+                fontSize: fontSize - 2,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Text(
+                  'Open in Maps',
+                  style: TextStyle(
+                    color: isLive ? Colors.green : AppColors.aquaCore,
+                    fontSize: fontSize - 2,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  Icons.open_in_new_rounded,
+                  color: isLive ? Colors.green : AppColors.aquaCore,
+                  size: 14,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildContactContent(WidgetRef ref, double fontSize) {
+    final contactName = widget.message.text ?? 'Contact';
+    final contactUid = widget.message.mediaUrl ?? '';
+
+    return Container(
+      width: 220,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.aquaCore.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: AppColors.aquaCore.withOpacity(0.15),
+                child: Text(
+                  contactName.isNotEmpty ? contactName[0].toUpperCase() : '?',
+                  style: const TextStyle(
+                    color: AppColors.aquaCore,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      contactName,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Text(
+                      'Ripple Contact',
+                      style: TextStyle(
+                        color: Colors.white54,
+                        fontSize: 10,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: TextButton.icon(
+              onPressed: () {
+                final ids = [widget.currentUid, contactUid]..sort();
+                final chatId = ids.join('_');
+                // Open contact chat screen
+                GoRouter.of(context).push('/chat?chatId=$chatId&partnerUid=$contactUid&partnerName=${Uri.encodeComponent(contactName)}');
+              },
+              icon: const Icon(Icons.message_rounded, size: 16, color: AppColors.aquaCore),
+              label: const Text('Message'),
+              style: TextButton.styleFrom(
+                backgroundColor: AppColors.aquaCore.withOpacity(0.1),
+                foregroundColor: AppColors.aquaCore,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewOnceContent(WidgetRef ref, double fontSize) {
+    final myUid = ref.read(chatServiceProvider).myUid;
+    final hasViewed = widget.message.viewedBy.contains(myUid);
+    final label = widget.message.type == 'video' ? 'Video' : 'Photo';
+
+    if (hasViewed) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              widget.message.type == 'video'
+                  ? Icons.videocam_off_rounded
+                  : Icons.lock_open_rounded,
+              color: Colors.white30,
+              size: 18,
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Opened',
+              style: TextStyle(
+                color: Colors.white30,
+                fontSize: fontSize,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return GestureDetector(
+      onTap: () async {
+        if (widget.message.mediaUrl == null) return;
+        
+        // Open fullscreen secure viewer
+        await Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => ViewOnceMediaViewerScreen(
+              mediaUrl: widget.message.mediaUrl!,
+              type: widget.message.type,
+            ),
+          ),
+        );
+
+        // Mark as opened in Firestore
+        try {
+          final String collection = widget.isGroup ? 'groups' : 'chats';
+          await FirebaseFirestore.instance
+              .collection(collection)
+              .doc(widget.chatId)
+              .collection('messages')
+              .doc(widget.message.id)
+              .update({
+            'viewedBy': FieldValue.arrayUnion([myUid]),
+          });
+        } catch (e) {
+          debugPrint('❌ Failed to mark view-once as opened: $e');
+        }
+      },
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.aquaCore.withOpacity(0.2)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: AppColors.aquaCore.withOpacity(0.15),
+              ),
+              child: const Center(
+                child: Text(
+                  '1',
+                  style: TextStyle(
+                    color: AppColors.aquaCore,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                const Text(
+                  'Tap to view (View Once)',
+                  style: TextStyle(
+                    color: AppColors.aquaCore,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   bool _isHighIntensity(String text) {

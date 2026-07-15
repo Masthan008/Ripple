@@ -18,7 +18,7 @@ class DailyService {
       ));
 
   /// Create a Daily.co room and return the room URL.
-  static Future<String?> createRoom(String roomName) async {
+  static Future<String?> createRoom(String roomName, {bool forceTurn = false}) async {
     final apiKey = Env.dailyApiKey;
     if (apiKey.isEmpty) {
       debugPrint('⚠️ DAILY_API_KEY not set in .env');
@@ -43,6 +43,7 @@ class DailyService {
           'enable_screenshare': false,
           'start_video_off': false,
           'start_audio_off': false,
+          if (forceTurn) 'experimental_stun_turn_force_turn': true,
         },
       });
 

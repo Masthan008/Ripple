@@ -23,6 +23,9 @@ class PrivacyService {
     bool? stealthMode,
     bool? readReceipts,
     bool? typingIndicator,
+    String? groupAddVisibility,
+    bool? silenceUnknownCallers,
+    bool? ipProtection,
   }) async {
     final updates = <String, dynamic>{};
 
@@ -51,9 +54,61 @@ class PrivacyService {
     if (typingIndicator != null) {
       updates['privacy.typingIndicator'] = typingIndicator;
     }
+    if (groupAddVisibility != null) {
+      updates['privacy.groupAddVisibility'] = groupAddVisibility;
+    }
+    if (silenceUnknownCallers != null) {
+      updates['privacy.silenceUnknownCallers'] = silenceUnknownCallers;
+    }
+    if (ipProtection != null) {
+      updates['privacy.ipProtection'] = ipProtection;
+    }
 
     if (updates.isNotEmpty) {
       await _fs.collection('users').doc(_uid).update(updates);
+    }
+  }
+
+  // ── CHECK IF CAN ADD TO GROUP ────────────────────────────
+  static bool canAddToGroup({
+    required Map<String, dynamic> targetUser,
+    required String adderUid,
+    required List<String> adderFriends,
+  }) {
+    final privacy =
+        Map<String, dynamic>.from(targetUser['privacy'] as Map? ?? {});
+    final visibility =
+        privacy['groupAddVisibility'] as String? ?? 'everyone';
+    final targetUid = targetUser['uid'] as String? ?? '';
+
+    if (targetUid == adderUid) return true;
+
+    switch (visibility) {
+      case 'everyone':
+        return true;
+      case 'friends':
+        return adderFriends.contains(targetUid);
+      case 'nobody':
+        return false;
+      default:
+        return true;
+    }
+  }
+
+  // ── CHECK IF SILENCE UNKNOWN CALLERS ─────────────────────
+  static Future<bool> shouldSilenceCall(String callerUid) async {
+    try {
+      final doc = await _fs.collection('users').doc(_uid).get();
+      final privacy =
+          Map<String, dynamic>.from(doc.data()?['privacy'] as Map? ?? {});
+      final silence = privacy['silenceUnknownCallers'] as bool? ?? false;
+      if (!silence) return false;
+
+      // Check if caller is a friend
+      final friends = List<String>.from(doc.data()?['friends'] as List? ?? []);
+      return !friends.contains(callerUid);
+    } catch (_) {
+      return false;
     }
   }
 

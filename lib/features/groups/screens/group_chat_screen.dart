@@ -44,6 +44,8 @@ import '../providers/semantic_currents_provider.dart';
 import '../widgets/semantic_currents_bar.dart';
 import '../../../core/services/notification_service.dart';
 import '../../chat/widgets/gaze_lock_overlay.dart';
+import '../../chat/widgets/location_selector_sheet.dart';
+import '../../chat/widgets/contact_selector_sheet.dart';
 import '../widgets/spatial_canvas_view.dart';
 import '../../../core/services/sentience_engine.dart';
 import '../../../core/utils/haptic_feedback.dart';
@@ -1332,15 +1334,21 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         );
                         if (pickedFiles.isEmpty) return;
                         final files = pickedFiles.take(10).toList();
-                        setState(() => _isSending = true);
-                        try {
-                          for (final xfile in files) {
-                            final compressed =
-                                await MediaCompressor.compressImage(xfile.path);
-                            await _sendMediaMessage(compressed, 'image');
+                        if (files.length == 1) {
+                          final compressed =
+                              await MediaCompressor.compressImage(files.first.path);
+                          _showMediaSendPreviewSheet(compressed, 'image');
+                        } else {
+                          setState(() => _isSending = true);
+                          try {
+                            for (final xfile in files) {
+                              final compressed =
+                                  await MediaCompressor.compressImage(xfile.path);
+                              await _sendMediaMessage(compressed, 'image');
+                            }
+                          } finally {
+                            if (mounted) setState(() => _isSending = false);
                           }
-                        } finally {
-                          if (mounted) setState(() => _isSending = false);
                         }
                       },
                     ),
@@ -1357,7 +1365,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         if (file != null) {
                           final compressed =
                               await MediaCompressor.compressImage(file.path);
-                          _sendMediaMessage(compressed, 'image');
+                          _showMediaSendPreviewSheet(compressed, 'image');
                         }
                       },
                     ),
@@ -1372,10 +1380,16 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                           maxDuration: const Duration(seconds: 30),
                         );
                         if (file != null) {
-                          _sendVideoMessage(File(file.path));
+                          _showMediaSendPreviewSheet(File(file.path), 'video');
                         }
                       },
                     ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceAround,
+                  children: [
                     _attachOption(
                       icon: Icons.insert_drive_file_rounded,
                       label: 'File',
@@ -1402,6 +1416,42 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                       onTap: () {
                         Navigator.pop(ctx);
                         _showCreatePollSheet();
+                      },
+                    ),
+                    _attachOption(
+                      icon: Icons.location_on_rounded,
+                      label: 'Location',
+                      color: const Color(0xFF10B981),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (_) => LocationSelectorSheet(
+                            onLocationSelected: (lat, lng, {isLive = false}) {
+                              _sendLocationMessage(lat, lng, isLive: isLive);
+                            },
+                          ),
+                        );
+                      },
+                    ),
+                    _attachOption(
+                      icon: Icons.person_rounded,
+                      label: 'Contact',
+                      color: const Color(0xFFF59E0B),
+                      onTap: () {
+                        Navigator.pop(ctx);
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          isScrollControlled: true,
+                          builder: (_) => ContactSelectorSheet(
+                            onContactSelected: (name, uid) {
+                              _sendContactCard(name, uid);
+                            },
+                          ),
+                        );
                       },
                     ),
                   ],
@@ -1444,6 +1494,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     File file,
     String type, {
     String? fileName,
+    bool isViewOnce = false,
   }) async {
     setState(() => _isSending = true);
     try {
@@ -1480,6 +1531,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             mediaUrl: url,
             fileName: fileName,
             replyTo: _replyTo,
+            isViewOnce: isViewOnce,
           );
       setState(() => _replyTo = null);
       _scrollToBottom();
@@ -1488,6 +1540,205 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Failed: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  void _showMediaSendPreviewSheet(File file, String type, {String? fileName}) {
+    bool isViewOnce = false;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return Dialog(
+              backgroundColor: const Color(0xFF0A1628),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              insetPadding: const EdgeInsets.all(16),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(20),
+                child: Container(
+                  width: double.infinity,
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: AppColors.aquaCore.withOpacity(0.2)),
+                  ),
+                  child: Column(
+                    children: [
+                      // Preview Header
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              type == 'video' ? 'Preview Video' : 'Preview Photo',
+                              style: AppTextStyles.heading.copyWith(fontSize: 16),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded, color: Colors.white70),
+                              onPressed: () => Navigator.pop(context),
+                            ),
+                          ],
+                        ),
+                      ),
+                      // Media view container
+                      Expanded(
+                        child: Container(
+                          color: Colors.black26,
+                          width: double.infinity,
+                          child: type == 'video'
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.video_library_rounded, color: AppColors.aquaCore.withOpacity(0.5), size: 64),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        file.path.split('/').last,
+                                        style: const TextStyle(color: Colors.white70, fontSize: 13),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : Image.file(file, fit: BoxFit.contain),
+                        ),
+                      ),
+                      // View-Once toggle bar
+                      Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Row(
+                          children: [
+                            // View Once badge button
+                            GestureDetector(
+                              onTap: () {
+                                setDialogState(() {
+                                  isViewOnce = !isViewOnce;
+                                });
+                              },
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: isViewOnce
+                                      ? AppColors.aquaCore.withOpacity(0.2)
+                                      : Colors.transparent,
+                                  border: Border.all(
+                                    color: isViewOnce
+                                        ? AppColors.aquaCore
+                                        : Colors.white24,
+                                    width: 1.5,
+                                  ),
+                                ),
+                                child: Center(
+                                  child: Text(
+                                    '1',
+                                    style: TextStyle(
+                                      color: isViewOnce
+                                          ? AppColors.aquaCore
+                                          : Colors.white70,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'View Once',
+                                    style: TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    isViewOnce
+                                        ? 'Recipient can open this media only once'
+                                        : 'Send as standard media message',
+                                    style: const TextStyle(color: Colors.white54, fontSize: 11),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            // Send action button
+                            FloatingActionButton(
+                              mini: true,
+                              backgroundColor: AppColors.aquaCore,
+                              child: const Icon(Icons.send_rounded, color: Colors.black),
+                              onPressed: () {
+                                Navigator.pop(context);
+                                if (type == 'video') {
+                                  _sendVideoMessage(file, isViewOnce: isViewOnce);
+                                } else {
+                                  _sendMediaMessage(file, type, fileName: fileName, isViewOnce: isViewOnce);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _sendLocationMessage(double lat, double lng, {bool isLive = false}) async {
+    setState(() => _isSending = true);
+    try {
+      await ref.read(groupServiceProvider).sendGroupMessage(
+            groupId: widget.groupId,
+            text: isLive ? 'Live Location' : 'Static Location',
+            type: isLive ? 'live_location' : 'location',
+            mediaUrl: 'geo:$lat,$lng',
+          );
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send location: $e'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _sendContactCard(String name, String uid) async {
+    setState(() => _isSending = true);
+    try {
+      await ref.read(groupServiceProvider).sendGroupMessage(
+            groupId: widget.groupId,
+            text: name,
+            type: 'contact',
+            mediaUrl: uid,
+          );
+      _scrollToBottom();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send contact card: $e'),
             backgroundColor: AppColors.errorRed,
           ),
         );
@@ -1711,7 +1962,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
   }
 
   // ── Phase 2: Video with Thumbnail ───────────────────────
-  Future<void> _sendVideoMessage(File videoFile) async {
+  Future<void> _sendVideoMessage(File videoFile, {bool isViewOnce = false}) async {
     setState(() => _isSending = true);
     try {
       String? thumbUrl;
@@ -1763,6 +2014,8 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             'seenBy': [myUid],
             'deletedFor': [],
             'starredBy': [],
+            'isViewOnce': isViewOnce,
+            'viewedBy': [],
           });
 
       await FirebaseService.firestore
@@ -1770,7 +2023,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           .doc(widget.groupId)
           .update({
             'lastMessage': {
-              'text': '🎬 Video',
+              'text': isViewOnce ? '🎬 View Once Video' : '🎬 Video',
               'senderId': myUid,
               'timestamp': FieldValue.serverTimestamp(),
               'type': 'video',

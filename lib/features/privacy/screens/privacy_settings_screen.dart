@@ -27,6 +27,9 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
   bool _incognitoKeyboard = false;
   bool _sonicWhispersEnabled = true;
   double _sonicDecibelThreshold = 60.0;
+  bool _silenceUnknownCallers = false;
+  bool _ipProtection = false;
+  String _groupAddVisibility = 'everyone';
   bool _isLoading = true;
 
   @override
@@ -55,6 +58,9 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
       _incognitoKeyboard = prefs.getBool('incognito_keyboard') ?? false;
       _sonicWhispersEnabled = prefs.getBool('sonic_whispers_enabled') ?? true;
       _sonicDecibelThreshold = prefs.getDouble('sonic_decibel_threshold') ?? 60.0;
+      _silenceUnknownCallers = settings['silenceUnknownCallers'] as bool? ?? false;
+      _ipProtection = settings['ipProtection'] as bool? ?? false;
+      _groupAddVisibility = settings['groupAddVisibility'] as String? ?? 'everyone';
       _isLoading = false;
     });
   }
@@ -736,7 +742,7 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                               Row(
                                 children: [
                                   const Text(
-                                    'Gaze-Locked Privacy',
+                                    'Gaze Lock',
                                     style: TextStyle(
                                       color: Colors.white,
                                       fontSize: 16,
@@ -768,10 +774,8 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                               const SizedBox(height: 4),
                               Text(
                                 ref.watch(telepathyEnabledProvider)
-                                    ? 'Messages blur until you look at them. '
-                                      'Anti-shoulder surfing is active.'
-                                    : 'Messages auto-blur unless you\'re looking at the screen. '
-                                      'Detects shoulder surfers using your camera.',
+                                    ? 'Messages blur until you look at them.'
+                                    : 'Messages auto-blur unless you\'re looking at the screen.',
                                 style: TextStyle(
                                   color: ref.watch(telepathyEnabledProvider)
                                       ? const Color(0xFF0EA5E9)
@@ -788,6 +792,116 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                             ref.read(telepathyEnabledProvider.notifier).toggle();
                           },
                           activeThumbColor: const Color(0xFF0EA5E9),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  // Anti-Shoulder Surfing — separate toggle
+                  Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          const Color(0xFFEF4444).withOpacity(
+                            ref.watch(antiShoulderSurfingEnabledProvider) ? 0.15 : 0.03,
+                          ),
+                          const Color(0xFF6366F1).withOpacity(
+                            ref.watch(antiShoulderSurfingEnabledProvider) ? 0.1 : 0.02,
+                          ),
+                        ],
+                      ),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: ref.watch(antiShoulderSurfingEnabledProvider)
+                            ? const Color(0xFFEF4444).withOpacity(0.4)
+                            : Colors.white12,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFFEF4444).withOpacity(0.3),
+                                const Color(0xFF6366F1).withOpacity(0.3),
+                              ],
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.shield_rounded,
+                            color: Color(0xFFEF4444),
+                            size: 24,
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    'Anti-Shoulder Surfing',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFEF4444).withOpacity(0.15),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: const Text(
+                                      'NEW',
+                                      style: TextStyle(
+                                        color: Color(0xFFEF4444),
+                                        fontSize: 8,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 1,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                ref.watch(antiShoulderSurfingEnabledProvider)
+                                    ? 'Screen blurs instantly when someone looks over your shoulder.'
+                                    : 'Detects if someone else is looking at your screen and hides messages.',
+                                style: TextStyle(
+                                  color: ref.watch(antiShoulderSurfingEnabledProvider)
+                                      ? const Color(0xFFEF4444)
+                                      : Colors.white54,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: ref.watch(antiShoulderSurfingEnabledProvider),
+                          onChanged: (_) {
+                            ref.read(antiShoulderSurfingEnabledProvider.notifier).toggle();
+                          },
+                          activeThumbColor: const Color(0xFFEF4444),
                         ),
                       ],
                     ),
@@ -1008,6 +1122,116 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                       ],
                     ),
                     onTap: () => context.push('/fake-passcode'),
+                  ),
+
+                  const Divider(color: Colors.white12),
+
+                  // ── GROUPS ─────────────────────────────
+                  _buildSectionHeader('Groups'),
+
+                  _buildVisibilityTile(
+                    title: 'Who Can Add Me to Groups',
+                    subtitle: 'Control who can add you to group chats',
+                    icon: Icons.group_add_rounded,
+                    value: _groupAddVisibility,
+                    onChanged: (v) {
+                      setState(() => _groupAddVisibility = v);
+                      _updateSetting(
+                        () => PrivacyService.updatePrivacySettings(
+                          groupAddVisibility: v,
+                        ),
+                      );
+                    },
+                  ),
+
+                  const Divider(color: Colors.white12),
+
+                  // ── CALLS ──────────────────────────────
+                  _buildSectionHeader('Calls'),
+
+                  SwitchListTile(
+                    value: _silenceUnknownCallers,
+                    onChanged: (v) {
+                      setState(() => _silenceUnknownCallers = v);
+                      _updateSetting(
+                        () => PrivacyService.updatePrivacySettings(
+                          silenceUnknownCallers: v,
+                        ),
+                      );
+                    },
+                    title: const Text(
+                      'Silence Unknown Callers',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Calls from people not in your contacts will be silenced',
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    secondary: const Icon(
+                      Icons.phone_disabled_rounded,
+                      color: Color(0xFF0EA5E9),
+                      size: 24,
+                    ),
+                    activeThumbColor: const Color(0xFF0EA5E9),
+                  ),
+
+                  SwitchListTile(
+                    value: _ipProtection,
+                    onChanged: (v) {
+                      setState(() => _ipProtection = v);
+                      _updateSetting(
+                        () => PrivacyService.updatePrivacySettings(
+                          ipProtection: v,
+                        ),
+                      );
+                    },
+                    title: const Text(
+                      'Protect IP Address in Calls',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Relay calls through Ripple servers to hide your IP address',
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    secondary: const Icon(
+                      Icons.vpn_lock_rounded,
+                      color: Color(0xFF0EA5E9),
+                      size: 24,
+                    ),
+                    activeThumbColor: const Color(0xFF0EA5E9),
+                  ),
+
+                  const Divider(color: Colors.white12),
+
+                  // ── BLOCKED CONTACTS & APP LOCK ─────────
+                  _buildSectionHeader('Account'),
+
+                  ListTile(
+                    leading: const Icon(Icons.block_rounded, color: Colors.redAccent, size: 24),
+                    title: const Text(
+                      'Blocked Contacts',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'View and manage blocked users',
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                    onTap: () => context.push('/blocked-contacts'),
+                  ),
+
+                  ListTile(
+                    leading: const Icon(Icons.fingerprint_rounded, color: Color(0xFF0EA5E9), size: 24),
+                    title: const Text(
+                      'App Lock',
+                      style: TextStyle(color: Colors.white),
+                    ),
+                    subtitle: const Text(
+                      'Require fingerprint or PIN to open Ripple',
+                      style: TextStyle(color: Colors.white38, fontSize: 12),
+                    ),
+                    trailing: const Icon(Icons.chevron_right, color: Colors.white38),
+                    onTap: () => context.push('/app-lock-settings'),
                   ),
 
                   const SizedBox(height: 40),

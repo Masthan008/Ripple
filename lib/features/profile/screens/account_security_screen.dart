@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -299,11 +300,191 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
                     ],
                   ),
                 ),
+                const SizedBox(height: 24),
+
+                // Danger zone section
+                _sectionHeader('Danger Zone'),
+                const SizedBox(height: 8),
+                GlassCard(
+                  borderRadius: 16,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Permanently Delete Account',
+                        style: AppTextStyles.body.copyWith(
+                          color: AppColors.errorRed,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'This action is irreversible. All your messages, media, and profile information will be permanently erased.',
+                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: OutlinedButton(
+                          onPressed: _showDeleteAccountConfirmDialog,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.errorRed,
+                            side: const BorderSide(color: AppColors.errorRed, width: 1.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Delete Account'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           ),
         ),
       ),
+    );
+  }
+
+  Future<void> _showDeleteAccountConfirmDialog() async {
+    final passwordController = TextEditingController();
+    bool isDeleting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: AppColors.abyssBackground,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+                side: BorderSide(color: AppColors.errorRed.withOpacity(0.2)),
+              ),
+              title: Row(
+                children: [
+                  const Icon(Icons.warning_amber_rounded, color: AppColors.errorRed),
+                  const SizedBox(width: 10),
+                  Text('Delete Account', style: AppTextStyles.heading.copyWith(fontSize: 18)),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Are you absolutely sure you want to delete your account? All your chats and account data will be permanently deleted.',
+                    style: AppTextStyles.body.copyWith(fontSize: 13),
+                  ),
+                  if (_isEmailUser) ...[
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: true,
+                      style: AppTextStyles.body,
+                      decoration: InputDecoration(
+                        hintText: 'Enter your password to confirm',
+                        hintStyle: AppTextStyles.caption.copyWith(color: AppColors.textMuted),
+                        filled: true,
+                        fillColor: Colors.white12,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide.none,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white70)),
+                ),
+                TextButton(
+                  onPressed: isDeleting
+                      ? null
+                      : () async {
+                          if (_isEmailUser && passwordController.text.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Password is required')),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isDeleting = true;
+                          });
+
+                          try {
+                            final user = FirebaseService.auth.currentUser;
+                            if (user == null) return;
+
+                            if (_isEmailUser) {
+                              final credential = EmailAuthProvider.credential(
+                                email: user.email!,
+                                password: passwordController.text,
+                              );
+                              await user.reauthenticateWithCredential(credential);
+                            }
+
+                            final uid = user.uid;
+
+                            // Delete user document in Firestore
+                            await FirebaseService.firestore
+                                .collection('users')
+                                .doc(uid)
+                                .delete();
+
+                            // Delete Firebase Auth account
+                            await user.delete();
+
+                            if (mounted) {
+                              Navigator.pop(dialogContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Your account has been deleted.'),
+                                  backgroundColor: AppColors.errorRed,
+                                ),
+                              );
+                              // Go back to login screen
+                              GoRouter.of(context).go('/login');
+                            }
+                          } catch (e) {
+                            if (mounted) {
+                              setDialogState(() {
+                                isDeleting = false;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to delete account: $e'),
+                                  backgroundColor: AppColors.errorRed,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(AppColors.errorRed),
+                          ),
+                        )
+                      : const Text('Delete', style: TextStyle(color: AppColors.errorRed)),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
   }
 

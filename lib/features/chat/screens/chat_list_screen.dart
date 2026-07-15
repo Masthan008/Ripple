@@ -152,15 +152,44 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               // Channel name is the chatId used when initiating the call
               final channelName = data['channelName'] as String? ?? callId;
 
-              // Push incoming call screen
-              if (mounted) {
-                GoRouter.of(context).push(
-                  '/incoming-call?callId=$callId&channelName=$channelName&callerName=${Uri.encodeComponent(callerName)}&callerUserId=$callerUserId&isVideo=${callType == 'video'}',
-                );
-              }
+              _checkAndSilenceUnknownCaller(callerUserId).then((shouldSilence) {
+                if (shouldSilence) {
+                  FirebaseService.firestore.collection('calls').doc(callId).update({
+                    'status': 'silenced',
+                    'endedAt': FieldValue.serverTimestamp(),
+                  });
+                  return;
+                }
+
+                // Push incoming call screen
+                if (mounted) {
+                  GoRouter.of(context).push(
+                    '/incoming-call?callId=$callId&channelName=$channelName&callerName=${Uri.encodeComponent(callerName)}&callerUserId=$callerUserId&isVideo=${callType == 'video'}',
+                  );
+                }
+              });
             }
           }
         });
+  }
+
+  Future<bool> _checkAndSilenceUnknownCaller(String callerUserId) async {
+    try {
+      final myUid = FirebaseService.auth.currentUser?.uid ?? '';
+      final doc = await FirebaseService.firestore
+          .collection('users')
+          .doc(myUid)
+          .get();
+      final privacy =
+          Map<String, dynamic>.from(doc.data()?['privacy'] as Map? ?? {});
+      final silence = privacy['silenceUnknownCallers'] as bool? ?? false;
+      if (!silence) return false;
+
+      final friends = List<String>.from(doc.data()?['friends'] as List? ?? []);
+      return !friends.contains(callerUserId);
+    } catch (_) {
+      return false;
+    }
   }
 
   @override

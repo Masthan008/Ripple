@@ -132,7 +132,30 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
 
   Future<void> _initCall() async {
     try {
-      final roomUrl = await DailyService.createRoom(widget.channelName);
+      bool forceTurn = false;
+      try {
+        final myDoc = await FirebaseService.firestore
+            .collection('users')
+            .doc(widget.currentUserId)
+            .get();
+        final myIpProtect =
+            myDoc.data()?['privacy']?['ipProtection'] as bool? ?? false;
+
+        bool otherIpProtect = false;
+        if (widget.otherUserId != null && widget.otherUserId!.isNotEmpty) {
+          final otherDoc = await FirebaseService.firestore
+              .collection('users')
+              .doc(widget.otherUserId)
+              .get();
+          otherIpProtect =
+              otherDoc.data()?['privacy']?['ipProtection'] as bool? ?? false;
+        }
+
+        forceTurn = myIpProtect || otherIpProtect;
+      } catch (_) {}
+
+      final roomUrl = await DailyService.createRoom(widget.channelName,
+          forceTurn: forceTurn);
       if (roomUrl == null) {
         if (mounted) {
           setState(() => _errorMessage =

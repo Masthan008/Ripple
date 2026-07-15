@@ -12,6 +12,42 @@ final telepathyEnabledProvider =
   return TelepathyEnabledNotifier();
 });
 
+// ─── Anti-Shoulder Surfing Enabled Provider ─────────────
+/// Whether Anti-Shoulder Surfing detection is independently enabled.
+final antiShoulderSurfingEnabledProvider =
+    StateNotifierProvider<AntiShoulderSurfingEnabledNotifier, bool>((ref) {
+  return AntiShoulderSurfingEnabledNotifier();
+});
+
+class AntiShoulderSurfingEnabledNotifier extends StateNotifier<bool> {
+  AntiShoulderSurfingEnabledNotifier() : super(false) {
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool('anti_shoulder_surfing_enabled') ?? false;
+  }
+
+  Future<void> toggle() async {
+    state = !state;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('anti_shoulder_surfing_enabled', state);
+  }
+
+  Future<void> setEnabled(bool value) async {
+    state = value;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('anti_shoulder_surfing_enabled', value);
+  }
+}
+
+/// Whether EITHER telepathy or anti-shoulder surfing is on (camera needed).
+final cameraNeededProvider = Provider<bool>((ref) {
+  return ref.watch(telepathyEnabledProvider) ||
+      ref.watch(antiShoulderSurfingEnabledProvider);
+});
+
 class TelepathyEnabledNotifier extends StateNotifier<bool> {
   TelepathyEnabledNotifier() : super(false) {
     _load();
@@ -40,10 +76,11 @@ class TelepathyEnabledNotifier extends StateNotifier<bool> {
 /// Only active when telepathy is enabled.
 final gazePrivacyStateProvider =
     StreamProvider.autoDispose<GazePrivacyState>((ref) {
-  final isEnabled = ref.watch(telepathyEnabledProvider);
+  final gazeEnabled = ref.watch(telepathyEnabledProvider);
+  final shoulderEnabled = ref.watch(antiShoulderSurfingEnabledProvider);
 
-  if (!isEnabled) {
-    // Return a stream that always says "show messages"
+  // If neither feature is enabled, no camera needed
+  if (!gazeEnabled && !shoulderEnabled) {
     return Stream.value(const GazePrivacyState(
       isUserPresent: true,
       isShoulderSurferDetected: false,
@@ -68,13 +105,24 @@ final gazePrivacyStateProvider =
 
 // ─── Should Show Messages Provider ─────────────────────
 /// Convenience provider: true when messages should be readable.
+/// Gaze lock blurs if user isn't looking; shoulder surfing blurs if extra face detected.
 final shouldShowMessagesProvider = Provider.autoDispose<bool>((ref) {
-  final isEnabled = ref.watch(telepathyEnabledProvider);
-  if (!isEnabled) return true; // Feature off → always show
+  final gazeEnabled = ref.watch(telepathyEnabledProvider);
+  final shoulderEnabled = ref.watch(antiShoulderSurfingEnabledProvider);
+
+  // Neither feature on → always show
+  if (!gazeEnabled && !shoulderEnabled) return true;
 
   final gazeState = ref.watch(gazePrivacyStateProvider);
   return gazeState.when(
-    data: (state) => state.shouldShowMessages,
+    data: (state) {
+      // If shoulder surfing is enabled and a surfer is detected → hide
+      if (shoulderEnabled && state.isShoulderSurferDetected) return false;
+      // If gaze lock is enabled and user isn't looking → hide
+      if (gazeEnabled && !state.isUserPresent) return false;
+      // Otherwise show
+      return true;
+    },
     loading: () => false, // Blur while initializing
     error: (_, __) => true, // Show on error (graceful degradation)
   );
@@ -82,9 +130,10 @@ final shouldShowMessagesProvider = Provider.autoDispose<bool>((ref) {
 
 // ─── Shoulder Surfer Detected Provider ─────────────────
 /// true when a second face is detected — triggers full-screen lockdown.
+/// Only active when the anti-shoulder surfing toggle is independently on.
 final shoulderSurferDetectedProvider = Provider.autoDispose<bool>((ref) {
-  final isEnabled = ref.watch(telepathyEnabledProvider);
-  if (!isEnabled) return false;
+  final shoulderEnabled = ref.watch(antiShoulderSurfingEnabledProvider);
+  if (!shoulderEnabled) return false;
 
   final gazeState = ref.watch(gazePrivacyStateProvider);
   return gazeState.when(
