@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 
@@ -23,6 +24,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
   final _confirmPassController = TextEditingController();
   bool _isChangingPass = false;
   bool _twoFactorEnabled = false;
+  bool _twoStepEnabled = false;
   bool _isEmailUser = false;
 
   @override
@@ -40,6 +42,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
     if (doc.exists && mounted) {
       setState(() {
         _twoFactorEnabled = doc.data()?['twoFactorEnabled'] ?? false;
+        _twoStepEnabled = doc.data()?['twoStepEnabled'] ?? false;
       });
     }
   }
@@ -139,6 +142,92 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
       setState(() => _twoFactorEnabled = !value);
       _showError('Something went wrong. Try again.');
     }
+  }
+
+  Future<void> _toggleTwoStep(bool value) async {
+    if (!value) {
+      setState(() => _twoStepEnabled = false);
+      try {
+        final uid = FirebaseService.auth.currentUser?.uid;
+        if (uid == null) return;
+        await FirebaseService.firestore.collection('users').doc(uid).update({
+          'twoStepEnabled': false,
+          'twoStepPin': FieldValue.delete(),
+        });
+      } catch (_) {
+        setState(() => _twoStepEnabled = true);
+        _showError('Failed to disable 2-Step Verification');
+      }
+      return;
+    }
+
+    final pinController = TextEditingController();
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0D1B2A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title:
+            const Text('Set 6-Digit PIN', style: TextStyle(color: Colors.white)),
+        content: TextField(
+          controller: pinController,
+          obscureText: true,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Enter 6-digit PIN',
+            hintStyle: TextStyle(color: Colors.white30),
+            enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: Colors.white24)),
+            focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: AppColors.aquaCore)),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child:
+                const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final pin = pinController.text.trim();
+              if (pin.length != 6 || int.tryParse(pin) == null) {
+                _showError('PIN must be exactly 6 digits');
+                return;
+              }
+              Navigator.pop(ctx);
+
+              setState(() => _twoStepEnabled = true);
+              try {
+                final uid = FirebaseService.auth.currentUser?.uid;
+                if (uid == null) return;
+                await FirebaseService.firestore
+                    .collection('users')
+                    .doc(uid)
+                    .update({
+                  'twoStepEnabled': true,
+                  'twoStepPin': pin,
+                });
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text(
+                            'Two-Step Verification PIN set successfully!')),
+                  );
+                }
+              } catch (_) {
+                setState(() => _twoStepEnabled = false);
+                _showError('Failed to set PIN');
+              }
+            },
+            child: const Text('Save PIN',
+                style: TextStyle(color: AppColors.aquaCore)),
+          ),
+        ],
+      ),
+    );
   }
 
   InputDecoration _inputDecor(String hint) => InputDecoration(
@@ -292,6 +381,71 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
                               child: Text(
                                 '2FA adds extra security to your account by requiring email verification on each login.',
                                 style: AppTextStyles.caption.copyWith(fontSize: 11),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    ),
+                ),
+                const SizedBox(height: 24),
+
+                // 2SV section
+                _sectionHeader('Two-Step Verification'),
+                const SizedBox(height: 8),
+                GlassCard(
+                  borderRadius: 16,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.password_rounded,
+                              color: AppColors.aquaCore, size: 22),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('6-Digit Verification PIN',
+                                    style: AppTextStyles.body),
+                                Text(
+                                  _twoStepEnabled ? 'Enabled' : 'Disabled',
+                                  style: AppTextStyles.caption.copyWith(
+                                    color: _twoStepEnabled
+                                        ? AppColors.onlineGreen
+                                        : AppColors.textMuted,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Switch.adaptive(
+                            value: _twoStepEnabled,
+                            onChanged: _toggleTwoStep,
+                            activeThumbColor: AppColors.aquaCore,
+                            activeTrackColor: const Color(0x550EA5E9),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: AppColors.aquaCore.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline_rounded,
+                                color: AppColors.aquaCore, size: 18),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                'A 6-digit cloud verification PIN is required during registration, logins, and device pairings.',
+                                style: AppTextStyles.caption.copyWith(
+                                    fontSize: 11),
                               ),
                             ),
                           ],

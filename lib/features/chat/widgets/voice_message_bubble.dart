@@ -46,6 +46,22 @@ class _VoiceMessageBubbleState extends ConsumerState<VoiceMessageBubble> {
   String? _transcript;
   String? _transcribeError;
 
+  double _speed = 1.0;
+
+  void _toggleSpeed() {
+    AppHaptics.lightTap();
+    setState(() {
+      if (_speed == 1.0) {
+        _speed = 1.5;
+      } else if (_speed == 1.5) {
+        _speed = 2.0;
+      } else {
+        _speed = 1.0;
+      }
+    });
+    _player.setSpeed(_speed);
+  }
+
   @override
   void initState() {
     super.initState();
@@ -228,14 +244,38 @@ class _VoiceMessageBubbleState extends ConsumerState<VoiceMessageBubble> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text(
-                      _isPlaying || _position.inSeconds > 0
-                          ? _formatDuration(_position)
-                          : _formatDuration(_total),
-                      style: TextStyle(
-                        color: contentColor.withValues(alpha: 0.7),
-                        fontSize: 11,
-                      ),
+                    Row(
+                      children: [
+                        Text(
+                          _isPlaying || _position.inSeconds > 0
+                              ? _formatDuration(_position)
+                              : _formatDuration(_total),
+                          style: TextStyle(
+                            color: contentColor.withValues(alpha: 0.7),
+                            fontSize: 11,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        GestureDetector(
+                          onTap: _toggleSpeed,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 4, vertical: 1),
+                            decoration: BoxDecoration(
+                              color: contentColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '${_speed.toStringAsFixed(1).replaceAll('.0', '')}x',
+                              style: TextStyle(
+                                color: contentColor,
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     if (_transcript == null)
                       GestureDetector(

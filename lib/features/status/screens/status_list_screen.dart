@@ -29,6 +29,7 @@ class StatusListScreen extends ConsumerStatefulWidget {
 
 class _StatusListScreenState extends ConsumerState<StatusListScreen> {
   final _currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  List<String> _mutedStatusUsers = [];
 
   @override
   Widget build(BuildContext context) {
@@ -51,7 +52,7 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
                       color: Colors.white54,
                       size: 22,
                     ),
-                    onPressed: () {},
+                    onPressed: () => _showStatusPrivacyMenu(context),
                   ),
                 ],
               ),
@@ -255,6 +256,8 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
 
         final userData = userSnap.data?.data() as Map<String, dynamic>? ?? {};
         final friends = List<String>.from(userData['friends'] as List? ?? []);
+        _mutedStatusUsers = List<String>.from(
+            userData['mutedStatuses'] as List? ?? []);
         debugPrint('👥 StatusListScreen: Found ${friends.length} friends for status feed');
         if (friends.isEmpty) {
           debugPrint('ℹ️ StatusListScreen: User has no friends yet — no statuses to show');
@@ -358,7 +361,12 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
               grouped.putIfAbsent(status.uid, () => []).add(status);
             }
 
-            final sortedKeys = grouped.keys.toList();
+            final sortedKeys = grouped.keys.toList()
+              ..sort((a, b) {
+                final aMuted = _mutedStatusUsers.contains(a) ? 1 : 0;
+                final bMuted = _mutedStatusUsers.contains(b) ? 1 : 0;
+                return aMuted.compareTo(bMuted);
+              });
 
             return ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(
@@ -387,6 +395,7 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
                   latest: latest,
                   allViewed: allViewed,
                   mood: moodStatus.isNotEmpty ? moodStatus.first.mood : null,
+                  isMuted: _mutedStatusUsers.contains(uid),
                 );
               },
             );
@@ -401,8 +410,13 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
     required StatusModel latest,
     required bool allViewed,
     String? mood,
+    bool isMuted = false,
   }) {
-    return ListTile(
+    return GestureDetector(
+      onLongPress: () => _showMuteMenu(latest.uid, latest.ownerName, isMuted),
+      child: Opacity(
+        opacity: isMuted ? 0.4 : 1.0,
+        child: ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
       leading: _buildStatusAvatar(
         latest.ownerPhoto,
@@ -446,6 +460,8 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
           ),
         );
       },
+    ),
+    ),
     );
   }
 
@@ -515,5 +531,162 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
     if (diff.inMinutes < 60) return '${diff.inMinutes}${L10n.s(ref, 'mAgo')}';
     if (diff.inHours < 24) return '${diff.inHours}${L10n.s(ref, 'hAgo')}';
     return DateFormat('MMM d').format(ts.toDate());
+  }
+
+  // ── Status Privacy Menu ─────────────────────────────────
+  void _showStatusPrivacyMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 12),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 20),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'Status Privacy',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          _privacyOption(
+            icon: Icons.people_rounded,
+            title: 'My contacts',
+            subtitle: 'Share with all your contacts',
+            value: 'friends',
+          ),
+          _privacyOption(
+            icon: Icons.people_outline_rounded,
+            title: 'My contacts except...',
+            subtitle: 'Share with contacts, excluding select people',
+            value: 'friends_except',
+          ),
+          _privacyOption(
+            icon: Icons.person_add_rounded,
+            title: 'Only share with...',
+            subtitle: 'Only selected contacts will see your status',
+            value: 'only_share_with',
+          ),
+          const SizedBox(height: 20),
+        ],
+      ),
+    );
+  }
+
+  Widget _privacyOption({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required String value,
+  }) {
+    return ListTile(
+      leading: Icon(icon, color: AppColors.aquaCore, size: 24),
+      title: Text(title, style: const TextStyle(color: Colors.white, fontSize: 15)),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+      ),
+      onTap: () async {
+        Navigator.pop(context);
+        await FirebaseService.firestore
+            .collection('users')
+            .doc(_currentUid)
+            .update({'statusPrivacy': value});
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Status privacy set to: $title'),
+              backgroundColor: AppColors.aquaCore,
+            ),
+          );
+        }
+      },
+    );
+  }
+
+  // ── Mute / Unmute Status ────────────────────────────────
+  void _showMuteMenu(String uid, String name, bool currentlyMuted) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0A1628),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            margin: const EdgeInsets.only(top: 8),
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          ListTile(
+            leading: Icon(
+              currentlyMuted
+                  ? Icons.notifications_active_rounded
+                  : Icons.notifications_off_rounded,
+              color: AppColors.aquaCore,
+            ),
+            title: Text(
+              currentlyMuted ? 'Unmute $name' : 'Mute $name',
+              style: const TextStyle(color: Colors.white),
+            ),
+            subtitle: Text(
+              currentlyMuted
+                  ? 'You will see their status updates again'
+                  : 'Their updates will be hidden from your feed',
+              style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.4), fontSize: 12),
+            ),
+            onTap: () async {
+              Navigator.pop(context);
+              await FirebaseService.firestore
+                  .collection('users')
+                  .doc(_currentUid)
+                  .update({
+                'mutedStatuses': currentlyMuted
+                    ? FieldValue.arrayRemove([uid])
+                    : FieldValue.arrayUnion([uid]),
+              });
+              AppHaptics.mediumTap();
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                        currentlyMuted ? '$name unmuted' : '$name muted'),
+                    backgroundColor: AppColors.aquaCore,
+                  ),
+                );
+              }
+            },
+          ),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
   }
 }
