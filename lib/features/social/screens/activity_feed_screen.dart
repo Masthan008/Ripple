@@ -6,6 +6,7 @@ import '../../../shared/widgets/aqua_avatar.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../friends/providers/friends_provider.dart';
 import '../services/social_service.dart';
+import '../models/achievement_model.dart';
 import 'package:timeago/timeago.dart' as timeago;
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -132,10 +133,22 @@ class _ActivityFeedScreenState extends ConsumerState<ActivityFeedScreen> {
                                       alignment: PlaceholderAlignment.middle,
                                       child: Padding(
                                         padding: const EdgeInsets.only(left: 4.0),
-                                        child: Icon(
-                                          IconData(act['iconCode'] as int, fontFamily: 'MaterialIcons'),
-                                          size: 16,
-                                          color: AppColors.aquaCore,
+                                        child: Builder(
+                                          builder: (context) {
+                                            IconData iconData = Icons.star_rounded;
+                                            final extra = act['extra'] as Map<String, dynamic>?;
+                                            if (extra != null && extra['achievementId'] != null) {
+                                              final def = AchievementDefinitions.findById(extra['achievementId'] as String);
+                                              if (def != null) {
+                                                iconData = def.icon;
+                                              }
+                                            }
+                                            return Icon(
+                                              iconData,
+                                              size: 16,
+                                              color: AppColors.aquaCore,
+                                            );
+                                          },
                                         ),
                                       ),
                                     ),

@@ -29,11 +29,14 @@ class AchievementModel {
 
   factory AchievementModel.fromFirestore(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
+    final id = d['id'] as String;
+    final def = AchievementDefinitions.findById(id);
+
     return AchievementModel(
-      id: d['id'] as String,
-      title: d['title'] as String,
-      description: d['description'] as String? ?? '',
-      icon: IconData(d['iconCode'] as int? ?? Icons.emoji_events_rounded.codePoint, fontFamily: 'MaterialIcons'),
+      id: id,
+      title: def?.title ?? d['title'] as String? ?? 'Achievement',
+      description: def?.description ?? d['description'] as String? ?? '',
+      icon: def?.icon ?? Icons.emoji_events_rounded,
       tier: AchievementTier.values.firstWhere(
         (t) => t.name == (d['tier'] as String? ?? 'bronze'),
         orElse: () => AchievementTier.bronze,
