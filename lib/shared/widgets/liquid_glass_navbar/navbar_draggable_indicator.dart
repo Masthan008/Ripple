@@ -27,8 +27,8 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     if (itemCount == 0 || snapPositions.isEmpty) return const SizedBox.shrink();
 
-    // Adaptive width based on item count
-    final adaptiveWidth = (baseSize * (3.5 / itemCount).clamp(1.0, 1.2));
+    // Adaptive width based on item count — scaled to fit icon size
+    final adaptiveWidth = (baseSize * (2.4 / itemCount).clamp(0.7, 1.0));
 
     // Clamp the center so indicator never goes off-screen
     final clampedCenter = position.clamp(
@@ -38,7 +38,7 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
 
     return Positioned(
       left: clampedCenter - adaptiveWidth / 2, // exact center
-      bottom: bottomOffset + 5,
+      bottom: bottomOffset + 18,
       child: GestureDetector(
         onHorizontalDragUpdate: (details) {
           final newPos = (position + details.delta.dx).clamp(
@@ -80,7 +80,7 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
               child: GlassGlow(
                 child: Container(
                   width: adaptiveWidth,
-                  height: 60,
+                  height: adaptiveWidth * 0.6,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(adaptiveWidth / 2),
                   ),

@@ -63,6 +63,14 @@ service cloud.firestore {
         allow read: if isSignedIn();
         allow write: if isOwner(userId);
       }
+
+      // Devices subcollection (linked devices / companion app sessions)
+      match /devices/{deviceId} {
+        allow read: if isOwner(userId);
+        allow create: if isOwner(userId);
+        allow delete: if isOwner(userId);
+        allow update: if false;
+      }
     }
 
     // ═══════════════════════════════════════════════════════

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_windowmanager_plus/flutter_windowmanager_plus.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/utils/env.dart';
 import 'core/services/firebase_service.dart';
 import 'core/services/notification_service.dart';
@@ -15,16 +17,68 @@ import 'features/challenges/services/challenges_service.dart';
 import 'features/gifts/services/gift_service.dart';
 import 'app.dart';
 
+/// Splash shown immediately if core initialization takes too long,
+/// preventing the black-screen / ANR issue on slow devices.
+class _SplashApp extends StatelessWidget {
+  const _SplashApp();
+
+  @override
+  Widget build(BuildContext context) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: Color(0xFF060D1A),
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+    );
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData.dark(),
+      home: Scaffold(
+        backgroundColor: const Color(0xFF060D1A),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(
+                width: 48,
+                height: 48,
+                child: CircularProgressIndicator(
+                  color: Color(0xFF0EA5E9),
+                  strokeWidth: 3,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Ripple',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.7),
+                  fontSize: 18,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 void main() async {
   runZonedGuarded(
     () async {
       WidgetsFlutterBinding.ensureInitialized();
 
-      // Catch Flutter-level errors
+      // Catch Flutter-level errors and forward to Crashlytics
       FlutterError.onError = (details) {
         FlutterError.presentError(details);
-        debugPrint('🔴 Flutter Error: ${details.exception}');
-        debugPrint('Stack trace: ${details.stack}');
+        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+      };
+      PlatformDispatcher.instance.onError = (error, stack) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        return true;
       };
 
       // Lock to portrait mode
@@ -43,11 +97,14 @@ void main() async {
         ),
       );
 
+      // Show splash immediately, then proceed with init — prevents black screen
+      runApp(const _SplashApp());
+
       try {
         // Load environment variables
         await Env.load();
 
-        // Initialize Firebase
+        // Initialize Firebase (core init only — Firestore/FCM used later)
         await FirebaseService.initialize();
 
         // Initialize Supabase (for file storage)
@@ -55,21 +112,11 @@ void main() async {
             (Env.supabaseAnonKey.isNotEmpty ||
                 Env.supabaseServiceRoleKey.isNotEmpty)) {
           await SupabaseService.initialize();
-        } else {
-          debugPrint(
-            '⚠️ Supabase credentials missing — skipping initialization',
-          );
         }
 
-        // ── OneSignal MUST be initialized before runApp() ──
+        // ── OneSignal ──
         final oneSignalId = Env.oneSignalAppId;
-        if (oneSignalId.isEmpty) {
-          debugPrint(
-            '❌ ONESIGNAL_APP_ID is missing or empty from .env! Skipping OneSignal init.',
-          );
-        } else {
-          debugPrint('✅ OneSignal ID loaded: $oneSignalId');
-          // Only enable verbose logging in debug mode
+        if (oneSignalId.isNotEmpty) {
           assert(() {
             OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
             return true;
@@ -77,33 +124,11 @@ void main() async {
           OneSignal.initialize(oneSignalId);
           OneSignal.consentRequired(false);
           OneSignal.consentGiven(true);
-
-          // Requesting permission is async and shouldn't block app launch
-          // On some devices, awaiting this before runApp() can cause issues
-          OneSignal.Notifications.requestPermission(true)
-              .then((_) {
-                debugPrint('🔔 OneSignal permission requested successfully');
-              })
-              .catchError((e) {
-                debugPrint('⚠️ OneSignal permission error: $e');
-              });
+          OneSignal.Notifications.requestPermission(true).catchError((_) => false);
         }
 
         // Initialize local notification channels
         await NotificationService.initialize();
-
-        // Start scheduled message checker (every 30s)
-        ScheduleService.startScheduleChecker();
-
-        // Initialize weekly challenges (creates if not exists for current week)
-        ChallengesService.initializeWeeklyChallenges().catchError((e) {
-          debugPrint('⚠️ Challenges initialization error: $e');
-        });
-
-        // Initialize gift card themes
-        GiftService.initializeGiftCards().catchError((e) {
-          debugPrint('⚠️ Gift cards initialization error: $e');
-        });
 
         // Restore screenshot block setting
         final prefs = await SharedPreferences.getInstance();
@@ -135,14 +160,16 @@ void main() async {
         return;
       }
 
-      // Note: AppLifecycleObserver is now registered in HomeScreen
-      // with the user's UID after login (requires PresenceService)
-
+      // Launch the real app — splash replaced instantly
       runApp(const ProviderScope(child: App()));
+
+      // Non-critical initialisation — runs after the UI is visible
+      ScheduleService.startScheduleChecker();
+      ChallengesService.initializeWeeklyChallenges().catchError((_) {});
+      GiftService.initializeGiftCards().catchError((_) {});
     },
     (error, stack) {
-      debugPrint('🔴 Global Async Error: $error');
-      debugPrint('Stack trace: $stack');
+      FirebaseCrashlytics.instance.recordError(error, stack, fatal: false);
     },
   );
 }

@@ -398,8 +398,9 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                     setState(() => _filter = 'groups');
                   },
                 ),
-                // Dynamic folder chips from stream
-                StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                 const SizedBox(width: 8),
+                 // Dynamic folder chips from stream
+                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
                   stream: _foldersStream,
                   builder: (context, foldersSnap) {
                     if (!foldersSnap.hasData || foldersSnap.data!.docs.isEmpty) {
@@ -432,8 +433,9 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                     );
                   },
                 ),
-                // Folder management button
-                _FilterChip(
+                 const SizedBox(width: 8),
+                 // Folder management button
+                 _FilterChip(
                   label: '+',
                   selected: false,
                   onTap: () => _showFolderManagement(context),

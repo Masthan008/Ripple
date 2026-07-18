@@ -165,7 +165,7 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
           // Text field
           Expanded(
             child: Container(
-              constraints: const BoxConstraints(maxHeight: 120),
+              constraints: const BoxConstraints(maxHeight: 200),
               decoration: BoxDecoration(
                 color: const Color(0x0FFFFFFF),
                 borderRadius: BorderRadius.circular(20),
@@ -174,7 +174,7 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
               child: TextField(
                 controller: widget.controller,
                 style: AppTextStyles.body.copyWith(fontSize: 14),
-                maxLines: 4,
+                maxLines: 8,
                 minLines: 1,
                 textCapitalization: TextCapitalization.sentences,
                 keyboardType:
