@@ -1,8 +1,8 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
-/// Service for managing per-chat theme customization.
-/// Stores theme preferences (gradient colors, accent color) in Firestore.
+/// Service for managing per-chat theme/wallpaper customization.
+/// Stores preferences under the user's private subcollection `users/{uid}/chat_themes/{chatId}`.
 class ChatThemeService {
   ChatThemeService._();
 
@@ -18,39 +18,82 @@ class ChatThemeService {
     {'name': 'Nebula', 'colors': ['4C1D95', '0F172A'], 'accent': 'C084FC'},
   ];
 
-  /// Get the theme for a chat. Returns null if no custom theme is set.
+  /// Preset solid colors (WhatsApp-style muted background hues)
+  static const List<Map<String, dynamic>> solidColors = [
+    {'name': 'Teal Sage', 'color': '1E2D2F', 'accent': '22D3EE'},
+    {'name': 'Muted Lavender', 'color': '2E253A', 'accent': 'C084FC'},
+    {'name': 'Warm Amber', 'color': '3D2C20', 'accent': 'FB923C'},
+    {'name': 'Slate Grey', 'color': '1F2937', 'accent': '9CA3AF'},
+    {'name': 'Rose Dust', 'color': '3A1C28', 'accent': 'F472B6'},
+    {'name': 'Dark Forest', 'color': '102A1E', 'accent': '4ADE80'},
+    {'name': 'Deep Navy', 'color': '0B132B', 'accent': '60A5FA'},
+    {'name': 'Charcoal', 'color': '18181B', 'accent': 'E4E4E7'},
+  ];
+
+  /// Get the theme for a chat (specific to the logged-in user).
   static Future<Map<String, dynamic>?> getTheme(String chatId) async {
     try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return null;
       final doc = await FirebaseFirestore.instance
-          .collection('chats')
+          .collection('users')
+          .doc(uid)
+          .collection('chat_themes')
           .doc(chatId)
           .get();
-      return doc.data()?['theme'] as Map<String, dynamic>?;
+      return doc.data();
     } catch (_) {
       return null;
     }
   }
 
-  /// Set a theme for a chat
+  /// Get a real-time stream of the theme for a chat (specific to the logged-in user).
+  static Stream<DocumentSnapshot<Map<String, dynamic>>> getThemeStream(String chatId) {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return const Stream.empty();
+    return FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('chat_themes')
+        .doc(chatId)
+        .snapshots();
+  }
+
+  /// Set a theme for a chat (specific to the logged-in user)
   static Future<void> setTheme({
     required String chatId,
     required List<String> gradientColors,
     required String accentColor,
+    String? solidColor,
+    String? imageUrl,
+    String? themePresetName,
   }) async {
-    await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
-      'theme': {
-        'gradientColors': gradientColors,
-        'accentColor': accentColor,
-        'setBy': FirebaseAuth.instance.currentUser?.uid,
-        'setAt': FieldValue.serverTimestamp(),
-      },
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('chat_themes')
+        .doc(chatId)
+        .set({
+      'gradientColors': gradientColors,
+      'accentColor': accentColor,
+      if (solidColor != null) 'solidColor': solidColor,
+      if (imageUrl != null) 'imageUrl': imageUrl,
+      if (themePresetName != null) 'themePresetName': themePresetName,
+      'setAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
 
   /// Remove custom theme (revert to default)
   static Future<void> clearTheme(String chatId) async {
-    await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
-      'theme': FieldValue.delete(),
-    }, SetOptions(merge: true));
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+    await FirebaseFirestore.instance
+        .collection('users')
+        .doc(uid)
+        .collection('chat_themes')
+        .doc(chatId)
+        .delete();
   }
 }

@@ -57,6 +57,7 @@ import '../../../core/services/ai_service.dart';
 import '../../../core/services/privacy_service.dart';
 import '../widgets/typing_indicator.dart';
 import '../widgets/chat_theme_picker.dart';
+import '../services/chat_theme_service.dart';
 import 'chat_media_gallery_screen.dart';
 import '../widgets/location_selector_sheet.dart';
 import '../widgets/contact_selector_sheet.dart';
@@ -781,17 +782,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
     final sentienceState = ref.watch(sentienceProvider(_chatId));
 
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseService.firestore.collection('chats').doc(_chatId).snapshots(),
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: ChatThemeService.getThemeStream(_chatId),
       builder: (context, snapshot) {
-        final chatData = snapshot.data?.data() as Map<String, dynamic>?;
-        final themeData = chatData?['theme'] as Map<String, dynamic>?;
+        final themeData = snapshot.data?.data();
         List<Color>? wallpaperColors;
+        String? solidColorHex;
+        String? imageUrl;
+
         if (themeData != null) {
-          final gradientColors = themeData['gradientColors'] as List? ?? [];
-          wallpaperColors = gradientColors
-              .map((c) => Color(int.parse('FF$c', radix: 16)))
-              .toList();
+          if (themeData.containsKey('imageUrl')) {
+            imageUrl = themeData['imageUrl'] as String?;
+          } else if (themeData.containsKey('solidColor')) {
+            solidColorHex = themeData['solidColor'] as String?;
+          } else {
+            final gradientColors = themeData['gradientColors'] as List? ?? [];
+            wallpaperColors = gradientColors
+                .map((c) => Color(int.parse('FF$c', radix: 16)))
+                .toList();
+          }
         }
         final activeWallpaper = _appliedWallpaperColors ??
             (wallpaperColors != null && wallpaperColors.isNotEmpty
@@ -802,31 +811,65 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           backgroundColor: bgColor,
           body: SentientBreathingWrapper(
             chatId: _chatId,
-            child: AuroraBackground(
-              customColors: sentienceState.intensity > 0
-                  ? [
-                      sentienceState.primaryGlow,
-                      sentienceState.secondaryGlow,
-                      sentienceState.accentGlow
-                    ]
-                  : activeWallpaper,
-              animationSpeed: sentienceState.animationSpeed,
-              child: Stack(
-                children: [
-              // Gyroscopic parallax floating particles
-              ParallaxLayer(
-                depthFactor: 1.5,
-                child: FloatingParticles(
-                  particleCount: 3,
-                  color:
-                      currentTheme == 'light_glass'
-                          ? AppColors.aquaCore.withOpacity(0.3)
-                          : AppColors.aquaCore,
-                ),
-              ),
+            child: Stack(
+              children: [
+                // Background Layer
+                if (imageUrl != null) ...[
+                  Positioned.fill(
+                    child: Container(color: bgColor),
+                  ),
+                  Positioned.fill(
+                    child: CachedNetworkImage(
+                      imageUrl: imageUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => Container(color: bgColor),
+                      errorWidget: (context, url, error) => Container(color: bgColor),
+                    ),
+                  ),
+                  Positioned.fill(
+                    child: Container(
+                      color: Colors.black.withOpacity(0.45), // Subtle dimming overlay
+                    ),
+                  ),
+                ] else if (solidColorHex != null) ...[
+                  Positioned.fill(
+                    child: Container(
+                      color: Color(int.parse('FF$solidColorHex', radix: 16)),
+                    ),
+                  ),
+                ] else ...[
+                  Positioned.fill(
+                    child: AuroraBackground(
+                      customColors: sentienceState.intensity > 0
+                          ? [
+                              sentienceState.primaryGlow,
+                              sentienceState.secondaryGlow,
+                              sentienceState.accentGlow
+                            ]
+                          : activeWallpaper,
+                      animationSpeed: sentienceState.animationSpeed,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ],
 
-          Column(
-            children: [
+                // Foreground Content Stack
+                Positioned.fill(
+                  child: Stack(
+                    children: [
+                      // Gyroscopic parallax floating particles
+                      ParallaxLayer(
+                        depthFactor: 1.5,
+                        child: FloatingParticles(
+                          particleCount: 3,
+                          color: currentTheme == 'light_glass'
+                              ? AppColors.aquaCore.withOpacity(0.3)
+                              : AppColors.aquaCore,
+                        ),
+                      ),
+
+                      Column(
+                        children: [
               // Header
               _buildHeader(partner),
 
