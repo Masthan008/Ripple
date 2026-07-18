@@ -10,6 +10,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/daily_service.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/app_icon_service.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/google_logo.dart';
@@ -454,7 +455,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           ),
           child: ClipOval(
             child: Image.asset(
-              'assets/images/ripple_logo.png',
+              AppIconService.getLogoAsset(ref.watch(currentAppIconProvider)),
               width: 80,
               height: 80,
               fit: BoxFit.cover,

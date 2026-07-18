@@ -33,7 +33,7 @@ class MainActivity : FlutterFragmentActivity() {
         val packageName = packageName
         
         // Toggle all aliases including Default. MainActivity remains enabled so target is valid.
-        val aliases = listOf("Default", "Abyss", "Gold", "Glitch")
+        val aliases = listOf("Default", "Abyss", "Gold", "Glitch", "Forest", "Sunset")
         
         for (alias in aliases) {
             val componentName = ComponentName(packageName, "$packageName.MainActivity$alias")
@@ -49,12 +49,12 @@ class MainActivity : FlutterFragmentActivity() {
             )
         }
     }
-
+ 
     private fun getCurrentActiveIcon(): String {
         val pm = packageManager
         val packageName = packageName
         
-        val icons = listOf("Abyss", "Gold", "Glitch")
+        val icons = listOf("Abyss", "Gold", "Glitch", "Forest", "Sunset")
         for (icon in icons) {
             val componentName = ComponentName(packageName, "$packageName.MainActivity$icon")
             val state = pm.getComponentEnabledSetting(componentName)

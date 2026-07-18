@@ -426,31 +426,32 @@ class NotificationService {
     try {
       debugPrint(
           '📤 Sending OneSignal notification to ${playerIds.length} user(s): $title');
+
+      final Map<String, dynamic> payload = {
+        'app_id': appId,
+        'include_player_ids': playerIds,
+        'headings': {'en': title},
+        'contents': {'en': body},
+        'small_icon': 'ic_stat_notification',
+        'priority': 10,
+      };
+      if (largeIcon != null && largeIcon.isNotEmpty) payload['large_icon'] = largeIcon;
+      if (data != null) payload['data'] = data;
+      if (ttl != null) payload['ttl'] = ttl;
+      if (androidChannelId != null) payload['android_channel_id'] = androidChannelId;
+      if (!sound) {
+        payload['ios_sound'] = 'nil';
+        payload['android_sound'] = 'nil';
+      }
+      if (!vibration) payload['ios_badgeType'] = 'None';
+
       final response = await _dio.post(
         _oneSignalBaseUrl,
         options: Options(headers: {
           'Authorization': 'Basic $restKey',
           'Content-Type': 'application/json',
         }),
-        data: {
-          'app_id': appId,
-          'include_player_ids': playerIds,
-          'headings': {'en': title},
-          'contents': {'en': body},
-          if (largeIcon != null && largeIcon.isNotEmpty) 'large_icon': largeIcon,
-          'small_icon': 'ic_stat_notification',
-          if (data != null) 'data': data,
-          'priority': 10,
-          if (ttl != null) 'ttl': ttl,
-          if (androidChannelId != null)
-            'android_channel_id': androidChannelId,
-          if (!sound) ...{
-            'ios_sound': 'nil',
-            'android_sound': 'nil',
-          },
-          if (!vibration) ...{
-            'ios_badgeType': 'None',
-          },
+        data: payload,
       );
       debugPrint(
           '✅ OneSignal response: ${response.statusCode} ${response.data}');

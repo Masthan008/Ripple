@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/app_icon_service.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../shared/widgets/floating_particles.dart';
 
@@ -41,6 +42,11 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
   @override
   void initState() {
     super.initState();
+    AppIconService.getCurrentIcon().then((icon) {
+      if (mounted) {
+        ref.read(currentAppIconProvider.notifier).state = icon;
+      }
+    });
 
     // ── Stage 1: Ripple rings (0–1200ms, repeats) ──
     _rippleController = AnimationController(
@@ -254,6 +260,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       AnimatedBuilder(
                         animation: _logoController,
                         builder: (_, __) {
+                          final activeIcon = ref.watch(currentAppIconProvider);
                           return Opacity(
                             opacity: _logoOpacity.value,
                             child: Transform.scale(
@@ -273,7 +280,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                 ),
                                 child: ClipOval(
                                   child: Image.asset(
-                                    'assets/images/ripple_logo.png',
+                                    AppIconService.getLogoAsset(activeIcon),
                                     width: 100,
                                     height: 100,
                                     fit: BoxFit.cover,

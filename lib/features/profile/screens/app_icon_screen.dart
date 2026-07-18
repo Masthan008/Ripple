@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -6,14 +7,14 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/app_icon_service.dart';
 import '../../../shared/widgets/glass_card.dart';
 
-class AppIconScreen extends StatefulWidget {
+class AppIconScreen extends ConsumerStatefulWidget {
   const AppIconScreen({super.key});
 
   @override
-  State<AppIconScreen> createState() => _AppIconScreenState();
+  ConsumerState<AppIconScreen> createState() => _AppIconScreenState();
 }
 
-class _AppIconScreenState extends State<AppIconScreen> {
+class _AppIconScreenState extends ConsumerState<AppIconScreen> {
   String _currentIcon = 'Default';
   bool _isLoading = true;
 
@@ -28,6 +29,7 @@ class _AppIconScreenState extends State<AppIconScreen> {
         end: Alignment.bottomRight,
       ),
       'glow': const Color(0xFF0EA5E9),
+      'asset': 'assets/images/ripple_logo.png',
     },
     {
       'id': 'Abyss',
@@ -39,6 +41,7 @@ class _AppIconScreenState extends State<AppIconScreen> {
         end: Alignment.bottomRight,
       ),
       'glow': const Color(0xFF6366F1),
+      'asset': 'assets/images/ic_launcher_abyss.png',
     },
     {
       'id': 'Gold',
@@ -50,6 +53,7 @@ class _AppIconScreenState extends State<AppIconScreen> {
         end: Alignment.bottomRight,
       ),
       'glow': const Color(0xFFFBBF24),
+      'asset': 'assets/images/ic_launcher_gold.png',
     },
     {
       'id': 'Glitch',
@@ -61,6 +65,31 @@ class _AppIconScreenState extends State<AppIconScreen> {
         end: Alignment.bottomRight,
       ),
       'glow': const Color(0xFFEC4899),
+      'asset': 'assets/images/ic_launcher_glitch.png',
+    },
+    {
+      'id': 'Forest',
+      'name': 'Emerald Forest',
+      'desc': 'Deep emerald green and neon mint.',
+      'gradient': const LinearGradient(
+        colors: [Color(0xFF064E3B), Color(0xFF10B981)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      'glow': const Color(0xFF10B981),
+      'asset': 'assets/images/ic_launcher_forest.png',
+    },
+    {
+      'id': 'Sunset',
+      'name': 'Crimson Sunset',
+      'desc': 'Hot crimson red and burning orange.',
+      'gradient': const LinearGradient(
+        colors: [Color(0xFF991B1B), Color(0xFFF97316)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      'glow': const Color(0xFFF97316),
+      'asset': 'assets/images/ic_launcher_sunset.png',
     },
   ];
 
@@ -90,6 +119,7 @@ class _AppIconScreenState extends State<AppIconScreen> {
       setState(() {
         if (success) {
           _currentIcon = id;
+          ref.read(currentAppIconProvider.notifier).state = id;
         }
         _isLoading = false;
       });
@@ -161,13 +191,12 @@ class _AppIconScreenState extends State<AppIconScreen> {
                                 padding: const EdgeInsets.all(18),
                                 child: Row(
                                   children: [
-                                    // Visual orb representing icon gradient
+                                    // Visual orb representing icon preview
                                     Container(
                                       width: 60,
                                       height: 60,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        gradient: opt['gradient'] as Gradient,
                                         border: Border.all(
                                           color: isCurrent ? Colors.white : Colors.white24,
                                           width: isCurrent ? 2 : 1,
@@ -180,11 +209,12 @@ class _AppIconScreenState extends State<AppIconScreen> {
                                           )
                                         ],
                                       ),
-                                      child: const Center(
-                                        child: Icon(
-                                          Icons.blur_on_rounded,
-                                          color: Colors.white70,
-                                          size: 32,
+                                      child: ClipOval(
+                                        child: Image.asset(
+                                          opt['asset'] as String,
+                                          width: 60,
+                                          height: 60,
+                                          fit: BoxFit.cover,
                                         ),
                                       ),
                                     ),

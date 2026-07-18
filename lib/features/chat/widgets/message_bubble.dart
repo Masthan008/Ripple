@@ -1344,7 +1344,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
 
       // Open in-app via RippleDocViewer
       GoRouter.of(context).push(
-          '/ripple-doc-viewer?filePath=${Uri.encodeComponent(savePath)}&fileName=${Uri.encodeComponent(fileName)}');
+          '/ripple-doc-viewer?filePath=${Uri.encodeComponent(savePath)}&fileName=${Uri.encodeComponent(fileName)}&fileUrl=${Uri.encodeComponent(url)}');
     } catch (e) {
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).hideCurrentSnackBar();

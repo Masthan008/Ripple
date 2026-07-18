@@ -9,8 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
-import 'package:onesignal_flutter/onesignal_flutter.dart';
-
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/presence_service.dart';
@@ -281,7 +279,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             }
 
             final totalUnread = totalChatUnread + totalGroupUnread;
-            try { OneSignal.Notifications.badgeCount = totalUnread; } catch (_) {}
 
             return RippleNavBar(
               currentIndex: _currentIndex,
