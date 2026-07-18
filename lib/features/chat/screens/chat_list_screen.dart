@@ -24,6 +24,7 @@ import '../../../core/theme/glass_theme.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/animations.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
+import '../../../shared/widgets/verified_badge.dart';
 import '../../../shared/widgets/floating_particles.dart'; // Add this
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/liquid_pull_to_refresh.dart';
@@ -2230,15 +2231,26 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
                         Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                name,
-                                style: TextStyle(
-                                  color: theme.colors.textPrimary,
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      name,
+                                      style: TextStyle(
+                                        color: theme.colors.textPrimary,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                  VerifiedBadge(
+                                    isVerified: userData['isVerified'] as bool? ?? false,
+                                    size: 14,
+                                  ),
+                                ],
                               ),
                             ),
                             // Lock Icon

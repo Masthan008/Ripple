@@ -48,6 +48,7 @@ import '../services/message_actions_service.dart';
 import '../widgets/forward_message_sheet.dart';
 import '../widgets/gif_picker_sheet.dart';
 import '../widgets/glass_input_bar.dart';
+import '../../../shared/widgets/verified_badge.dart';
 import '../../stickers/widgets/sticker_picker_sheet.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_context_menu.dart';
@@ -790,13 +791,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         List<Color>? wallpaperColors;
         String? solidColorHex;
         String? imageUrl;
+        double dimValue = 0.45;
 
         if (themeData != null) {
-          if (themeData.containsKey('imageUrl')) {
+          dimValue = (themeData['dimValue'] as num?)?.toDouble() ?? 0.45;
+          if (themeData['imageUrl'] != null) {
             imageUrl = themeData['imageUrl'] as String?;
-          } else if (themeData.containsKey('solidColor')) {
+          } else if (themeData['solidColor'] != null) {
             solidColorHex = themeData['solidColor'] as String?;
-          } else {
+          } else if (themeData['gradientColors'] != null) {
             final gradientColors = themeData['gradientColors'] as List? ?? [];
             wallpaperColors = gradientColors
                 .map((c) => Color(int.parse('FF$c', radix: 16)))
@@ -829,7 +832,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   Positioned.fill(
                     child: Container(
-                      color: Colors.black.withOpacity(0.45), // Subtle dimming overlay
+                      color: Colors.black.withOpacity(dimValue), // Dynamic dimming overlay
                     ),
                   ),
                 ] else if (solidColorHex != null) ...[
@@ -1590,11 +1593,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  widget.partnerName,
-                  style: AppTextStyles.headingSmall.copyWith(fontSize: 15),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        widget.partnerName,
+                        style: AppTextStyles.headingSmall.copyWith(fontSize: 15),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    VerifiedBadge(
+                      isVerified: partner.valueOrNull?.isVerified ?? false,
+                      size: 14,
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 1),
                 partner.when(

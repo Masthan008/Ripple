@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/l10n.dart'; // Add this
 import '../../../shared/widgets/aqua_avatar.dart';
+import '../../../shared/widgets/verified_badge.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
 import '../../auth/providers/auth_provider.dart';
@@ -196,9 +197,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   const SizedBox(height: 16),
 
                   // ─── Name & Email ──────────────────────────
-                  Text(
-                    u.name,
-                    style: AppTextStyles.display.copyWith(fontSize: 26),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          u.name,
+                          style: AppTextStyles.display.copyWith(fontSize: 26),
+                        ),
+                      ),
+                      VerifiedBadge(
+                        isVerified: u.isVerified,
+                        size: 24,
+                        padding: const EdgeInsets.only(left: 6),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 4),
                   Row(
@@ -344,6 +358,28 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ),
 
                   const SizedBox(height: 20),
+
+                  // ─── Premium Section ──────────────────────
+                  _SectionHeader(title: 'Ripple Premium'),
+                  const SizedBox(height: 8),
+                  _SettingsTile(
+                    icon: Icons.verified_rounded,
+                    title: 'Ripple Verified Badge',
+                    subtitle: u.isVerified 
+                        ? 'Your profile is verified and active' 
+                        : u.verificationStatus == 'pending'
+                            ? 'Verification status: Pending review'
+                            : 'Get a verified blue badge & premium plans',
+                    iconColor: AppColors.aquaCore,
+                    onTap: () {
+                      if (u.verificationStatus == 'pending') {
+                        context.push('/verification-waiting');
+                      } else {
+                        context.push('/plans');
+                      }
+                    },
+                  ),
+                  const SizedBox(height: 12),
 
                   // ─── Account Section ──────────────────────
                   _SectionHeader(title: L10n.s(ref, 'account')),

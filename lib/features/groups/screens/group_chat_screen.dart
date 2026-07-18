@@ -574,9 +574,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     // Build a lookup map for member names and photos
     final memberNames = <String, String>{};
     final memberPhotos = <String, String>{};
+    final memberVerified = <String, bool>{};
     members.whenData((list) {
       for (final m in list) {
         memberNames[m.uid] = m.name;
+        memberVerified[m.uid] = m.isVerified;
         if (m.photoUrl.isNotEmpty) {
           memberPhotos[m.uid] = m.photoUrl;
         }
@@ -740,6 +742,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                                     isMe: isMe,
                                     showSenderName: !isMe,
                                     senderName: senderName,
+                                    isSenderVerified: memberVerified[msg.senderId] ?? false,
                                     currentUid: myUid,
                                     chatId: widget.groupId,
                                     isGroup: true,

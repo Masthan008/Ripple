@@ -7,6 +7,7 @@ import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/privacy_service.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
+import '../../../shared/widgets/verified_badge.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../auth/models/user_model.dart';
 import '../../chat/providers/chat_provider.dart';
@@ -115,7 +116,21 @@ class _OtherUserProfileScreenState
         return Scaffold(
           backgroundColor: AppColors.abyssBackground,
           appBar: AppBar(
-            title: Text(user['name'] as String? ?? 'User', style: AppTextStyles.headingSmall),
+            title: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    user['name'] as String? ?? 'User',
+                    style: AppTextStyles.headingSmall,
+                  ),
+                ),
+                VerifiedBadge(
+                  isVerified: user['isVerified'] as bool? ?? false,
+                  size: 14,
+                ),
+              ],
+            ),
             backgroundColor: Colors.transparent,
           ),
           body: SingleChildScrollView(
@@ -145,9 +160,22 @@ class _OtherUserProfileScreenState
                   ),
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  user['name'] as String? ?? 'User',
-                  style: AppTextStyles.display.copyWith(fontSize: 26),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        user['name'] as String? ?? 'User',
+                        style: AppTextStyles.display.copyWith(fontSize: 26),
+                      ),
+                    ),
+                    VerifiedBadge(
+                      isVerified: user['isVerified'] as bool? ?? false,
+                      size: 24,
+                      padding: const EdgeInsets.only(left: 6),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 4),
                 Row(

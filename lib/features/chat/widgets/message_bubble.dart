@@ -26,6 +26,7 @@ import '../../../core/utils/haptic_feedback.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../groups/models/poll_model.dart';
 import '../../../shared/widgets/swipeable_message.dart';
+import '../../../shared/widgets/verified_badge.dart';
 import 'gaze_lock_overlay.dart';
 import 'resonance_bubble_animation.dart';
 import 'chronos_locked_bubble.dart';
@@ -47,6 +48,7 @@ class MessageBubble extends ConsumerStatefulWidget {
   final bool isMe;
   final bool showSenderName;
   final String? senderName;
+  final bool isSenderVerified;
   final String currentUid;
   final String chatId;
   final bool isGroup;
@@ -63,6 +65,7 @@ class MessageBubble extends ConsumerStatefulWidget {
     required this.isMe,
     this.showSenderName = false,
     this.senderName,
+    this.isSenderVerified = false,
     this.currentUid = '',
     this.chatId = '',
     this.isGroup = false,
@@ -208,9 +211,20 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
                           !widget.isMe)
                         Padding(
                           padding: const EdgeInsets.only(left: 4, bottom: 3),
-                          child: Text(
-                            widget.senderName!,
-                            style: AppTextStyles.senderLabel,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  widget.senderName!,
+                                  style: AppTextStyles.senderLabel,
+                                ),
+                              ),
+                              VerifiedBadge(
+                                isVerified: widget.isSenderVerified,
+                                size: 12,
+                              ),
+                            ],
                           ),
                         ),
 

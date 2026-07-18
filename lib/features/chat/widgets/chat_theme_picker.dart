@@ -29,6 +29,7 @@ class _ChatThemePickerState extends State<ChatThemePicker> with SingleTickerProv
   int _selectedSolidIndex = -1;
   File? _pickedImageFile;
   String? _uploadedImageUrl;
+  double _dimValue = 0.45;
   bool _isSaving = false;
 
   @override
@@ -48,16 +49,17 @@ class _ChatThemePickerState extends State<ChatThemePicker> with SingleTickerProv
     final theme = await ChatThemeService.getTheme(widget.chatId);
     if (theme != null && mounted) {
       setState(() {
-        if (theme.containsKey('imageUrl')) {
+        _dimValue = (theme['dimValue'] as num?)?.toDouble() ?? 0.45;
+        if (theme['imageUrl'] != null) {
           _uploadedImageUrl = theme['imageUrl'] as String?;
           _tabController.index = 2;
-        } else if (theme.containsKey('solidColor')) {
+        } else if (theme['solidColor'] != null) {
           final solidColor = theme['solidColor'] as String?;
           _selectedSolidIndex = ChatThemeService.solidColors.indexWhere((c) => c['color'] == solidColor);
           if (_selectedSolidIndex != -1) {
             _tabController.index = 1;
           }
-        } else {
+        } else if (theme['gradientColors'] != null) {
           final gradientColors = theme['gradientColors'] as List? ?? [];
           if (gradientColors.isNotEmpty) {
             final firstColor = gradientColors.first as String;
@@ -308,29 +310,36 @@ class _ChatThemePickerState extends State<ChatThemePicker> with SingleTickerProv
   }
 
   Widget _buildCustomPhotoSelector() {
+    final hasImage = _pickedImageFile != null || _uploadedImageUrl != null;
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Center(
-        child: GestureDetector(
-          onTap: _pickImage,
-          child: Container(
-            width: double.infinity,
-            height: 180,
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.03),
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(color: AppColors.glassBorder, width: 1),
-            ),
-            child: _pickedImageFile != null
-                ? ClipRRect(
-                    borderRadius: BorderRadius.circular(15),
-                    child: Image.file(
-                      _pickedImageFile!,
-                      fit: BoxFit.cover,
-                    ),
-                  )
-                : _uploadedImageUrl != null
-                    ? ClipRRect(
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                width: double.infinity,
+                height: 150,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.03),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.glassBorder, width: 1),
+                ),
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    if (_pickedImageFile != null)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: Image.file(
+                          _pickedImageFile!,
+                          fit: BoxFit.cover,
+                        ),
+                      )
+                    else if (_uploadedImageUrl != null)
+                      ClipRRect(
                         borderRadius: BorderRadius.circular(15),
                         child: Image.network(
                           _uploadedImageUrl!,
@@ -338,8 +347,72 @@ class _ChatThemePickerState extends State<ChatThemePicker> with SingleTickerProv
                           errorBuilder: (_, __, ___) => _buildPlaceholder(),
                         ),
                       )
-                    : _buildPlaceholder(),
-          ),
+                    else
+                      _buildPlaceholder(),
+                    
+                    if (hasImage)
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(15),
+                        child: Container(
+                          color: Colors.black.withOpacity(_dimValue),
+                        ),
+                      ),
+                    
+                    if (hasImage)
+                      Positioned.fill(
+                        child: Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: const Text(
+                                  "Hey! Readability preview.",
+                                  style: TextStyle(color: Colors.white, fontSize: 11),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            if (hasImage) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Icon(Icons.wb_sunny_outlined, size: 16, color: Colors.white60),
+                  Expanded(
+                    child: Slider(
+                      value: _dimValue,
+                      min: 0.0,
+                      max: 0.85,
+                      activeColor: AppColors.aquaCore,
+                      inactiveColor: Colors.white10,
+                      onChanged: (val) {
+                        setState(() {
+                          _dimValue = val;
+                        });
+                      },
+                    ),
+                  ),
+                  const Icon(Icons.brightness_3_outlined, size: 16, color: Colors.white60),
+                ],
+              ),
+              Text(
+                "Background Dimming: ${(100 - (_dimValue * 100).round())}% Brightness",
+                style: AppTextStyles.caption.copyWith(color: Colors.white38),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -417,6 +490,7 @@ class _ChatThemePickerState extends State<ChatThemePicker> with SingleTickerProv
           accentColor: '0EA5E9',
           imageUrl: finalImageUrl,
           themePresetName: 'Custom Photo',
+          dimValue: _dimValue,
         );
 
         widget.onThemeChanged?.call(null);

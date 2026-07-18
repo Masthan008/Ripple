@@ -67,6 +67,7 @@ class ChatThemeService {
     String? solidColor,
     String? imageUrl,
     String? themePresetName,
+    double? dimValue,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
@@ -78,11 +79,12 @@ class ChatThemeService {
         .set({
       'gradientColors': gradientColors,
       'accentColor': accentColor,
-      if (solidColor != null) 'solidColor': solidColor,
-      if (imageUrl != null) 'imageUrl': imageUrl,
-      if (themePresetName != null) 'themePresetName': themePresetName,
+      'solidColor': solidColor,
+      'imageUrl': imageUrl,
+      'themePresetName': themePresetName,
+      'dimValue': dimValue ?? 0.45,
       'setAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    });
   }
 
   /// Remove custom theme (revert to default)

@@ -71,6 +71,11 @@ service cloud.firestore {
         allow delete: if isOwner(userId);
         allow update: if false;
       }
+
+      // Chat themes subcollection for per-chat wallpaper customization
+      match /chat_themes/{chatId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ═══════════════════════════════════════════════════════
@@ -395,6 +400,15 @@ service cloud.firestore {
         && (resource.data.hostUid == request.auth.uid || request.auth.uid in resource.data.participants);
       allow delete: if isSignedIn()
         && resource.data.hostUid == request.auth.uid;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PAYMENTS COLLECTION
+    // ═══════════════════════════════════════════════════════
+    match /payments/{paymentId} {
+      allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
+      allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isOwner(resource.data.uid));
+      allow update, delete: if false;
     }
   }
 }

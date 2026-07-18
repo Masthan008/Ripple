@@ -34,6 +34,8 @@ import 'features/calls/screens/meetings_screen.dart';
 import 'features/calls/screens/incoming_call_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
 import 'features/profile/screens/linked_devices_screen.dart';
+import 'features/premium/screens/plans_screen.dart';
+import 'features/premium/screens/verification_waiting_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/search/screens/global_search_screen.dart';
 import 'features/chat/screens/saved_messages_screen.dart';
@@ -360,6 +362,32 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: const ProfileScreen(),
               transitionsBuilder: HolographicGlitchTransition.transitionBuilder,
             ),
+      ),
+      GoRoute(
+        path: '/plans',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const PlansScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
+              child: child,
+            );
+          },
+        ),
+      ),
+      GoRoute(
+        path: '/verification-waiting',
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const VerificationWaitingScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(
+              opacity: CurveTween(curve: Curves.easeInOut).animate(animation),
+              child: child,
+            );
+          },
+        ),
       ),
       GoRoute(
         path: '/search',

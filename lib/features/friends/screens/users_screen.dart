@@ -7,6 +7,7 @@ import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/theme/glass_theme.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
+import '../../../shared/widgets/verified_badge.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/shimmer_loader.dart';
 import '../../auth/models/user_model.dart';
@@ -260,9 +261,21 @@ class _UserTileState extends ConsumerState<_UserTile> {
               ),
             ),
             const SizedBox(height: 16),
-            Text(
-              widget.user.name,
-              style: AppTextStyles.headingSmall,
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    widget.user.name,
+                    style: AppTextStyles.headingSmall,
+                  ),
+                ),
+                VerifiedBadge(
+                  isVerified: widget.user.isVerified,
+                  size: 16,
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             ListTile(
@@ -329,11 +342,22 @@ class _UserTileState extends ConsumerState<_UserTile> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.user.name,
-                    style: AppTextStyles.headingSmall.copyWith(fontSize: 14),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.user.name,
+                          style: AppTextStyles.headingSmall.copyWith(fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      VerifiedBadge(
+                        isVerified: widget.user.isVerified,
+                        size: 12,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(

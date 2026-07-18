@@ -18,6 +18,11 @@ class UserModel {
   final Map<String, bool> privacySettings;
   final bool twoFactorEnabled;
   final int rippleScore;
+  final bool isVerified;
+  final String? subscriptionPlan;
+  final DateTime? subscriptionExpires;
+  final bool hasUsedTrial;
+  final String verificationStatus; // 'none', 'pending', 'verified'
 
   const UserModel({
     required this.uid,
@@ -48,6 +53,11 @@ class UserModel {
     },
     this.twoFactorEnabled = false,
     this.rippleScore = 0,
+    this.isVerified = false,
+    this.subscriptionPlan,
+    this.subscriptionExpires,
+    this.hasUsedTrial = false,
+    this.verificationStatus = 'none',
   });
 
   /// Create from Firestore document
@@ -73,6 +83,11 @@ class UserModel {
       privacySettings: Map<String, bool>.from(data['privacySettings'] ?? {}),
       twoFactorEnabled: data['twoFactorEnabled'] ?? false,
       rippleScore: data['rippleScore'] as int? ?? 0,
+      isVerified: data['isVerified'] ?? false,
+      subscriptionPlan: data['subscriptionPlan'] as String?,
+      subscriptionExpires: (data['subscriptionExpires'] as Timestamp?)?.toDate(),
+      hasUsedTrial: data['hasUsedTrial'] ?? false,
+      verificationStatus: data['verificationStatus'] ?? 'none',
     );
   }
 
@@ -98,6 +113,11 @@ class UserModel {
       privacySettings: Map<String, bool>.from(data['privacySettings'] ?? {}),
       twoFactorEnabled: data['twoFactorEnabled'] ?? false,
       rippleScore: data['rippleScore'] as int? ?? 0,
+      isVerified: data['isVerified'] ?? false,
+      subscriptionPlan: data['subscriptionPlan'] as String?,
+      subscriptionExpires: (data['subscriptionExpires'] as Timestamp?)?.toDate(),
+      hasUsedTrial: data['hasUsedTrial'] ?? false,
+      verificationStatus: data['verificationStatus'] ?? 'none',
     );
   }
 
@@ -120,6 +140,11 @@ class UserModel {
       'privacySettings': privacySettings,
       'twoFactorEnabled': twoFactorEnabled,
       'rippleScore': rippleScore,
+      'isVerified': isVerified,
+      'subscriptionPlan': subscriptionPlan,
+      'subscriptionExpires': subscriptionExpires != null ? Timestamp.fromDate(subscriptionExpires!) : null,
+      'hasUsedTrial': hasUsedTrial,
+      'verificationStatus': verificationStatus,
     };
   }
 
@@ -141,6 +166,11 @@ class UserModel {
     Map<String, bool>? privacySettings,
     bool? twoFactorEnabled,
     int? rippleScore,
+    bool? isVerified,
+    String? subscriptionPlan,
+    DateTime? subscriptionExpires,
+    bool? hasUsedTrial,
+    String? verificationStatus,
   }) {
     return UserModel(
       uid: uid ?? this.uid,
@@ -159,6 +189,11 @@ class UserModel {
       privacySettings: privacySettings ?? this.privacySettings,
       twoFactorEnabled: twoFactorEnabled ?? this.twoFactorEnabled,
       rippleScore: rippleScore ?? this.rippleScore,
+      isVerified: isVerified ?? this.isVerified,
+      subscriptionPlan: subscriptionPlan ?? this.subscriptionPlan,
+      subscriptionExpires: subscriptionExpires ?? this.subscriptionExpires,
+      hasUsedTrial: hasUsedTrial ?? this.hasUsedTrial,
+      verificationStatus: verificationStatus ?? this.verificationStatus,
     );
   }
 }

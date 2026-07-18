@@ -6,6 +6,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_strings.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
+import '../../../shared/widgets/verified_badge.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/water_ripple_painter.dart';
 import '../../../shared/widgets/shimmer_loader.dart';
@@ -132,11 +133,22 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    widget.user.name,
-                    style: AppTextStyles.headingSmall.copyWith(fontSize: 14),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          widget.user.name,
+                          style: AppTextStyles.headingSmall.copyWith(fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      VerifiedBadge(
+                        isVerified: widget.user.isVerified,
+                        size: 12,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(

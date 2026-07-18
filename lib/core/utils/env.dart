@@ -135,4 +135,13 @@ class Env {
       : dotenv.env['APP_ENV'] ?? 'development';
 
   static bool get isDevelopment => appEnv == 'development';
+
+  // ─── Razorpay Configuration ───────────────────────────
+  static String get razorpayKeyId => const String.fromEnvironment('RAZORPAY_KEY_ID') != ''
+      ? const String.fromEnvironment('RAZORPAY_KEY_ID')
+      : dotenv.env['RAZORPAY_KEY_ID'] ?? '';
+
+  static String get razorpayKeySecret => const String.fromEnvironment('RAZORPAY_KEY_SECRET') != ''
+      ? const String.fromEnvironment('RAZORPAY_KEY_SECRET')
+      : dotenv.env['RAZORPAY_KEY_SECRET'] ?? '';
 }
