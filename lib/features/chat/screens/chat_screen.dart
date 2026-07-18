@@ -28,6 +28,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/l10n.dart'; // Add this
+import 'package:cached_network_image/cached_network_image.dart';
 import '../../../core/services/cloudinary_service.dart';
 import '../../status/services/status_service.dart';
 import '../../../shared/widgets/aurora_background.dart';
@@ -1407,6 +1408,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           KeywordParticleOverlay(triggerKeyword: _lastSentText),
         ],
       ),
+      ),
+      ],
       ),
       ),
     );
