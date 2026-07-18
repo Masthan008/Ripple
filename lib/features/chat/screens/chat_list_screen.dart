@@ -462,20 +462,30 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                         );
                       },
                     )
-                  : currentUser == null
-                      ? const SizedBox.shrink()
-                      : StreamBuilder<DocumentSnapshot>(
-                        stream:
-                            FirebaseService.firestore
-                                .collection('users')
-                                .doc(currentUser.uid)
-                                .snapshots(),
-                        builder: (ctx, userSnap) {
-                          final userData =
-                              userSnap.data?.data() is Map<String, dynamic>
-                                  ? userSnap.data!.data()
-                                      as Map<String, dynamic>
-                                  : <String, dynamic>{};
+                      : currentUser == null
+                          ? const Center(
+                              child: CircularProgressIndicator(
+                                valueColor: AlwaysStoppedAnimation(
+                                  AppColors.aquaCore,
+                                ),
+                              ),
+                            )
+                          : StreamBuilder<DocumentSnapshot>(
+                            stream:
+                                FirebaseService.firestore
+                                    .collection('users')
+                                    .doc(currentUser.uid)
+                                    .snapshots(),
+                            builder: (ctx, userSnap) {
+                              if (userSnap.connectionState ==
+                                  ConnectionState.waiting) {
+                                return const _ChatShimmer();
+                              }
+                              final userData =
+                                  userSnap.data?.data() is Map<String, dynamic>
+                                      ? userSnap.data!.data()
+                                          as Map<String, dynamic>
+                                      : <String, dynamic>{};
                           final pinnedIds = userData['pinnedChats'] is List
                               ? List<String>.from(userData['pinnedChats'] as List)
                               : <String>[];

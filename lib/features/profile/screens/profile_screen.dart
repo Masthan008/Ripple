@@ -115,6 +115,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             ),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
                           shadowColor: Colors.transparent,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),

@@ -187,7 +187,10 @@ class _HelpScreenState extends State<HelpScreen> {
                               borderRadius: 14,
                               padding: EdgeInsets.zero,
                               child: Theme(
-                                data: ThemeData(dividerColor: Colors.transparent),
+                                data: ThemeData(
+                                  brightness: Brightness.dark,
+                                  dividerColor: Colors.transparent,
+                                ),
                                 child: ExpansionTile(
                                   tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                                   childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),

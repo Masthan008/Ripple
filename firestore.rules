@@ -364,6 +364,19 @@ service cloud.firestore {
     }
 
     // ═══════════════════════════════════════════════════════
+    // SUPPORT TICKETS (Contact Support form)
+    // ═══════════════════════════════════════════════════════
+    match /support_tickets/{ticketId} {
+      // Any authenticated user can create a support ticket
+      allow create: if isSignedIn();
+      // Users can read their own tickets
+      allow read: if isSignedIn()
+        && request.auth.uid == resource.data.uid;
+      // Only system can update/delete
+      allow update, delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════
     // MEETINGS COLLECTION
     // ═══════════════════════════════════════════════════════
     match /meetings/{meetingId} {

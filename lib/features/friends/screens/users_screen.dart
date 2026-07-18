@@ -195,6 +195,22 @@ class _UserTileState extends ConsumerState<_UserTile> {
     try {
       final service = ref.read(friendsServiceProvider);
       await service.sendFriendRequest(widget.user.uid);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text('Friend request sent!'),
+              ],
+            ),
+            backgroundColor: AppColors.onlineGreen,
+            duration: const Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -330,17 +346,29 @@ class _UserTileState extends ConsumerState<_UserTile> {
               ),
             ),
             const SizedBox(width: 10),
-            _buildActionButton(),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              switchInCurve: Curves.easeOut,
+              switchOutCurve: Curves.easeIn,
+              transitionBuilder: (child, animation) {
+                return ScaleTransition(
+                  scale: animation,
+                  child: child,
+                );
+              },
+              child: _buildActionButton(key: ValueKey('${widget.user.uid}-${widget.isFriend}-${widget.isRequestSent}-$_isLoading')),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildActionButton() {
+  Widget _buildActionButton({Key? key}) {
     // State 4: Loading — spinner while async write in progress
     if (_isLoading) {
       return Container(
+        key: key,
         width: 90,
         height: 32,
         decoration: BoxDecoration(
@@ -364,6 +392,7 @@ class _UserTileState extends ConsumerState<_UserTile> {
     // State 3: Friends — green border, checkmark
     if (widget.isFriend) {
       return GestureDetector(
+        key: key,
         onTap: _showFriendsOptions,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -396,6 +425,7 @@ class _UserTileState extends ConsumerState<_UserTile> {
     // State 2: Request Sent — outlined with clock icon
     if (widget.isRequestSent) {
       return GestureDetector(
+        key: key,
         onTap: _cancelRequest,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
@@ -425,6 +455,7 @@ class _UserTileState extends ConsumerState<_UserTile> {
 
     // State 1: Add Friend — cyan gradient button
     return GestureDetector(
+      key: key,
       onTap: _sendRequest,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),

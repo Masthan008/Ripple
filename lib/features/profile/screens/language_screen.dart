@@ -47,7 +47,8 @@ class LanguageScreen extends ConsumerWidget {
           onPressed: () => Navigator.pop(context),
         ),
       ),
-      body: ListView.builder(
+      body: SafeArea(
+        child: ListView.builder(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
         itemCount: languages.length,
         itemBuilder: (context, index) {
@@ -102,6 +103,7 @@ class LanguageScreen extends ConsumerWidget {
             ),
           );
         },
+      ),
       ),
     );
   }

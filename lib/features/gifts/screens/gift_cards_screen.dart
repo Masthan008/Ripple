@@ -472,19 +472,20 @@ class _GiftPreviewSheet extends StatelessWidget {
             child: Row(
               children: [
                 Expanded(
-                  child: ElevatedButton(
+                  child: OutlinedButton(
                     onPressed: () => Navigator.pop(context),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.white.withValues(alpha: 0.1),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      side: const BorderSide(
+                        color: AppColors.aquaCore,
+                        width: 1.5,
+                      ),
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Cancel',
-                      style: TextStyle(color: Colors.white),
-                    ),
+                    child: const Text('Cancel'),
                   ),
                 ),
                 const SizedBox(width: 16),

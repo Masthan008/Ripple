@@ -18,6 +18,7 @@ class FriendSuggestionsScreen extends ConsumerStatefulWidget {
 class _FriendSuggestionsScreenState extends ConsumerState<FriendSuggestionsScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _suggestions = [];
+  String? _loadingUid;
 
   @override
   void initState() {
@@ -36,18 +37,33 @@ class _FriendSuggestionsScreenState extends ConsumerState<FriendSuggestionsScree
   }
 
   Future<void> _addFriend(String targetUid) async {
+    if (_loadingUid != null) return;
+    setState(() => _loadingUid = targetUid);
     try {
       await ref.read(friendsServiceProvider).sendFriendRequest(targetUid);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Friend request sent!'), backgroundColor: AppColors.aquaCore),
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle_rounded, color: Colors.white, size: 18),
+                SizedBox(width: 8),
+                Text('Friend request sent!'),
+              ],
+            ),
+            backgroundColor: AppColors.onlineGreen,
+            duration: Duration(seconds: 2),
+            behavior: SnackBarBehavior.floating,
+          ),
         );
         setState(() {
           _suggestions.removeWhere((s) => s['uid'] == targetUid);
+          _loadingUid = null;
         });
       }
     } catch (e) {
       if (mounted) {
+        setState(() => _loadingUid = null);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.errorRed),
         );
@@ -124,19 +140,49 @@ class _FriendSuggestionsScreenState extends ConsumerState<FriendSuggestionsScree
                               ),
                             ),
                             const SizedBox(width: 8),
-                            GestureDetector(
-                              onTap: () => _addFriend(user['uid']),
-                              child: Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                                decoration: BoxDecoration(
-                                  gradient: AppColors.buttonGradient,
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                                child: Text(
-                                  'Add Friend',
-                                  style: AppTextStyles.caption.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
-                                ),
-                              ),
+                            AnimatedSwitcher(
+                              duration: const Duration(milliseconds: 300),
+                              switchInCurve: Curves.easeOut,
+                              switchOutCurve: Curves.easeIn,
+                              transitionBuilder: (child, animation) {
+                                return ScaleTransition(scale: animation, child: child);
+                              },
+                              child: _loadingUid == user['uid']
+                                  ? Container(
+                                      key: const ValueKey('loading'),
+                                      width: 90,
+                                      height: 32,
+                                      decoration: BoxDecoration(
+                                        color: AppColors.glassPanel,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(color: AppColors.glassBorder),
+                                      ),
+                                      child: const Center(
+                                        child: SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
+                                          ),
+                                        ),
+                                      ),
+                                    )
+                                  : GestureDetector(
+                                      key: ValueKey('add-${user['uid']}'),
+                                      onTap: () => _addFriend(user['uid']),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                        decoration: BoxDecoration(
+                                          gradient: AppColors.buttonGradient,
+                                          borderRadius: BorderRadius.circular(10),
+                                        ),
+                                        child: Text(
+                                          'Add Friend',
+                                          style: AppTextStyles.caption.copyWith(color: Colors.white, fontWeight: FontWeight.bold),
+                                        ),
+                                      ),
+                                    ),
                             ),
                           ],
                         ),

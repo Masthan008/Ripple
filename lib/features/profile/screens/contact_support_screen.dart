@@ -97,9 +97,12 @@ class _ContactSupportScreenState extends ConsumerState<ContactSupportScreen> {
       }
     } catch (e) {
       if (mounted) {
+        final msg = e.toString().contains('permission')
+            ? 'Unable to submit ticket — the support system is being configured. Please try again later.'
+            : 'Failed to submit ticket: $e';
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit ticket: $e'),
+            content: Text(msg),
             backgroundColor: AppColors.errorRed,
           ),
         );
