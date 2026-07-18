@@ -23,6 +23,7 @@ import 'accessibility_screen.dart';
 import 'language_screen.dart';
 import 'chat_backup_screen.dart';
 import 'app_icon_screen.dart';
+import '../../premium/services/subscription_service.dart';
 import '../providers/settings_provider.dart'; // Add this
 import 'storage_usage_screen.dart';
 import 'data_usage_screen.dart';
@@ -46,6 +47,7 @@ class ProfileScreen extends ConsumerStatefulWidget {
 class _ProfileScreenState extends ConsumerState<ProfileScreen>
     with SingleTickerProviderStateMixin {
   late AnimationController _animController;
+  String _subStatus = 'none';
 
   @override
   void initState() {
@@ -54,6 +56,60 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
       vsync: this,
       duration: const Duration(milliseconds: 600),
     )..forward();
+    _checkSubscription();
+  }
+
+  Future<void> _checkSubscription() async {
+    // Wait a brief moment for auth state to populate
+    await Future.delayed(const Duration(milliseconds: 200));
+    final uid = ref.read(currentUserProvider).value?.uid;
+    if (uid != null) {
+      final status = await ref.read(subscriptionServiceProvider).checkSubscriptionTimeline(uid);
+      if (mounted) {
+        setState(() {
+          _subStatus = status;
+        });
+        if (status == 'expired') {
+          _showExpiryDialog();
+        }
+      }
+    }
+  }
+
+  void _showExpiryDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Badge Expired',
+          style: AppTextStyles.heading.copyWith(color: AppColors.errorRed),
+        ),
+        content: Text(
+          'Your Ripple Verified badge subscription period has ended. Please renew to restore your verified badge.',
+          style: AppTextStyles.body.copyWith(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Dismiss', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.aquaCore,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/plans');
+            },
+            child: const Text('Renew Now', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -358,6 +414,54 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ),
 
                   const SizedBox(height: 20),
+
+                  if (_subStatus == 'expiring_soon') ...[
+                    GestureDetector(
+                      onTap: () => context.push('/plans'),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          gradient: const LinearGradient(
+                            colors: [Color(0x20F59E0B), Color(0x10EF4444)],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Verified Badge Expiring Soon!',
+                                    style: AppTextStyles.headingSmall.copyWith(
+                                      color: Colors.amber,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Your Ripple Verified tick mark will expire in less than 3 days. Tap here to renew your plan.',
+                                    style: AppTextStyles.body.copyWith(
+                                      color: Colors.white70,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.chevron_right_rounded, color: Colors.white30),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                  ],
 
                   // ─── Premium Section ──────────────────────
                   _SectionHeader(title: 'Ripple Premium'),

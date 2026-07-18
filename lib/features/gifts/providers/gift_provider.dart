@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 import '../models/gift_card_model.dart';
 import '../services/gift_service.dart';
@@ -8,6 +10,19 @@ import '../services/gift_service.dart';
 /// Provider for available gift card themes
 final availableGiftCardsProvider = StreamProvider<List<GiftCardModel>>((ref) {
   return GiftService.getAvailableGiftCards();
+});
+
+/// Provider for purchased gift cards in user inventory
+final purchasedGiftCardsProvider = StreamProvider<List<GiftCardModel>>((ref) {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return Stream.value([]);
+  return FirebaseFirestore.instance
+      .collection('users')
+      .doc(uid)
+      .collection('purchased_gift_cards')
+      .orderBy('purchasedAt', descending: true)
+      .snapshots()
+      .map((snap) => snap.docs.map((d) => GiftCardModel.fromMap(d.data(), d.id)).toList());
 });
 
 /// Provider for gifts sent by current user

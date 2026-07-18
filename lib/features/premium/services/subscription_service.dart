@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../auth/models/user_model.dart';
@@ -76,6 +77,53 @@ class SubscriptionService {
     });
 
     await batch.commit();
+  }
+
+  /// Check user subscription timeline on startup/in settings and auto-expire if past the end date.
+  /// Returns a status string: 'expired', 'expiring_soon', 'active', or 'none'.
+  Future<String> checkSubscriptionTimeline(String uid) async {
+    try {
+      final userDoc = await _usersRef.doc(uid).get();
+      if (!userDoc.exists) return 'none';
+      
+      final data = userDoc.data();
+      if (data == null) return 'none';
+
+      final subscriptionPlan = data['subscriptionPlan'] as String?;
+      final subscriptionExpires = data['subscriptionExpires'] as Timestamp?;
+      final isVerified = data['isVerified'] as bool? ?? false;
+      final verificationStatus = data['verificationStatus'] as String? ?? 'none';
+
+      if (subscriptionPlan == null || subscriptionPlan.isEmpty || subscriptionExpires == null) {
+        return 'none';
+      }
+
+      final expiryDate = subscriptionExpires.toDate();
+      final now = DateTime.now();
+
+      if (now.isAfter(expiryDate)) {
+        // Revert to unverified status if it was active
+        if (isVerified || verificationStatus != 'none') {
+          await _usersRef.doc(uid).update({
+            'isVerified': false,
+            'verificationStatus': 'none',
+            'subscriptionPlan': '',
+          });
+          return 'expired';
+        }
+        return 'none';
+      }
+
+      final difference = expiryDate.difference(now);
+      if (difference.inDays <= 3) {
+        return 'expiring_soon';
+      }
+
+      return 'active';
+    } catch (e) {
+      debugPrint('Error checking subscription timeline: $e');
+      return 'none';
+    }
   }
 
   /// Check if the user subscription is currently active

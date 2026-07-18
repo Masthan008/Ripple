@@ -319,6 +319,201 @@ class GiftService {
 
     return friends;
   }
+
+  /// Purchase a gift card via Razorpay
+  static Future<void> buyGiftCard({
+    required String giftCardId,
+    required String title,
+    required String category,
+    required int amount,
+    required String paymentId,
+    required String orderId,
+    required String signature,
+  }) async {
+    final uid = _uid;
+    if (uid == null) throw Exception('Not authenticated');
+
+    final batch = _fs.batch();
+    
+    // 1. Save to user inventory: users/{uid}/purchased_gift_cards/{id}
+    final cardRef = _fs
+        .collection('users')
+        .doc(uid)
+        .collection('purchased_gift_cards')
+        .doc();
+        
+    // Generate a unique random claim code (e.g. RIPPLE-GIFT-ABCD-EFGH)
+    final claimCode = 'RIPPLE-GIFT-${_generateRandomCode()}';
+
+    batch.set(cardRef, {
+      'id': cardRef.id,
+      'giftCardId': giftCardId,
+      'title': title,
+      'description': 'Ripple Digital Gift Card ($category theme)',
+      'theme': category,
+      'amount': amount,
+      'code': claimCode,
+      'isRedeemed': false,
+      'isTransferred': false,
+      'purchasedAt': FieldValue.serverTimestamp(),
+    });
+
+    // 2. Log payment in top-level payments collection
+    final logRef = _fs.collection('payments').doc();
+    batch.set(logRef, {
+      'id': logRef.id,
+      'uid': uid,
+      'type': 'gift_card',
+      'amount': amount,
+      'paymentId': paymentId,
+      'orderId': orderId,
+      'signature': signature,
+      'giftCardId': giftCardId,
+      'giftCardTitle': title,
+      'timestamp': FieldValue.serverTimestamp(),
+      'status': 'success',
+    });
+
+    await batch.commit();
+    debugPrint('🎁 Purchased gift card: ${cardRef.id} with code: $claimCode');
+  }
+
+  /// Redeem a purchased gift card in own inventory
+  static Future<void> redeemPurchasedGiftCard(String cardId) async {
+    final uid = _uid;
+    if (uid == null) throw Exception('Not authenticated');
+
+    final docRef = _fs
+        .collection('users')
+        .doc(uid)
+        .collection('purchased_gift_cards')
+        .doc(cardId);
+
+    final doc = await docRef.get();
+    if (!doc.exists) throw Exception('Gift card not found');
+    
+    final data = doc.data()!;
+    if (data['isRedeemed'] == true) throw Exception('Card is already redeemed');
+    if (data['isTransferred'] == true) throw Exception('Card is already sent to a friend');
+
+    // Update state to redeemed
+    await docRef.update({
+      'isRedeemed': true,
+      'redeemedAt': FieldValue.serverTimestamp(),
+    });
+
+    // Award simulated points/RP or credits to user profile
+    final userRef = _fs.collection('users').doc(uid);
+    await _fs.runTransaction((transaction) async {
+      final userSnapshot = await transaction.get(userRef);
+      if (userSnapshot.exists) {
+        final currentScore = userSnapshot.data()?['rippleScore'] as int? ?? 0;
+        final amount = data['amount'] as int? ?? 0;
+        transaction.update(userRef, {
+          'rippleScore': currentScore + amount,
+        });
+      }
+    });
+
+    debugPrint('🎁 Gift card redeemed: $cardId');
+  }
+
+  /// Send a purchased gift card from own inventory to a friend
+  static Future<void> sendPurchasedGiftCard({
+    required String cardId,
+    required String recipientId,
+    required String recipientName,
+    String? message,
+  }) async {
+    final uid = _uid;
+    if (uid == null) throw Exception('Not authenticated');
+
+    final cardRef = _fs
+        .collection('users')
+        .doc(uid)
+        .collection('purchased_gift_cards')
+        .doc(cardId);
+
+    final cardDoc = await cardRef.get();
+    if (!cardDoc.exists) throw Exception('Gift card not found');
+
+    final cardData = cardDoc.data()!;
+    if (cardData['isRedeemed'] == true) throw Exception('Card is already redeemed');
+    if (cardData['isTransferred'] == true) throw Exception('Card is already sent to a friend');
+
+    final giftRef = _fs.collection('gifts').doc();
+    final giftId = giftRef.id;
+    final now = FieldValue.serverTimestamp();
+
+    final batch = _fs.batch();
+
+    // 1. Mark our card as transferred
+    batch.update(cardRef, {
+      'isTransferred': true,
+      'transferredToId': recipientId,
+      'transferredToName': recipientName,
+      'transferredAt': now,
+    });
+
+    // 2. Create the main gift document
+    batch.set(giftRef, {
+      'senderId': uid,
+      'senderName': _myName,
+      'recipientId': recipientId,
+      'recipientName': recipientName,
+      'giftCardId': cardData['giftCardId'],
+      'theme': cardData['theme'],
+      'amount': cardData['amount'],
+      'message': message ?? 'Here is a gift card code for you: ${cardData['code']}',
+      'status': 'pending',
+      'sentAt': now,
+      'expiresAt': Timestamp.fromDate(DateTime.now().add(const Duration(days: 30))),
+    });
+
+    // 3. Add to sender's sent collection
+    final sentRef = _fs
+        .collection('users')
+        .doc(uid)
+        .collection('giftsSent')
+        .doc(giftId);
+    batch.set(sentRef, {
+      'giftId': giftId,
+      'recipientId': recipientId,
+      'recipientName': recipientName,
+      'theme': cardData['theme'],
+      'amount': cardData['amount'],
+      'status': 'pending',
+      'sentAt': now,
+    });
+
+    // 4. Add to recipient's received collection
+    final receivedRef = _fs
+        .collection('users')
+        .doc(recipientId)
+        .collection('giftsReceived')
+        .doc(giftId);
+    batch.set(receivedRef, {
+      'giftId': giftId,
+      'senderId': uid,
+      'senderName': _myName,
+      'theme': cardData['theme'],
+      'amount': cardData['amount'],
+      'message': message ?? 'Here is a gift card code for you: ${cardData['code']}',
+      'status': 'pending',
+      'isNew': true,
+      'receivedAt': now,
+    });
+
+    await batch.commit();
+    debugPrint('🎁 Sent purchased gift card $cardId to friend $recipientId');
+  }
+
+  static String _generateRandomCode() {
+    final rand = DateTime.now().microsecondsSinceEpoch.toString();
+    if (rand.length < 8) return '5839-2947';
+    final suffix = rand.substring(rand.length - 8);
+    return '${suffix.substring(0, 4)}-${suffix.substring(4)}';
+  }
 }
 
 /// Sent gift model

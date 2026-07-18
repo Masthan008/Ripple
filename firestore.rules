@@ -76,6 +76,11 @@ service cloud.firestore {
       match /chat_themes/{chatId} {
         allow read, write: if isOwner(userId);
       }
+
+      // Purchased gift cards inventory
+      match /purchased_gift_cards/{cardId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ═══════════════════════════════════════════════════════
