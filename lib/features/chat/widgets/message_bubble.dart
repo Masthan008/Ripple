@@ -1292,7 +1292,17 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
     String fileName,
   ) async {
     final url = widget.message.mediaUrl;
-    if (url == null || url.isEmpty) return;
+    if (url == null || url.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('File source unavailable'),
+            backgroundColor: Colors.red.shade800,
+          ),
+        );
+      }
+      return;
+    }
 
     // Show downloading snackbar
     ScaffoldMessenger.of(context).showSnackBar(

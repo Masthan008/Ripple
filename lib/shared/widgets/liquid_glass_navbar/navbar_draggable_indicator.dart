@@ -29,6 +29,7 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
 
     // Adaptive width based on item count — scaled to fit icon size
     final adaptiveWidth = (baseSize * (2.4 / itemCount).clamp(0.7, 1.0));
+    final indicatorHeight = adaptiveWidth * 0.75;
 
     // Clamp the center so indicator never goes off-screen
     final clampedCenter = position.clamp(
@@ -38,6 +39,9 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
 
     return Positioned(
       left: clampedCenter - adaptiveWidth / 2, // exact center
+      // Center the indicator vertically behind the icon+label area
+      // Icons are roughly at y=12..36 and labels at y=40..52 within the 72px navbar
+      // So center the pill around y ~20 from bottom of the navbar (72 - 20 - height/2)
       bottom: bottomOffset + 18,
       child: GestureDetector(
         onHorizontalDragUpdate: (details) {
@@ -80,7 +84,7 @@ class LiquidNavbarDraggableIndicator extends StatelessWidget {
               child: GlassGlow(
                 child: Container(
                   width: adaptiveWidth,
-                  height: adaptiveWidth * 0.6,
+                  height: indicatorHeight,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(adaptiveWidth / 2),
                   ),

@@ -2,6 +2,7 @@ import '../../../core/utils/haptic_feedback.dart';
 import '../../groups/widgets/create_poll_sheet.dart';
 import '../../groups/models/poll_model.dart';
 import 'cloud_drive_screen.dart';
+import 'dart:async';
 import 'dart:io';
 import 'dart:convert';
 import 'dart:math' as math;
@@ -99,9 +100,11 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
+  bool _disposed = false;
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   late final SensoryTextController _sensoryController;
+  StreamSubscription? _privacySubscription;
   bool _isSending = false;
   bool _showEmojiPicker = false;
 
@@ -142,6 +145,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // In-Chat Search state
   bool _isSearching = false;
   final _searchController = TextEditingController();
+
+  // Applied chat wallpaper theme (instant local feedback)
+  List<Color>? _appliedWallpaperColors;
 
   @override
   void initState() {
@@ -196,10 +202,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
-    // Clear active chat tracking
+    _disposed = true;
+    // Cancel Firestore privacy listener FIRST to stop callbacks
+    _privacySubscription?.cancel();
+    _privacySubscription = null;
+    // Clear typing status while ref is still valid (before super.dispose)
+    try {
+      ref.read(chatServiceProvider).clearTyping();
+    } catch (_) {}
     NotificationService.currentActiveChatId = null;
-    // Clear typing status when leaving the chat
-    ref.read(chatServiceProvider).clearTyping();
     _sensoryController.dispose();
     ChronosUnlockService.instance.stopMonitoring();
     _messageController.dispose();
@@ -380,12 +391,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final prefs = await SharedPreferences.getInstance();
 
       // Watch privacy settings for real-time updates
-      FirebaseService.firestore
+      // Cancel any previous subscription before creating a new one
+      _privacySubscription?.cancel();
+      _privacySubscription = FirebaseService.firestore
           .collection('users')
           .doc(ref.read(chatServiceProvider).myUid)
           .snapshots()
           .listen((snap) {
-            if (!mounted) return;
+            if (!mounted || _disposed) return;
             final data = snap.data() as Map<String, dynamic>?;
             final privacy = data?['privacy'] as Map<String, dynamic>? ?? {};
 
@@ -776,6 +789,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               .map((c) => Color(int.parse('FF$c', radix: 16)))
               .toList();
         }
+        final activeWallpaper = _appliedWallpaperColors ??
+            (wallpaperColors != null && wallpaperColors.isNotEmpty
+                ? wallpaperColors
+                : null);
 
         return Scaffold(
           backgroundColor: bgColor,
@@ -788,9 +805,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       sentienceState.secondaryGlow,
                       sentienceState.accentGlow
                     ]
-                  : (wallpaperColors != null && wallpaperColors.isNotEmpty
-                      ? wallpaperColors
-                      : null),
+                  : activeWallpaper,
               animationSpeed: sentienceState.animationSpeed,
               child: Stack(
                 children: [
@@ -843,27 +858,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         child: Text('Error: $e', style: AppTextStyles.caption),
                       ),
                   data: (msgs) {
-                    // Check for self destructing messages
-                    _checkSelfDestruct(msgs);
+                    // Defer side-effects to after build to avoid
+                    // infinite rebuild loops (especially on new/empty chats)
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (!mounted || _disposed) return;
+                      // Check for self destructing messages
+                      _checkSelfDestruct(msgs);
 
-                    // Load AI smart replies for the latest incoming message
-                    _checkAndLoadSmartReplies(msgs);
+                      // Load AI smart replies for the latest incoming message
+                      _checkAndLoadSmartReplies(msgs);
 
-                    // Sentience Engine™ — analyze emotional tone
-                    if (msgs.isNotEmpty) {
-                      final recentTexts = msgs
-                          .take(5)
-                          .where((m) => m.text != null && m.text!.isNotEmpty)
-                          .map((m) => <String, String>{
-                                'sender': m.senderId == currentUser ? 'Me' : widget.partnerName,
-                                'text': m.text!,
-                              })
-                          .toList()
-                          .reversed
-                          .toList();
-                      ref.read(sentienceProvider(widget.chatId).notifier)
-                          .analyze(recentTexts, msgs.first.id);
-                    }
+                      // Sentience Engine™ — analyze emotional tone
+                      if (msgs.isNotEmpty) {
+                        final recentTexts = msgs
+                            .take(5)
+                            .where((m) => m.text != null && m.text!.isNotEmpty)
+                            .map((m) => <String, String>{
+                                  'sender': m.senderId == currentUser ? 'Me' : widget.partnerName,
+                                  'text': m.text!,
+                                })
+                            .toList()
+                            .reversed
+                            .toList();
+                        ref.read(sentienceProvider(widget.chatId).notifier)
+                            .analyze(recentTexts, msgs.first.id);
+                      }
+                    });
 
                     // Filter out expired and deleted messages
                     final now = DateTime.now();
@@ -1676,7 +1696,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   builder:
                       (_) => ChatThemePicker(
                         chatId: widget.chatId,
-                        onThemeChanged: () => setState(() {}),
+                        onThemeChanged: (colors) {
+                          setState(() => _appliedWallpaperColors = colors);
+                        },
                       ),
                 );
               } else if (value == 'export') {

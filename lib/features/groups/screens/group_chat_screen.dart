@@ -1081,9 +1081,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     return Container(
       padding: EdgeInsets.only(
         top: MediaQuery.of(context).padding.top + 8,
-        left: 8,
-        right: 16,
-        bottom: 12,
+        left: 4,
+        right: 8,
+        bottom: 10,
       ),
       decoration: const BoxDecoration(
         color: Color(0xE6060D1A),
@@ -1092,7 +1092,9 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
+            icon: const Icon(Icons.arrow_back_ios_rounded, size: 18),
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
             onPressed: () => Navigator.of(context).pop(),
           ),
           StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
@@ -1109,11 +1111,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                         ? photoUrl
                         : widget.groupPhoto,
                 name: widget.groupName,
-                size: 36,
+                size: 32,
               );
             },
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1141,21 +1143,21 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
           GestureDetector(
             onTap: () => _startGroupCall(isVideo: true),
             child: Container(
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.glassBorder, width: 0.5),
               ),
               child: const Icon(
                 Icons.videocam_rounded,
                 color: AppColors.lightWave,
-                size: 18,
+                size: 16,
               ),
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           // Spatial Threads toggle
           GestureDetector(
             onTap: () {
@@ -1163,11 +1165,11 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               AppHaptics.lightTap();
             },
             child: Container(
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: _isSpatialMode ? const Color(0xFF6366F1).withOpacity(0.2) : AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: _isSpatialMode ? const Color(0xFF6366F1) : AppColors.glassBorder, 
                   width: _isSpatialMode ? 1.5 : 0.5,
@@ -1176,26 +1178,26 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
               child: Icon(
                 _isSpatialMode ? Icons.grain_rounded : Icons.hub_outlined,
                 color: _isSpatialMode ? const Color(0xFF6366F1) : AppColors.lightWave,
-                size: 18,
+                size: 16,
               ),
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           // Catch Up button
           GestureDetector(
             onTap: _isSummarizing ? null : _catchUpSummary,
             child: Container(
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.glassBorder, width: 0.5),
               ),
               child: _isSummarizing
                   ? const SizedBox(
-                      width: 16,
-                      height: 16,
+                      width: 14,
+                      height: 14,
                       child: CircularProgressIndicator(
                         strokeWidth: 2,
                         valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
@@ -1204,30 +1206,30 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   : const Icon(
                       Icons.auto_awesome,
                       color: Colors.amber,
-                      size: 18,
+                      size: 16,
                     ),
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           // Audio call button
           GestureDetector(
             onTap: () => _startGroupCall(isVideo: false),
             child: Container(
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.glassBorder, width: 0.5),
               ),
               child: const Icon(
                 Icons.call_rounded,
                 color: AppColors.lightWave,
-                size: 18,
+                size: 16,
               ),
             ),
           ),
-          const SizedBox(width: 6),
+          const SizedBox(width: 4),
           // Group info button
           GestureDetector(
             onTap:
@@ -1242,21 +1244,21 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
                   ),
                 ),
             child: Container(
-              width: 36,
-              height: 36,
+              width: 32,
+              height: 32,
               decoration: BoxDecoration(
                 color: AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: AppColors.glassBorder, width: 0.5),
               ),
               child: const Icon(
                 Icons.info_outline_rounded,
                 color: AppColors.lightWave,
-                size: 18,
+                size: 16,
               ),
             ),
           ),
-          const SizedBox(width: 4),
+          const SizedBox(width: 2),
           // More menu (Media gallery)
           PopupMenuButton<String>(
             icon: const Icon(

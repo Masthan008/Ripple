@@ -397,11 +397,11 @@ class _IconBtn extends StatelessWidget {
         onTap?.call();
       },
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 8),
         child: Icon(
           icon,
           color: color ?? AppColors.textMuted,
-          size: size ?? 22,
+          size: size ?? 20,
         ),
       ),
     );

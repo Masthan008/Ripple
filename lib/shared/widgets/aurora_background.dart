@@ -135,9 +135,13 @@ class _AuroraPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    if (colors.isEmpty) return;
     for (var blob in blobs) {
+      // Use modulo to safely wrap around whatever list length we have,
+      // preventing RangeError when customColors has fewer than 3 entries.
+      final safeIndex = blob.colorIndex % colors.length;
       final paint = Paint()
-        ..color = colors[blob.colorIndex]
+        ..color = colors[safeIndex]
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 40);
 
       canvas.drawCircle(

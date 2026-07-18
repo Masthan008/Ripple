@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -102,6 +103,14 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
     return const ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'].contains(ext);
   }
 
+  bool _isPdfExtension(String ext) {
+    return ext == 'pdf';
+  }
+
+  bool _isOfficeExtension(String ext) {
+    return const ['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].contains(ext);
+  }
+
   void _openExternally() {
     if (_localPath != null) {
       OpenFilex.open(_localPath!);
@@ -156,6 +165,9 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
     final ext = widget.fileName.split('.').last.toLowerCase();
     final isText = _isTextExtension(ext);
     final isImage = _isImageExtension(ext);
+    final isPdf = _isPdfExtension(ext);
+    final isOffice = _isOfficeExtension(ext);
+    final canRenderInline = isText || isImage || isPdf;
 
     return Scaffold(
       backgroundColor: AppColors.abyssBackground,
@@ -184,11 +196,11 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
           ],
         ],
       ),
-      body: _buildBody(isText, isImage, ext),
+      body: _buildBody(isText, isImage, isPdf, isOffice, ext, canRenderInline),
     );
   }
 
-  Widget _buildBody(bool isText, bool isImage, String ext) {
+  Widget _buildBody(bool isText, bool isImage, bool isPdf, bool isOffice, String ext, bool canRenderInline) {
     if (_isLoading) {
       return const Center(child: CircularProgressIndicator(color: AppColors.aquaCore));
     }
@@ -228,6 +240,20 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
         child: InteractiveViewer(
           maxScale: 5.0,
           child: Image.file(File(_localPath!)),
+        ),
+      );
+    }
+
+    if (isPdf && _localPath != null) {
+      final pdfUri = Uri.file(_localPath!).toString();
+      return InAppWebView(
+        initialSettings: InAppWebViewSettings(
+          javaScriptEnabled: true,
+          allowFileAccessFromFileURLs: true,
+          allowUniversalAccessFromFileURLs: true,
+        ),
+        initialUrlRequest: URLRequest(
+          url: WebUri(pdfUri),
         ),
       );
     }

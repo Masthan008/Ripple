@@ -477,7 +477,7 @@ class _GiftPreviewSheet extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       foregroundColor: Colors.white,
                       side: const BorderSide(
-                        color: AppColors.aquaCore,
+                        color: Colors.white38,
                         width: 1.5,
                       ),
                       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -512,7 +512,6 @@ class _GiftPreviewSheet extends StatelessWidget {
                             );
                           }
                         } else {
-                          // Fallback to mock completed payment if no UPI app installed
                           if (context.mounted) {
                             Navigator.pop(context);
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -536,7 +535,8 @@ class _GiftPreviewSheet extends StatelessWidget {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.aquaCore,
+                      backgroundColor: Colors.white,
+                      foregroundColor: Colors.black87,
                       padding: const EdgeInsets.symmetric(vertical: 16),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),

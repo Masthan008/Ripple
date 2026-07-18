@@ -8,7 +8,7 @@ import '../services/chat_theme_service.dart';
 /// Bottom sheet for selecting a per-chat background theme
 class ChatThemePicker extends StatefulWidget {
   final String chatId;
-  final VoidCallback? onThemeChanged;
+  final ValueChanged<List<Color>?>? onThemeChanged;
 
   const ChatThemePicker({
     super.key,
@@ -156,17 +156,22 @@ class _ChatThemePickerState extends State<ChatThemePicker> {
     setState(() => _isSaving = true);
     try {
       final preset = ChatThemeService.presets[_selectedIndex];
+      List<Color>? appliedColors;
       if (_selectedIndex == 0) {
         await ChatThemeService.clearTheme(widget.chatId);
       } else {
+        final gradientStrs = List<String>.from(preset['colors'] as List);
+        appliedColors = gradientStrs
+            .map((c) => Color(int.parse('FF$c', radix: 16)))
+            .toList();
         await ChatThemeService.setTheme(
           chatId: widget.chatId,
-          gradientColors: List<String>.from(preset['colors'] as List),
+          gradientColors: gradientStrs,
           accentColor: preset['accent'] as String,
         );
       }
       AppHaptics.success();
-      widget.onThemeChanged?.call();
+      widget.onThemeChanged?.call(appliedColors);
       if (mounted) Navigator.pop(context);
     } catch (e) {
       if (mounted) {
