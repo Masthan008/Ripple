@@ -367,7 +367,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         onPressed: _isSaving ? null : _createAccount,
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.transparent,
+                          foregroundColor: Colors.white,
                           shadowColor: Colors.transparent,
+                          elevation: 0,
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14),
                           ),

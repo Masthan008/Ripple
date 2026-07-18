@@ -34,9 +34,13 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
   final _searchCtrl = TextEditingController();
   final _scrollCtrl = ScrollController();
 
+  bool _isEditing = false;
+  late final TextEditingController _textEditCtrl;
+
   @override
   void initState() {
     super.initState();
+    _textEditCtrl = TextEditingController();
     _loadFile();
   }
 
@@ -44,6 +48,7 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
   void dispose() {
     _searchCtrl.dispose();
     _scrollCtrl.dispose();
+    _textEditCtrl.dispose();
     super.dispose();
   }
 
@@ -75,6 +80,7 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
         final file = File(_localPath!);
         _textContent = await file.readAsString();
         _textLines = _textContent.split('\n');
+        _textEditCtrl.text = _textContent;
       }
 
       if (mounted) {
@@ -160,6 +166,33 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
     return spans;
   }
 
+  Future<void> _saveTextFile() async {
+    if (_localPath == null) return;
+    setState(() => _isLoading = true);
+    try {
+      final file = File(_localPath!);
+      await file.writeAsString(_textEditCtrl.text);
+      _textContent = _textEditCtrl.text;
+      _textLines = _textContent.split('\n');
+      setState(() {
+        _isEditing = false;
+        _isLoading = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Changes saved successfully!'), backgroundColor: AppColors.onlineGreen),
+        );
+      }
+    } catch (e) {
+      setState(() => _isLoading = false);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save changes: $e'), backgroundColor: AppColors.errorRed),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final ext = widget.fileName.split('.').last.toLowerCase();
@@ -176,24 +209,51 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          if (_localPath != null)
+          if (isText && !_isLoading && _error == null) ...[
+            if (!_isEditing) ...[
+              IconButton(
+                icon: const Icon(Icons.edit_rounded, color: AppColors.aquaCore),
+                tooltip: 'Edit Document',
+                onPressed: () {
+                  setState(() {
+                    _isEditing = true;
+                  });
+                },
+              ),
+              IconButton(
+                icon: Icon(_wordWrap ? Icons.wrap_text_rounded : Icons.keyboard_tab_rounded,
+                    color: AppColors.aquaCore),
+                tooltip: _wordWrap ? 'Disable Word Wrap' : 'Enable Word Wrap',
+                onPressed: () {
+                  setState(() {
+                    _wordWrap = !_wordWrap;
+                  });
+                },
+              ),
+            ] else ...[
+              IconButton(
+                icon: const Icon(Icons.save_rounded, color: AppColors.aquaCore),
+                tooltip: 'Save Changes',
+                onPressed: _saveTextFile,
+              ),
+              IconButton(
+                icon: const Icon(Icons.close_rounded, color: Colors.redAccent),
+                tooltip: 'Cancel Edit',
+                onPressed: () {
+                  setState(() {
+                    _isEditing = false;
+                    _textEditCtrl.text = _textContent;
+                  });
+                },
+              ),
+            ],
+          ],
+          if (_localPath != null && !_isEditing)
             IconButton(
               icon: const Icon(Icons.open_in_new_rounded, color: AppColors.aquaCore),
               tooltip: 'Open with External App',
               onPressed: _openExternally,
             ),
-          if (isText && !_isLoading && _error == null) ...[
-            IconButton(
-              icon: Icon(_wordWrap ? Icons.wrap_text_rounded : Icons.keyboard_tab_rounded,
-                  color: AppColors.aquaCore),
-              tooltip: _wordWrap ? 'Disable Word Wrap' : 'Enable Word Wrap',
-              onPressed: () {
-                setState(() {
-                  _wordWrap = !_wordWrap;
-                });
-              },
-            ),
-          ],
         ],
       ),
       body: _buildBody(isText, isImage, isPdf, isOffice, ext, canRenderInline),
@@ -231,6 +291,10 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
       );
     }
 
+    if (_isEditing) {
+      return _buildTextEditor();
+    }
+
     if (isText) {
       return _buildTextViewer();
     }
@@ -245,21 +309,123 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
     }
 
     if (isPdf && _localPath != null) {
-      final pdfUri = Uri.file(_localPath!).toString();
-      return InAppWebView(
-        initialSettings: InAppWebViewSettings(
-          javaScriptEnabled: true,
-          allowFileAccessFromFileURLs: true,
-          allowUniversalAccessFromFileURLs: true,
-        ),
-        initialUrlRequest: URLRequest(
-          url: WebUri(pdfUri),
-        ),
-      );
+      if (Platform.isIOS) {
+        final pdfUri = Uri.file(_localPath!).toString();
+        return InAppWebView(
+          initialSettings: InAppWebViewSettings(
+            javaScriptEnabled: true,
+            allowFileAccessFromFileURLs: true,
+            allowUniversalAccessFromFileURLs: true,
+          ),
+          initialUrlRequest: URLRequest(
+            url: WebUri(pdfUri),
+          ),
+        );
+      } else {
+        return _buildPdfFallbackScreen();
+      }
     }
 
     // Binary / Office / PDF fallback inspector
     return _buildBinaryFallbackInspector(ext);
+  }
+
+  Widget _buildTextEditor() {
+    return Container(
+      padding: const EdgeInsets.all(16.0),
+      child: Column(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _textEditCtrl,
+              maxLines: null,
+              keyboardType: TextInputType.multiline,
+              style: const TextStyle(
+                color: Colors.white,
+                fontFamily: 'monospace',
+                fontSize: 13,
+                height: 1.4,
+              ),
+              decoration: InputDecoration(
+                hintText: 'Type your text here...',
+                hintStyle: const TextStyle(color: Colors.white24),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: Colors.white10),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.aquaCore),
+                ),
+                fillColor: Colors.white.withOpacity(0.02),
+                filled: true,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPdfFallbackScreen() {
+    final file = File(_localPath!);
+    final sizeBytes = file.lengthSync();
+    final sizeMb = (sizeBytes / (1024 * 1024)).toStringAsFixed(2);
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32.0),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(24),
+              decoration: BoxDecoration(
+                color: Colors.redAccent.withOpacity(0.08),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.picture_as_pdf_rounded,
+                color: Colors.redAccent,
+                size: 64,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              widget.fileName,
+              style: AppTextStyles.headingSmall.copyWith(fontSize: 18),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'PDF Document • $sizeMb MB',
+              style: const TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+            const SizedBox(height: 32),
+            const Text(
+              'Ripple has safely loaded this PDF document. To view, search, or print, please tap the button below to open it in your system PDF viewer.',
+              style: TextStyle(color: Colors.white38, fontSize: 12, height: 1.5),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 32),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                onPressed: _openExternally,
+                icon: const Icon(Icons.picture_as_pdf_rounded),
+                label: const Text('Open PDF Document', style: TextStyle(fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.redAccent,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _buildTextViewer() {

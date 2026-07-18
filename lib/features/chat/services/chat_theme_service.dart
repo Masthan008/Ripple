@@ -37,20 +37,20 @@ class ChatThemeService {
     required List<String> gradientColors,
     required String accentColor,
   }) async {
-    await FirebaseFirestore.instance.collection('chats').doc(chatId).update({
+    await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
       'theme': {
         'gradientColors': gradientColors,
         'accentColor': accentColor,
         'setBy': FirebaseAuth.instance.currentUser?.uid,
         'setAt': FieldValue.serverTimestamp(),
       },
-    });
+    }, SetOptions(merge: true));
   }
 
   /// Remove custom theme (revert to default)
   static Future<void> clearTheme(String chatId) async {
-    await FirebaseFirestore.instance.collection('chats').doc(chatId).update({
+    await FirebaseFirestore.instance.collection('chats').doc(chatId).set({
       'theme': FieldValue.delete(),
-    });
+    }, SetOptions(merge: true));
   }
 }

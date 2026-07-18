@@ -100,6 +100,7 @@ class ChatScreen extends ConsumerStatefulWidget {
 }
 
 class _ChatScreenState extends ConsumerState<ChatScreen> {
+  late final String _chatId;
   bool _disposed = false;
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
@@ -152,13 +153,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _chatId = widget.chatId.isNotEmpty
+        ? widget.chatId
+        : ref.read(chatServiceProvider).getChatId(widget.partnerUid);
     _sensoryController = SensoryTextController(controller: _messageController);
     // Track active chat for foreground notification suppression
-    NotificationService.currentActiveChatId = widget.chatId;
+    NotificationService.currentActiveChatId = _chatId;
 
     if (widget.isDecoy) {
       final decoyChat = DecoyMatrixGenerator.getDecoyChats().firstWhere(
-        (c) => c['id'] == widget.chatId,
+        (c) => c['id'] == _chatId,
         orElse: () => <String, dynamic>{},
       );
       final myUid = ref.read(chatServiceProvider).myUid;
@@ -179,10 +183,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
     // Mark messages as read when opening chat
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(chatServiceProvider).markAsRead(widget.chatId);
+      ref.read(chatServiceProvider).markAsRead(_chatId);
       // Also mark with Phase 1 seenBy
       MessageActionsService.markMessagesAsSeen(
-        chatId: widget.chatId,
+        chatId: _chatId,
         currentUid: ref.read(chatServiceProvider).myUid,
         isGroup: false,
         selfDestructSeconds: _selfDestructSeconds,
@@ -193,7 +197,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       // Start Chronos™ unlock monitoring
       ChronosUnlockService.instance.startMonitoring(
-        chatId: widget.chatId,
+        chatId: _chatId,
         currentUid: ref.read(chatServiceProvider).myUid,
         isGroup: false,
       );
@@ -240,7 +244,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _isSending = true);
 
     try {
-      final messages = ref.read(chatMessagesProvider(widget.chatId)).valueOrNull ?? [];
+      final messages = ref.read(chatMessagesProvider(_chatId)).valueOrNull ?? [];
       final chatContext = messages.take(20).map((m) => {
         'sender': m.senderId == widget.partnerUid ? widget.partnerName : 'You',
         'text': m.text ?? '',
@@ -254,7 +258,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       // Send the bot response as a message
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
-        chatId: widget.chatId,
+        chatId: _chatId,
         text: '🤖 Ripple Bot: $response',
         replyTo: null,
         expiresAt: null,
@@ -307,7 +311,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final chatDoc =
           await FirebaseFirestore.instance
               .collection('chats')
-              .doc(widget.chatId)
+              .doc(_chatId)
               .get();
 
       final vmData = chatDoc.data()?['vanishMode'] as Map<String, dynamic>?;
@@ -318,7 +322,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
-        chatId: widget.chatId,
+        chatId: _chatId,
         text: text,
         replyTo: replyData,
         expiresAt: expiresAt,
@@ -338,7 +342,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       final myUid = ref.read(chatServiceProvider).myUid;
       final newStreak = await SocialService.updateStreak(
-        chatId: widget.chatId,
+        chatId: _chatId,
         senderId: myUid,
         recipientId: widget.partnerUid,
       );
@@ -405,8 +409,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             final mutedChats =
                 Map<String, dynamic>.from(data?['mutedChats'] as Map? ?? {});
             bool currentlyMuted = false;
-            if (mutedChats.containsKey(widget.chatId)) {
-              final expiryStr = mutedChats[widget.chatId] as String?;
+            if (mutedChats.containsKey(_chatId)) {
+              final expiryStr = mutedChats[_chatId] as String?;
               if (expiryStr == 'always') {
                 currentlyMuted = true;
               } else if (expiryStr != null) {
@@ -430,7 +434,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final chatDoc =
           await FirebaseFirestore.instance
               .collection('chats')
-              .doc(widget.chatId)
+              .doc(_chatId)
               .get();
       final timer = chatDoc.data()?['selfDestructTimer'] as int? ?? 0;
       final vmData = chatDoc.data()?['vanishMode'] as Map<String, dynamic>?;
@@ -499,7 +503,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   onTap: () async {
                     final seconds = o['value'] as int;
                     await PrivacyService.setSelfDestructTimer(
-                      chatId: widget.chatId,
+                      chatId: _chatId,
                       isGroup: false,
                       seconds: seconds,
                     );
@@ -537,7 +541,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _vanishModeEnabled = newState);
 
     await VanishModeService.toggleVanishMode(
-      chatId: widget.chatId,
+      chatId: _chatId,
       isGroup: false,
       enabled: newState,
     );
@@ -625,7 +629,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   if (newText.isEmpty) return;
                   try {
                     await MessageActionsService.editMessage(
-                      chatId: widget.chatId,
+                      chatId: _chatId,
                       messageId: message.id,
                       newText: newText,
                       isGroup: false,
@@ -690,7 +694,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _deleteSelectedForMe() async {
     for (final id in _selectedMessageIds) {
       await MessageActionsService.deleteForMe(
-        chatId: widget.chatId,
+        chatId: _chatId,
         messageId: id,
         isGroup: false,
       );
@@ -701,7 +705,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Future<void> _starSelected() async {
     for (final id in _selectedMessageIds) {
       await MessageActionsService.toggleStarMessage(
-        chatId: widget.chatId,
+        chatId: _chatId,
         messageId: id,
         isGroup: false,
       );
@@ -714,40 +718,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       context: context,
       message: message,
       isMyMessage: isMyMessage,
-      chatId: widget.chatId,
+      chatId: _chatId,
       isGroup: false,
       currentUid: ref.read(chatServiceProvider).myUid,
       onReply: () => _setReplyTo(message),
       onEdit: isMyMessage ? () => _showEditDialog(message) : null,
       onDeleteForEveryone:
           () => MessageActionsService.deleteForEveryone(
-            chatId: widget.chatId,
+            chatId: _chatId,
             messageId: message.id,
             isGroup: false,
           ),
       onDeleteForMe:
           () => MessageActionsService.deleteForMe(
-            chatId: widget.chatId,
+            chatId: _chatId,
             messageId: message.id,
             isGroup: false,
           ),
       onForward: () => _showForwardSheet(message),
       onPin:
           () => MessageActionsService.togglePinMessage(
-            chatId: widget.chatId,
+            chatId: _chatId,
             messageId: message.id,
             pin: !message.isPinned,
             isGroup: false,
           ),
       onStar:
           () => MessageActionsService.toggleStarMessage(
-            chatId: widget.chatId,
+            chatId: _chatId,
             messageId: message.id,
             isGroup: false,
           ),
       onSaveToBookmarks:
           () => ChatOrganisationService.saveMessage(
-            originalChatId: widget.chatId,
+            originalChatId: _chatId,
             originalMessageId: message.id,
             messageData: message.toMap(),
             senderName: message.senderId,
@@ -763,7 +767,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final partner = ref.watch(chatPartnerProvider(widget.partnerUid));
     final messages = widget.isDecoy
         ? AsyncValue.data(_decoyMessages)
-        : ref.watch(chatMessagesProvider(widget.chatId));
+        : ref.watch(chatMessagesProvider(_chatId));
     final currentUser = ref.read(chatServiceProvider).myUid;
     final currentTheme = ref.watch(themeProvider);
 
@@ -775,10 +779,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (currentTheme == 'light_glass') bgColor = const Color(0xFFF0F9FF);
     if (currentTheme == 'midnight_purple') bgColor = const Color(0xFF0F001A);
 
-    final sentienceState = ref.watch(sentienceProvider(widget.chatId));
+    final sentienceState = ref.watch(sentienceProvider(_chatId));
 
     return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseService.firestore.collection('chats').doc(widget.chatId).snapshots(),
+      stream: FirebaseService.firestore.collection('chats').doc(_chatId).snapshots(),
       builder: (context, snapshot) {
         final chatData = snapshot.data?.data() as Map<String, dynamic>?;
         final themeData = chatData?['theme'] as Map<String, dynamic>?;
@@ -797,7 +801,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         return Scaffold(
           backgroundColor: bgColor,
           body: SentientBreathingWrapper(
-            chatId: widget.chatId,
+            chatId: _chatId,
             child: AuroraBackground(
               customColors: sentienceState.intensity > 0
                   ? [
@@ -828,14 +832,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
               // Pinned message banner
               PinnedMessageBanner(
-                chatId: widget.chatId,
+                chatId: _chatId,
                 isGroup: false,
                 onTap: () {
                   // Could scroll to pinned message
                 },
                 onUnpin:
                     () => MessageActionsService.togglePinMessage(
-                      chatId: widget.chatId,
+                      chatId: _chatId,
                       messageId: '',
                       pin: false,
                       isGroup: false,
@@ -880,7 +884,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             .toList()
                             .reversed
                             .toList();
-                        ref.read(sentienceProvider(widget.chatId).notifier)
+                        ref.read(sentienceProvider(_chatId).notifier)
                             .analyze(recentTexts, msgs.first.id);
                       }
                     });
@@ -933,7 +937,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           // Trigger reload by refreshing providers if needed,
                           // or just simulate work for the "Liquid" effect.
                           await Future.delayed(const Duration(seconds: 1));
-                          ref.invalidate(chatMessagesProvider(widget.chatId));
+                          ref.invalidate(chatMessagesProvider(_chatId));
                         },
                         color: AppColors.aquaCore,
                         backgroundColor: AppColors.abyssBackground.withOpacity(
@@ -981,7 +985,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                 filtered[i].senderId ==
                                                 currentUser,
                                             currentUid: currentUser,
-                                            chatId: widget.chatId,
+                                            chatId: _chatId,
                                             isGroup: false,
                                             isSelected: _selectedMessageIds
                                                 .contains(filtered[i].id),
@@ -1212,7 +1216,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         GestureDetector(
                           onTap: () async {
                             await PrivacyService.setSelfDestructTimer(
-                              chatId: widget.chatId,
+                              chatId: _chatId,
                               isGroup: false,
                               seconds: 0,
                             );
@@ -1523,7 +1527,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
           // Avatar
           Hero(
-            tag: 'chat_avatar_${widget.chatId}',
+            tag: 'chat_avatar_${_chatId}',
             child: AquaAvatar(
               imageUrl: widget.partnerPhoto,
               name: widget.partnerName,
@@ -1679,7 +1683,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   MaterialPageRoute(
                     builder:
                         (_) => ChatMediaGalleryScreen(
-                          chatId: widget.chatId,
+                          chatId: _chatId,
                           isGroup: false,
                         ),
                   ),
@@ -1695,7 +1699,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   isScrollControlled: true,
                   builder:
                       (_) => ChatThemePicker(
-                        chatId: widget.chatId,
+                        chatId: _chatId,
                         onThemeChanged: (colors) {
                           setState(() => _appliedWallpaperColors = colors);
                         },
@@ -1704,9 +1708,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               } else if (value == 'export') {
                 _exportChat();
               } else if (value == 'mute') {
-                NotificationService.showMuteDialog(context, widget.chatId);
+                NotificationService.showMuteDialog(context, _chatId);
               } else if (value == 'unmute') {
-                NotificationService.unmuteChat(widget.chatId);
+                NotificationService.unmuteChat(_chatId);
               } else if (value == 'search') {
                 setState(() {
                   _isSearching = true;
@@ -1854,7 +1858,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         'callerId': myUid,
         'calleeId': widget.partnerUid,
         'callerName': callerName,
-        'channelName': widget.chatId,
+        'channelName': _chatId,
         'type': isVideo ? 'video' : 'audio',
         'isGroup': false,
         'status': 'ringing',
@@ -1867,7 +1871,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             builder:
                 (_) => DailyCallScreen(
                   callId: callId,
-                  channelName: widget.chatId,
+                  channelName: _chatId,
                   currentUserId: myUid,
                   currentUserName:
                       ref.read(currentUserProvider).valueOrNull?.name ?? 'Me',
@@ -2181,7 +2185,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
-        chatId: widget.chatId,
+        chatId: _chatId,
         text: fileName ?? '[$type]',
         type: type,
         mediaUrl: url,
@@ -2365,7 +2369,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
-        chatId: widget.chatId,
+        chatId: _chatId,
         text: isLive ? 'Live Location' : 'Static Location',
         type: isLive ? 'live_location' : 'location',
         mediaUrl: 'geo:$lat,$lng',
@@ -2390,7 +2394,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       final chatService = ref.read(chatServiceProvider);
       await chatService.sendMessage(
-        chatId: widget.chatId,
+        chatId: _chatId,
         text: name,
         type: 'contact',
         mediaUrl: uid,
@@ -2415,7 +2419,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     try {
       final messagesSnap = await FirebaseService.firestore
           .collection('chats')
-          .doc(widget.chatId)
+          .doc(_chatId)
           .collection('messages')
           .orderBy('createdAt', descending: false)
           .get();
@@ -2423,7 +2427,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final buffer = StringBuffer();
       buffer.writeln('--------------------------------------------------');
       buffer.writeln('RIPPLE SECURE CHAT EXPORT');
-      buffer.writeln('Chat ID: ${widget.chatId}');
+      buffer.writeln('Chat ID: ${_chatId}');
       buffer.writeln('Partner: ${widget.partnerName}');
       buffer.writeln('Export Date: ${DateTime.now().toLocal()}');
       buffer.writeln('--------------------------------------------------\n');
@@ -2478,7 +2482,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               try {
                 final chatService = ref.read(chatServiceProvider);
                 await chatService.sendMessage(
-                  chatId: widget.chatId,
+                  chatId: _chatId,
                   text: '',
                   type: 'gif',
                   mediaUrl: gifUrl,
@@ -2517,7 +2521,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           try {
             final chatService = ref.read(chatServiceProvider);
             await chatService.sendMessage(
-              chatId: widget.chatId,
+              chatId: _chatId,
               text: stickerEmoji,
               type: 'sticker',
             );
@@ -2547,7 +2551,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final messagesSnap =
           await FirebaseFirestore.instance
               .collection('chats')
-              .doc(widget.chatId)
+              .doc(_chatId)
               .collection('messages')
               .orderBy('createdAt', descending: true)
               .limit(50)
@@ -2684,7 +2688,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           .add(poll.toMap());
 
       await FirebaseService.chatsCollection
-          .doc(widget.chatId)
+          .doc(_chatId)
           .collection('messages')
           .add({
             'senderId': myUid,
@@ -2703,7 +2707,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             'starredBy': [],
           });
 
-      await FirebaseService.chatsCollection.doc(widget.chatId).update({
+      await FirebaseService.chatsCollection.doc(_chatId).update({
         'lastMessage': '📊 Poll: $question',
         'lastMessageTimestamp': FieldValue.serverTimestamp(),
       });
@@ -2748,7 +2752,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
 
       await FirebaseService.chatsCollection
-          .doc(widget.chatId)
+          .doc(_chatId)
           .collection('messages')
           .add({
             'senderId': chatService.myUid,
@@ -2769,7 +2773,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           });
 
       // Update last message preview
-      await FirebaseService.chatsCollection.doc(widget.chatId).update({
+      await FirebaseService.chatsCollection.doc(_chatId).update({
         'lastMessage': '🎥 Circular video',
         'lastMessageTimestamp': FieldValue.serverTimestamp(),
       });
@@ -2847,7 +2851,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final chatService = ref.read(chatServiceProvider);
       // Send as voice message with extra metadata fields
       await FirebaseService.chatsCollection
-          .doc(widget.chatId)
+          .doc(_chatId)
           .collection('messages')
           .add({
             'senderId': chatService.myUid,
@@ -2870,7 +2874,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           });
 
       // Update last message preview
-      await FirebaseService.chatsCollection.doc(widget.chatId).update({
+      await FirebaseService.chatsCollection.doc(_chatId).update({
         'lastMessage': '🎙️ Voice message',
         'lastMessageTimestamp': FieldValue.serverTimestamp(),
       });
@@ -2931,7 +2935,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       final chatService = ref.read(chatServiceProvider);
       await FirebaseService.chatsCollection
-          .doc(widget.chatId)
+          .doc(_chatId)
           .collection('messages')
           .add({
             'senderId': chatService.myUid,
@@ -2953,7 +2957,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             'viewedBy': [],
           });
 
-      await FirebaseService.chatsCollection.doc(widget.chatId).update({
+      await FirebaseService.chatsCollection.doc(_chatId).update({
         'lastMessage': isViewOnce ? '🎬 View Once Video' : '🎬 Video',
         'lastMessageTimestamp': FieldValue.serverTimestamp(),
       });
@@ -3045,7 +3049,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (msg.deleteAt != null && msg.deleteAt!.toDate().isBefore(now)) {
         await FirebaseFirestore.instance
             .collection('chats')
-            .doc(widget.chatId)
+            .doc(_chatId)
             .collection('messages')
             .doc(msg.id)
             .update({
@@ -3092,7 +3096,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final snap =
           await FirebaseFirestore.instance
               .collection('chats')
-              .doc(widget.chatId)
+              .doc(_chatId)
               .collection('messages')
               .orderBy('createdAt', descending: true)
               .limit(50)
@@ -3742,7 +3746,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   final snap =
                       await FirebaseFirestore.instance
                           .collection('chats')
-                          .doc(widget.chatId)
+                          .doc(_chatId)
                           .collection('messages')
                           .orderBy('createdAt', descending: true)
                           .limit(10)
@@ -4225,7 +4229,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: ElevatedButton(
                     onPressed: () async {
                       await ScheduleService.scheduleMessage(
-                        chatId: widget.chatId,
+                        chatId: _chatId,
                         isGroup: false,
                         text: text,
                         sendAt: selectedDate,

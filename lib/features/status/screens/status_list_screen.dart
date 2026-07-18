@@ -102,7 +102,7 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
         ),
       ),
       floatingActionButton: Padding(
-        padding: const EdgeInsets.only(bottom: 90.0), // Clear the high navbar
+        padding: const EdgeInsets.only(bottom: 110.0), // Clear the high navbar
         child: FloatingActionButton(
           backgroundColor: AppColors.aquaCore,
           onPressed: () => _showCreateStatusSheet(),

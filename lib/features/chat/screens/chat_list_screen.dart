@@ -9,6 +9,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import 'package:onesignal_flutter/onesignal_flutter.dart';
+
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/notification_service.dart';
 import '../../../core/services/presence_service.dart';
@@ -28,7 +30,7 @@ import '../../../shared/widgets/floating_particles.dart'; // Add this
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/liquid_pull_to_refresh.dart';
 import '../../../shared/widgets/bioluminescent_glow.dart';
-import '../../../shared/widgets/liquid_glass_navbar/navbar_widget.dart';
+import '../../../shared/widgets/ripple_nav_bar.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../groups/providers/group_provider.dart';
 import '../../profile/screens/profile_screen.dart';
@@ -226,7 +228,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       bottomNavigationBar:
           myUid != null
               ? _buildNavBarWithUnread(myUid, currentUser?.photoUrl)
-              : LiquidNavbarWidget(
+              : RippleNavBar(
                 currentIndex: _currentIndex,
                 onTap: (i) {
                   AppHaptics.selectionTick();
@@ -278,7 +280,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               }
             }
 
-            return LiquidNavbarWidget(
+            final totalUnread = totalChatUnread + totalGroupUnread;
+            try { OneSignal.Notifications.badgeCount = totalUnread; } catch (_) {}
+
+            return RippleNavBar(
               currentIndex: _currentIndex,
               onTap: (i) {
                 AppHaptics.selectionTick();

@@ -131,8 +131,14 @@ class FriendsService {
     try {
       final targetDoc =
           await _firestore.collection('users').doc(targetUid).get();
-      final playerId =
-          targetDoc.data()?['oneSignalPlayerId'] as String?;
+      final targetData = targetDoc.data() ?? {};
+      // Check recipient's notification settings
+      final notifSettings = targetData['notificationSettings'] as Map? ?? {};
+      if (notifSettings['friendRequests'] == false) return;
+      final sound = notifSettings['sounds'] ?? true;
+      final vibration = notifSettings['vibration'] ?? true;
+
+      final playerId = targetData['oneSignalPlayerId'] as String?;
       final myDoc =
           await _firestore.collection('users').doc(_myUid).get();
       final myName = myDoc.data()?['name'] as String? ?? 'Someone';
@@ -141,6 +147,8 @@ class FriendsService {
         await NotificationService.sendFriendRequestNotification(
           recipientPlayerId: playerId,
           senderName: myName,
+          sound: sound as bool,
+          vibration: vibration as bool,
         );
       }
     } catch (_) {}

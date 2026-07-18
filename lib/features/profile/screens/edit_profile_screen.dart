@@ -302,7 +302,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       onPressed: _isSaving ? null : _save,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.transparent,
+                        foregroundColor: Colors.white,
                         shadowColor: Colors.transparent,
+                        elevation: 0,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
                         ),

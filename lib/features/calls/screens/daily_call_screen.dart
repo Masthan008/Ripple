@@ -88,8 +88,13 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
           final userDoc = await FirebaseService.usersCollection
               .doc(memberId)
               .get();
-          final playerId =
-              userDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+          final userData = userDoc.data() ?? {};
+          // Check member's notification settings
+          final notifSettings = userData['notificationSettings'] as Map? ?? {};
+          if (notifSettings['groupCalls'] == false) continue;
+          final sound = notifSettings['sounds'] ?? true;
+          final vibration = notifSettings['vibration'] ?? true;
+          final playerId = userData['oneSignalPlayerId'] as String? ?? '';
           if (playerId.isEmpty) continue;
 
           await NotificationService.sendCallNotification(
@@ -101,6 +106,8 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
             callType: widget.isVideo ? 'video' : 'audio',
             isGroup: widget.isGroup,
             callerPhotoUrl: myPhoto,
+            sound: sound as bool,
+            vibration: vibration as bool,
           );
         }
       } else {
@@ -110,8 +117,13 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
         final userDoc = await FirebaseService.usersCollection
             .doc(widget.otherUserId)
             .get();
-        final playerId =
-            userDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+        final userData = userDoc.data() ?? {};
+        // Check recipient's notification settings
+        final notifSettings = userData['notificationSettings'] as Map? ?? {};
+        if (notifSettings['calls'] == false) return;
+        final sound = notifSettings['sounds'] ?? true;
+        final vibration = notifSettings['vibration'] ?? true;
+        final playerId = userData['oneSignalPlayerId'] as String? ?? '';
         if (playerId.isEmpty) return;
 
         await NotificationService.sendCallNotification(
@@ -123,6 +135,8 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
           callType: widget.isVideo ? 'video' : 'audio',
           isGroup: widget.isGroup,
           callerPhotoUrl: myPhoto,
+          sound: sound as bool,
+          vibration: vibration as bool,
         );
       }
     } catch (e) {

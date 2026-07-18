@@ -219,11 +219,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/chat',
         pageBuilder: (context, state) {
+          final queryChatId = state.uri.queryParameters['chatId'] ?? '';
+          final partnerUid = state.uri.queryParameters['partnerUid'] ?? '';
+          final chatId = queryChatId.isNotEmpty
+              ? queryChatId
+              : (partnerUid.isNotEmpty
+                  ? ref.read(chatServiceProvider).getChatId(partnerUid)
+                  : '');
+
           return CustomTransitionPage(
             key: state.pageKey,
             child: ChatScreen(
-              chatId: state.uri.queryParameters['chatId'] ?? '',
-              partnerUid: state.uri.queryParameters['partnerUid'] ?? '',
+              chatId: chatId,
+              partnerUid: partnerUid,
               partnerName: state.uri.queryParameters['partnerName'] ?? '',
               partnerPhoto: state.uri.queryParameters['partnerPhoto'],
               isDecoy: state.uri.queryParameters['isDecoy'] == 'true',

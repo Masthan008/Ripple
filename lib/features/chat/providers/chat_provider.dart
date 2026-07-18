@@ -166,8 +166,15 @@ class ChatService {
     // Send push notification via OneSignal
     try {
       final otherDoc = await _firestore.collection('users').doc(otherUid).get();
-      final playerId = otherDoc.data()?['oneSignalPlayerId'] as String?;
+      final otherData = otherDoc.data() ?? {};
+      final playerId = otherData['oneSignalPlayerId'] as String?;
       final myName = myDoc.data()?['name'] as String? ?? 'Someone';
+
+      // Check recipient's notification settings
+      final notifSettings = otherData['notificationSettings'] as Map? ?? {};
+      if (notifSettings['messages'] == false) return;
+      final sound = notifSettings['sounds'] ?? true;
+      final vibration = notifSettings['vibration'] ?? true;
 
       if (playerId != null && playerId.isNotEmpty) {
         final notifText = type == 'text'
@@ -192,6 +199,8 @@ class ChatService {
           chatId: chatId,
           senderUid: _myUid,
           senderPhotoUrl: myDoc.data()?['photoUrl'] as String? ?? '',
+          sound: sound as bool,
+          vibration: vibration as bool,
         );
       }
     } catch (_) {}

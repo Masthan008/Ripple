@@ -169,9 +169,20 @@ class GroupService {
       final groupName = groupDoc.data()?['name'] as String? ?? 'Group';
 
       final playerIds = <String>[];
+      bool sound = true;
+      bool vibration = true;
       for (final uid in recipients) {
         final doc = await _firestore.collection('users').doc(uid).get();
-        final pid = doc.data()?['oneSignalPlayerId'] as String?;
+        final data = doc.data() ?? {};
+        // Check member's notification settings
+        final notifSettings = data['notificationSettings'] as Map? ?? {};
+        if (notifSettings['groupMessages'] == false) continue;
+        // Use the most restrictive setting across all members
+        final memberSound = notifSettings['sounds'] ?? true;
+        final memberVibration = notifSettings['vibration'] ?? true;
+        if (memberSound is bool && !memberSound) sound = false;
+        if (memberVibration is bool && !memberVibration) vibration = false;
+        final pid = data['oneSignalPlayerId'] as String?;
         if (pid != null && pid.isNotEmpty) playerIds.add(pid);
       }
 
@@ -199,6 +210,8 @@ class GroupService {
           messageText: notifText,
           groupId: groupId,
           groupPhotoUrl: groupPhoto,
+          sound: sound,
+          vibration: vibration,
         );
       }
     } catch (_) {}

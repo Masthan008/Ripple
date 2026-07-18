@@ -42,7 +42,7 @@ class NotificationService {
     });
 
     // 2. Foreground will display listener (suppression logic)
-    OneSignal.Notifications.addForegroundWillDisplayListener((event) {
+    OneSignal.Notifications.addForegroundWillDisplayListener((event) async {
       final data = event.notification.additionalData ?? {};
       final type = data['type'] as String?;
       final incomingChatId =
@@ -51,21 +51,16 @@ class NotificationService {
       if ((type == 'chat' || type == 'group') &&
           currentActiveChatId != null &&
           incomingChatId == currentActiveChatId) {
-        // User is already in this chat — silently drop the notification
         event.preventDefault();
         debugPrint(
             '🔕 Suppressed foreground notification for active chat: $incomingChatId');
         return;
       }
 
-      if (incomingChatId != null) {
-        _isChatMuted(incomingChatId).then((isMuted) {
-          if (isMuted) {
-            event.preventDefault();
-            debugPrint(
-                '🔕 Suppressed foreground notification for muted chat: $incomingChatId');
-          }
-        });
+      if (incomingChatId != null && await _isChatMuted(incomingChatId)) {
+        event.preventDefault();
+        debugPrint(
+            '🔕 Suppressed foreground notification for muted chat: $incomingChatId');
       }
     });
   }
@@ -203,6 +198,10 @@ class NotificationService {
       case 'friend_request':
         router.push('/requests');
         break;
+      case 'status_reaction':
+        // Navigate to home (status is a sub-tab at index 3)
+        router.go('/home');
+        break;
       case 'missed_call':
         router.go('/home');
         break;
@@ -244,12 +243,17 @@ class NotificationService {
     required String chatId,
     String senderUid = '',
     String senderPhotoUrl = '',
+    bool sound = true,
+    bool vibration = true,
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
       title: senderName,
       body: messageText,
       largeIcon: senderPhotoUrl,
+      androidChannelId: 'ripple_messages',
+      sound: sound,
+      vibration: vibration,
       data: {
         'type': 'chat',
         'chatId': chatId,
@@ -267,6 +271,8 @@ class NotificationService {
     required String messageText,
     required String groupId,
     String groupPhotoUrl = '',
+    bool sound = true,
+    bool vibration = true,
   }) async {
     if (recipientPlayerIds.isEmpty) return;
     await _sendOneSignalNotification(
@@ -274,6 +280,9 @@ class NotificationService {
       title: groupName,
       body: '$senderName: $messageText',
       largeIcon: groupPhotoUrl,
+      androidChannelId: 'ripple_groups',
+      sound: sound,
+      vibration: vibration,
       data: {'type': 'group', 'groupId': groupId},
     );
   }
@@ -283,12 +292,17 @@ class NotificationService {
     required String recipientPlayerId,
     required String senderName,
     String senderPhotoUrl = '',
+    bool sound = true,
+    bool vibration = true,
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
       title: 'New Friend Request 👋',
       body: '$senderName wants to connect with you',
       largeIcon: senderPhotoUrl,
+      androidChannelId: 'ripple_social',
+      sound: sound,
+      vibration: vibration,
       data: {'type': 'friend_request'},
     );
   }
@@ -299,12 +313,17 @@ class NotificationService {
     required String reactorName,
     required String emoji,
     String reactorPhotoUrl = '',
+    bool sound = true,
+    bool vibration = true,
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
       title: 'Status Reaction',
       body: '$reactorName reacted $emoji to your status',
       largeIcon: reactorPhotoUrl,
+      androidChannelId: 'ripple_social',
+      sound: sound,
+      vibration: vibration,
       data: {'type': 'status_reaction'},
     );
   }
@@ -319,6 +338,8 @@ class NotificationService {
     required String callType,
     required bool isGroup,
     String callerPhotoUrl = '',
+    bool sound = true,
+    bool vibration = true,
   }) async {
     final title = callType == 'video'
         ? '📹 Incoming Video Call'
@@ -328,6 +349,9 @@ class NotificationService {
       title: title,
       body: '$callerName is calling you',
       largeIcon: callerPhotoUrl,
+      androidChannelId: 'ripple_calls',
+      sound: sound,
+      vibration: vibration,
       data: {
         'type': 'call',
         'callId': callId,
@@ -347,6 +371,8 @@ class NotificationService {
     required String callerName,
     required String callType,
     String callerPhotoUrl = '',
+    bool sound = true,
+    bool vibration = true,
   }) async {
     final title = 'Missed Call 📞';
     final body = 'You missed a $callType call from $callerName';
@@ -355,6 +381,9 @@ class NotificationService {
       title: title,
       body: body,
       largeIcon: callerPhotoUrl,
+      androidChannelId: 'ripple_calls',
+      sound: sound,
+      vibration: vibration,
       data: {
         'type': 'missed_call',
       },
@@ -371,6 +400,8 @@ class NotificationService {
     int? ttl,
     String? androidChannelId,
     String? largeIcon,
+    bool sound = true,
+    bool vibration = true,
   }) async {
     final appId = Env.oneSignalAppId;
     final restKey = Env.oneSignalRestApiKey;
@@ -407,12 +438,19 @@ class NotificationService {
           'headings': {'en': title},
           'contents': {'en': body},
           if (largeIcon != null && largeIcon.isNotEmpty) 'large_icon': largeIcon,
+          'small_icon': 'ic_stat_notification',
           if (data != null) 'data': data,
           'priority': 10,
           if (ttl != null) 'ttl': ttl,
           if (androidChannelId != null)
             'android_channel_id': androidChannelId,
-        },
+          if (!sound) ...{
+            'ios_sound': 'nil',
+            'android_sound': 'nil',
+          },
+          if (!vibration) ...{
+            'ios_badgeType': 'None',
+          },
       );
       debugPrint(
           '✅ OneSignal response: ${response.statusCode} ${response.data}');
