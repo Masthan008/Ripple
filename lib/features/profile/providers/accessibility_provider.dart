@@ -1,15 +1,18 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Accessibility settings for inclusive design
-/// High contrast, reduced motion, larger text, screen reader optimizations
 class AccessibilitySettings {
   final bool highContrast;
   final bool reducedMotion;
   final bool largerText;
   final bool screenReaderOptimized;
   final bool colorBlindMode;
+  final bool hapticFeedback;
+  final bool textToSpeech;
+  final bool largeTapTargets;
   final double textScale;
 
   const AccessibilitySettings({
@@ -18,6 +21,9 @@ class AccessibilitySettings {
     this.largerText = false,
     this.screenReaderOptimized = false,
     this.colorBlindMode = false,
+    this.hapticFeedback = true,
+    this.textToSpeech = false,
+    this.largeTapTargets = false,
     this.textScale = 1.0,
   });
 
@@ -27,6 +33,9 @@ class AccessibilitySettings {
     bool? largerText,
     bool? screenReaderOptimized,
     bool? colorBlindMode,
+    bool? hapticFeedback,
+    bool? textToSpeech,
+    bool? largeTapTargets,
     double? textScale,
   }) {
     return AccessibilitySettings(
@@ -35,6 +44,9 @@ class AccessibilitySettings {
       largerText: largerText ?? this.largerText,
       screenReaderOptimized: screenReaderOptimized ?? this.screenReaderOptimized,
       colorBlindMode: colorBlindMode ?? this.colorBlindMode,
+      hapticFeedback: hapticFeedback ?? this.hapticFeedback,
+      textToSpeech: textToSpeech ?? this.textToSpeech,
+      largeTapTargets: largeTapTargets ?? this.largeTapTargets,
       textScale: textScale ?? this.textScale,
     );
   }
@@ -45,6 +57,9 @@ class AccessibilitySettings {
     'largerText': largerText,
     'screenReaderOptimized': screenReaderOptimized,
     'colorBlindMode': colorBlindMode,
+    'hapticFeedback': hapticFeedback,
+    'textToSpeech': textToSpeech,
+    'largeTapTargets': largeTapTargets,
     'textScale': textScale,
   };
 
@@ -55,46 +70,41 @@ class AccessibilitySettings {
       largerText: json['largerText'] ?? false,
       screenReaderOptimized: json['screenReaderOptimized'] ?? false,
       colorBlindMode: json['colorBlindMode'] ?? false,
-      textScale: json['textScale']?.toDouble() ?? 1.0,
+      hapticFeedback: json['hapticFeedback'] ?? true,
+      textToSpeech: json['textToSpeech'] ?? false,
+      largeTapTargets: json['largeTapTargets'] ?? false,
+      textScale: (json['textScale'] as num?)?.toDouble() ?? 1.0,
     );
   }
 }
 
 class AccessibilityNotifier extends StateNotifier<AccessibilitySettings> {
-  static const _prefsKey = 'accessibility_settings';
+  static const _prefsKey = 'accessibility_settings_v2';
 
   AccessibilityNotifier() : super(const AccessibilitySettings()) {
     _loadSettings();
   }
 
   Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final jsonString = prefs.getString(_prefsKey);
-    if (jsonString != null) {
-      try {
-        final json = Map<String, dynamic>.from(
-          Map<String, dynamic>.from(
-            jsonString.split(',').fold<Map<String, dynamic>>({}, (map, pair) {
-              final parts = pair.split(':');
-              if (parts.length == 2) {
-                map[parts[0]] = parts[1] == 'true' ? true : parts[1] == 'false' ? false : double.tryParse(parts[1]) ?? parts[1];
-              }
-              return map;
-            }),
-          ),
-        );
-        state = AccessibilitySettings.fromJson(json);
-      } catch (e) {
-        debugPrint('Error loading accessibility settings: $e');
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonString = prefs.getString(_prefsKey);
+      if (jsonString != null) {
+        final map = jsonDecode(jsonString) as Map<String, dynamic>;
+        state = AccessibilitySettings.fromJson(map);
       }
+    } catch (e) {
+      debugPrint('Error loading accessibility settings: $e');
     }
   }
 
   Future<void> _saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final json = state.toJson();
-    final jsonString = json.entries.map((e) => '${e.key}:${e.value}').join(',');
-    await prefs.setString(_prefsKey, jsonString);
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(_prefsKey, jsonEncode(state.toJson()));
+    } catch (e) {
+      debugPrint('Error saving accessibility settings: $e');
+    }
   }
 
   void toggleHighContrast(bool value) {
@@ -125,6 +135,21 @@ class AccessibilityNotifier extends StateNotifier<AccessibilitySettings> {
     _saveSettings();
   }
 
+  void toggleHapticFeedback(bool value) {
+    state = state.copyWith(hapticFeedback: value);
+    _saveSettings();
+  }
+
+  void toggleTextToSpeech(bool value) {
+    state = state.copyWith(textToSpeech: value);
+    _saveSettings();
+  }
+
+  void toggleLargeTapTargets(bool value) {
+    state = state.copyWith(largeTapTargets: value);
+    _saveSettings();
+  }
+
   void setTextScale(double scale) {
     state = state.copyWith(
       textScale: scale,
@@ -133,19 +158,16 @@ class AccessibilityNotifier extends StateNotifier<AccessibilitySettings> {
     _saveSettings();
   }
 
-  /// Check if animations should be reduced
-  bool get shouldReduceMotion => state.reducedMotion;
-
-  /// Get accessible color with high contrast if enabled
-  Color getAccessibleColor(Color normalColor, Color highContrastColor) {
-    return state.highContrast ? highContrastColor : normalColor;
+  void resetAll() {
+    state = const AccessibilitySettings();
+    _saveSettings();
   }
 }
 
 /// Effective text scale getter
 extension AccessibilitySettingsExtension on AccessibilitySettings {
   double get effectiveTextScale {
-    if (largerText) return 1.25;
+    if (largerText && textScale == 1.0) return 1.25;
     return textScale;
   }
 }
@@ -154,17 +176,14 @@ final accessibilityProvider = StateNotifierProvider<AccessibilityNotifier, Acces
   (ref) => AccessibilityNotifier(),
 );
 
-/// Provider to check if reduced motion is enabled
 final reducedMotionProvider = Provider<bool>((ref) {
   return ref.watch(accessibilityProvider).reducedMotion;
 });
 
-/// Provider for effective text scale
 final textScaleProvider = Provider<double>((ref) {
   return ref.watch(accessibilityProvider).effectiveTextScale;
 });
 
-/// Extension for checking accessibility in widgets
 extension AccessibilityContext on BuildContext {
   bool get highContrast => 
       ProviderScope.containerOf(this).read(accessibilityProvider).highContrast;
