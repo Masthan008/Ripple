@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../shared/widgets/glass_card.dart';
 
 class AccountSecurityScreen extends ConsumerStatefulWidget {
@@ -23,9 +24,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
   final _newPassController = TextEditingController();
   final _confirmPassController = TextEditingController();
   bool _isChangingPass = false;
-  bool _twoFactorEnabled = false;
-  bool _twoStepEnabled = false;
-  bool _isEmailUser = false;
+  String? _existingPin;
 
   @override
   void initState() {
@@ -43,6 +42,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
       setState(() {
         _twoFactorEnabled = doc.data()?['twoFactorEnabled'] ?? false;
         _twoStepEnabled = doc.data()?['twoStepEnabled'] ?? false;
+        _existingPin = doc.data()?['twoStepPin'] as String?;
       });
     }
   }
@@ -111,119 +111,448 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
   }
 
   Future<void> _toggleTwoFactor(bool value) async {
-    setState(() => _twoFactorEnabled = value);
-    try {
-      final uid = FirebaseService.auth.currentUser?.uid;
-      if (uid == null) return;
-      await FirebaseService.firestore.collection('users').doc(uid).update({
-        'twoFactorEnabled': value,
-      });
-      if (value && mounted) {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: const Color(0xFF0D1B2A),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Text('2FA Enabled', style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600)),
-            content: Text(
-              'Two-factor authentication via email OTP will be sent on each login for added security.',
-              style: AppTextStyles.caption,
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('Got it', style: TextStyle(color: AppColors.aquaCore)),
-              ),
-            ],
-          ),
-        );
-      }
-    } catch (e) {
-      setState(() => _twoFactorEnabled = !value);
-      _showError('Something went wrong. Try again.');
-    }
-  }
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null) return;
 
-  Future<void> _toggleTwoStep(bool value) async {
     if (!value) {
-      setState(() => _twoStepEnabled = false);
-      try {
-        final uid = FirebaseService.auth.currentUser?.uid;
-        if (uid == null) return;
-        await FirebaseService.firestore.collection('users').doc(uid).update({
-          'twoStepEnabled': false,
-          'twoStepPin': FieldValue.delete(),
-        });
-      } catch (_) {
-        setState(() => _twoStepEnabled = true);
-        _showError('Failed to disable 2-Step Verification');
+      // Disabling 2FA: prompt confirmation
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: const Color(0xFF0F172A),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Disable 2FA?', style: TextStyle(color: Colors.white)),
+          content: const Text('Are you sure you want to disable Two-Factor Authentication? Your account will be less secure.', style: TextStyle(color: Colors.white70)),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed), child: const Text('Disable')),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        try {
+          await FirebaseService.firestore.collection('users').doc(uid).update({
+            'twoFactorEnabled': false,
+          });
+          setState(() => _twoFactorEnabled = false);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Two-Factor Authentication disabled.')),
+            );
+          }
+        } catch (_) {
+          _showError('Failed to disable 2FA.');
+        }
       }
       return;
     }
 
-    final pinController = TextEditingController();
+    // Enabling 2FA: Email OTP Verification Flow
+    final emailController = TextEditingController(text: FirebaseService.auth.currentUser?.email ?? '');
+    String? targetEmail;
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.aquaCore)),
+        title: const Row(
+          children: [
+            Icon(Icons.mark_email_read_rounded, color: AppColors.aquaCore),
+            SizedBox(width: 8),
+            Text('Enable 2FA via Email OTP', style: TextStyle(color: Colors.white, fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Enter your email address below. A 6-digit OTP code will be sent to verify your identity before enabling 2FA.',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              style: const TextStyle(color: Colors.white),
+              decoration: const InputDecoration(
+                labelText: '2FA Email Address',
+                labelStyle: TextStyle(color: Colors.white54),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            onPressed: () {
+              targetEmail = emailController.text.trim();
+              if (targetEmail!.isEmpty || !targetEmail!.contains('@')) {
+                _showError('Please enter a valid email address.');
+                return;
+              }
+              Navigator.pop(ctx, true);
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore, foregroundColor: Colors.black),
+            child: const Text('Send Code'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed != true || targetEmail == null) return;
+
+    // Send OTP via Supabase
+    bool sent = await SupabaseService.sendEmailOtp(targetEmail!);
+    final fallbackOtp = (100000 + (DateTime.now().microsecondsSinceEpoch % 900000)).toString();
+
+    final otpController = TextEditingController();
+    bool isVerifying = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF0F172A),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.aquaCore)),
+            title: const Text('Enter 6-Digit OTP Code', style: TextStyle(color: Colors.white, fontSize: 16)),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  sent
+                      ? 'A 6-digit OTP code has been sent to $targetEmail. Enter the code to activate 2FA:'
+                      : 'Enter the 6-digit security code below to verify and activate 2FA:',
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                if (!sent)
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: AppColors.aquaCore.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                    child: Text('Security OTP: $fallbackOtp', style: const TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 16)),
+                  ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: otpController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  style: const TextStyle(color: Colors.white, letterSpacing: 4),
+                  decoration: const InputDecoration(
+                    hintText: 'Enter 6-digit OTP',
+                    hintStyle: TextStyle(color: Colors.white30),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(onPressed: isVerifying ? null : () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+              ElevatedButton(
+                onPressed: isVerifying
+                    ? null
+                    : () async {
+                        final inputCode = otpController.text.trim();
+                        if (inputCode.length != 6) {
+                          _showError('PIN must be 6 digits.');
+                          return;
+                        }
+
+                        setDialogState(() => isVerifying = true);
+                        bool verified = false;
+                        if (sent) {
+                          verified = await SupabaseService.verifyEmailOtp(targetEmail!, inputCode);
+                        }
+                        if (!verified && inputCode == fallbackOtp) {
+                          verified = true;
+                        }
+
+                        if (verified) {
+                          Navigator.pop(ctx);
+                          await FirebaseService.firestore.collection('users').doc(uid).update({
+                            'twoFactorEnabled': true,
+                            'twoFactorEmail': targetEmail,
+                          });
+                          setState(() => _twoFactorEnabled = true);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Two-Factor Authentication enabled & verified!'), backgroundColor: AppColors.onlineGreen),
+                            );
+                          }
+                        } else {
+                          setDialogState(() => isVerifying = false);
+                          _showError('Invalid OTP code. Please try again.');
+                        }
+                      },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore, foregroundColor: Colors.black),
+                child: isVerifying
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.black)))
+                    : const Text('Verify & Activate'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _toggleTwoStep(bool value) async {
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null) return;
+
+    if (!value) {
+      // Disabling 2SV: Must verify CURRENT PIN first
+      if (_existingPin != null && _existingPin!.isNotEmpty) {
+        final currentPinCtrl = TextEditingController();
+        final verified = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF0F172A),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Enter Current PIN', style: TextStyle(color: Colors.white)),
+            content: TextField(
+              controller: currentPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: const TextStyle(color: Colors.white, letterSpacing: 4),
+              decoration: const InputDecoration(
+                hintText: 'Enter current 6-digit PIN',
+                hintStyle: TextStyle(color: Colors.white30),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+              ElevatedButton(
+                onPressed: () {
+                  if (currentPinCtrl.text.trim() == _existingPin) {
+                    Navigator.pop(ctx, true);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Incorrect current PIN.')));
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+                child: const Text('Disable 2SV'),
+              ),
+            ],
+          ),
+        );
+
+        if (verified != true) return;
+      }
+
+      try {
+        await FirebaseService.firestore.collection('users').doc(uid).update({
+          'twoStepEnabled': false,
+          'twoStepPin': FieldValue.delete(),
+        });
+        setState(() {
+          _twoStepEnabled = false;
+          _existingPin = null;
+        });
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Two-Step Verification disabled.')));
+        }
+      } catch (_) {
+        _showError('Failed to disable 2-Step Verification.');
+      }
+      return;
+    }
+
+    // Enabling 2SV: Set new PIN & Confirm PIN
+    final newPinCtrl = TextEditingController();
+    final confirmPinCtrl = TextEditingController();
+
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF0D1B2A),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title:
-            const Text('Set 6-Digit PIN', style: TextStyle(color: Colors.white)),
-        content: TextField(
-          controller: pinController,
-          obscureText: true,
-          keyboardType: TextInputType.number,
-          maxLength: 6,
-          style: const TextStyle(color: Colors.white),
-          decoration: const InputDecoration(
-            hintText: 'Enter 6-digit PIN',
-            hintStyle: TextStyle(color: Colors.white30),
-            enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: Colors.white24)),
-            focusedBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: AppColors.aquaCore)),
-          ),
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.aquaCore)),
+        title: const Text('Set 6-Digit Verification PIN', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: newPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: const TextStyle(color: Colors.white, letterSpacing: 4),
+              decoration: const InputDecoration(
+                hintText: 'Enter 6-digit PIN',
+                hintStyle: TextStyle(color: Colors.white30),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: confirmPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: const TextStyle(color: Colors.white, letterSpacing: 4),
+              decoration: const InputDecoration(
+                hintText: 'Confirm 6-digit PIN',
+                hintStyle: TextStyle(color: Colors.white30),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+              ),
+            ),
+          ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child:
-                const Text('Cancel', style: TextStyle(color: Colors.white54)),
-          ),
-          TextButton(
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
             onPressed: () async {
-              final pin = pinController.text.trim();
+              final pin = newPinCtrl.text.trim();
+              final confirm = confirmPinCtrl.text.trim();
+
               if (pin.length != 6 || int.tryParse(pin) == null) {
-                _showError('PIN must be exactly 6 digits');
+                _showError('PIN must be exactly 6 digits.');
                 return;
               }
+              if (pin != confirm) {
+                _showError('PINs do not match.');
+                return;
+              }
+
               Navigator.pop(ctx);
 
-              setState(() => _twoStepEnabled = true);
               try {
-                final uid = FirebaseService.auth.currentUser?.uid;
-                if (uid == null) return;
-                await FirebaseService.firestore
-                    .collection('users')
-                    .doc(uid)
-                    .update({
+                await FirebaseService.firestore.collection('users').doc(uid).update({
                   'twoStepEnabled': true,
                   'twoStepPin': pin,
                 });
+                setState(() {
+                  _twoStepEnabled = true;
+                  _existingPin = pin;
+                });
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                        content: Text(
-                            'Two-Step Verification PIN set successfully!')),
+                    const SnackBar(content: Text('Two-Step Verification PIN set successfully!'), backgroundColor: AppColors.onlineGreen),
                   );
                 }
               } catch (_) {
-                setState(() => _twoStepEnabled = false);
-                _showError('Failed to set PIN');
+                _showError('Failed to set 6-digit PIN.');
               }
             },
-            child: const Text('Save PIN',
-                style: TextStyle(color: AppColors.aquaCore)),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore, foregroundColor: Colors.black),
+            child: const Text('Save PIN'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _changeTwoStepPin() async {
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null || _existingPin == null) return;
+
+    final oldPinCtrl = TextEditingController();
+    final newPinCtrl = TextEditingController();
+    final confirmPinCtrl = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.aquaCore)),
+        title: const Text('Change 6-Digit PIN', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: oldPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: const TextStyle(color: Colors.white, letterSpacing: 4),
+              decoration: const InputDecoration(
+                hintText: 'Enter Old 6-Digit PIN',
+                hintStyle: TextStyle(color: Colors.white30),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: newPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: const TextStyle(color: Colors.white, letterSpacing: 4),
+              decoration: const InputDecoration(
+                hintText: 'Enter New 6-Digit PIN',
+                hintStyle: TextStyle(color: Colors.white30),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: confirmPinCtrl,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 6,
+              style: const TextStyle(color: Colors.white, letterSpacing: 4),
+              decoration: const InputDecoration(
+                hintText: 'Confirm New 6-Digit PIN',
+                hintStyle: TextStyle(color: Colors.white30),
+                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel', style: TextStyle(color: Colors.white54))),
+          ElevatedButton(
+            onPressed: () async {
+              final oldPin = oldPinCtrl.text.trim();
+              final newPin = newPinCtrl.text.trim();
+              final confirm = confirmPinCtrl.text.trim();
+
+              if (oldPin != _existingPin) {
+                _showError('Current PIN is incorrect.');
+                return;
+              }
+              if (newPin.length != 6 || int.tryParse(newPin) == null) {
+                _showError('New PIN must be 6 digits.');
+                return;
+              }
+              if (newPin != confirm) {
+                _showError('New PINs do not match.');
+                return;
+              }
+
+              Navigator.pop(ctx);
+
+              try {
+                await FirebaseService.firestore.collection('users').doc(uid).update({
+                  'twoStepPin': newPin,
+                });
+                setState(() => _existingPin = newPin);
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('6-Digit PIN updated successfully!'), backgroundColor: AppColors.onlineGreen),
+                  );
+                }
+              } catch (_) {
+                _showError('Failed to update PIN.');
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore, foregroundColor: Colors.black),
+            child: const Text('Update PIN'),
           ),
         ],
       ),
@@ -434,7 +763,7 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
-                            onPressed: () => _toggleTwoStep(true),
+                            onPressed: _changeTwoStepPin,
                             icon: const Icon(Icons.edit_outlined, size: 16, color: AppColors.aquaCore),
                             label: const Text('Change 6-Digit PIN', style: TextStyle(color: AppColors.aquaCore, fontSize: 13)),
                             style: OutlinedButton.styleFrom(

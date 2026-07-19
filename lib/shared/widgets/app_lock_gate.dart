@@ -19,6 +19,7 @@ class _AppLockGateState extends State<AppLockGate>
     with WidgetsBindingObserver {
   bool _isLocked = false;
   bool _isAuthenticating = false;
+  bool _isAuthenticatingWithLocalAuth = false;
   bool _appLockEnabled = false;
   String _lockTimeout = 'immediately';
   DateTime? _backgroundedAt;
@@ -60,6 +61,9 @@ class _AppLockGateState extends State<AppLockGate>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (!_appLockEnabled) return;
 
+    // Ignore lifecycle changes caused by system biometric / device credential dialog itself
+    if (_isAuthenticatingWithLocalAuth) return;
+
     if (state == AppLifecycleState.paused ||
         state == AppLifecycleState.inactive) {
       _backgroundedAt = DateTime.now();
@@ -89,6 +93,7 @@ class _AppLockGateState extends State<AppLockGate>
   Future<void> _authenticate() async {
     if (_isAuthenticating) return;
     _isAuthenticating = true;
+    _isAuthenticatingWithLocalAuth = true;
 
     try {
       final auth = LocalAuthentication();
@@ -96,7 +101,12 @@ class _AppLockGateState extends State<AppLockGate>
           await auth.canCheckBiometrics || await auth.isDeviceSupported();
       if (!canAuth) {
         // Can't authenticate — graceful unlock
-        if (mounted) setState(() => _isLocked = false);
+        if (mounted) {
+          setState(() {
+            _isLocked = false;
+            _backgroundedAt = null;
+          });
+        }
         return;
       }
 
@@ -109,12 +119,19 @@ class _AppLockGateState extends State<AppLockGate>
       );
 
       if (authenticated && mounted) {
-        setState(() => _isLocked = false);
+        setState(() {
+          _isLocked = false;
+          _backgroundedAt = null;
+        });
       }
     } catch (_) {
       // On error, stay locked but don't crash
     } finally {
       _isAuthenticating = false;
+      // Delay resetting flag slightly so OS dialog dismissal doesn't trigger secondary lock loop
+      Future.delayed(const Duration(milliseconds: 800), () {
+        _isAuthenticatingWithLocalAuth = false;
+      });
     }
   }
 
