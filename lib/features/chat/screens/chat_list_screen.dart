@@ -46,6 +46,7 @@ import '../../../core/services/privacy_service.dart';
 import '../../../core/services/chat_lock_service.dart';
 import '../../../app.dart'; // Add this for routerProvider
 import '../../profile/screens/chat_backup_screen.dart';
+import '../../profile/services/chat_backup_service.dart';
 
 /// Home screen with Telegram-style RippleNavBar — glass design per PRD §4.3
 class HomeScreen extends ConsumerStatefulWidget {
@@ -107,6 +108,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         // Check if restore is needed (new device check)
         _checkAndPromptRestore(uid);
+
+        // Run auto backup check silently in background
+        ChatBackupService.checkAndRunAutoBackup(uid);
       }
     });
   }

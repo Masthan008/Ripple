@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
+import '../services/chat_backup_service.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -65,7 +66,7 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
 
       // Serialize direct chats and their messages
       for (final chatDoc in chatsSnap.docs) {
-        final chatData = chatDoc.data();
+        final chatData = ChatBackupService.makeEncodable(chatDoc.data());
         backupData['chats'].add({
           'id': chatDoc.id,
           'data': chatData,
@@ -77,7 +78,7 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
         for (final mDoc in msgsSnap.docs) {
           list.add({
             'id': mDoc.id,
-            'data': mDoc.data(),
+            'data': ChatBackupService.makeEncodable(mDoc.data()),
           });
           totalMessages++;
         }
@@ -91,7 +92,7 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
 
       // Serialize groups and their messages
       for (final groupDoc in groupsSnap.docs) {
-        final groupData = groupDoc.data();
+        final groupData = ChatBackupService.makeEncodable(groupDoc.data());
         backupData['groups'].add({
           'id': groupDoc.id,
           'data': groupData,
@@ -103,7 +104,7 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
         for (final mDoc in msgsSnap.docs) {
           list.add({
             'id': mDoc.id,
-            'data': mDoc.data(),
+            'data': ChatBackupService.makeEncodable(mDoc.data()),
           });
           totalMessages++;
         }
@@ -176,110 +177,13 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
 
     setState(() {
       _isActionRunning = true;
-      _progress = 0.1;
-      _statusText = 'Downloading backup archive...';
+      _progress = 0.3;
+      _statusText = 'Downloading and restoring backup archive...';
     });
     AppHaptics.mediumTap();
 
     try {
-      // 1. Download file via Supabase / temporary file cache
-      final tempDir = await getTemporaryDirectory();
-      final file = File('${tempDir.path}/temp_restore_$uid.json');
-      
-      final client = HttpClient();
-      final request = await client.getUrl(Uri.parse(url));
-      final response = await request.close();
-      await response.pipe(file.openWrite());
-
-      setState(() {
-        _progress = 0.3;
-        _statusText = 'Parsing archive data...';
-      });
-
-      final content = await file.readAsString();
-      final Map<String, dynamic> backupData = jsonDecode(content);
-
-      // Verify user ID match
-      if (backupData['userId'] != uid) {
-        throw 'Backup archive belongs to another user account.';
-      }
-
-      final chats = backupData['chats'] as List? ?? [];
-      final groups = backupData['groups'] as List? ?? [];
-      final chatMessages = backupData['chatMessages'] as Map? ?? {};
-      final groupMessages = backupData['groupMessages'] as Map? ?? {};
-
-      double stepSize = 0.7 / (chats.length + groups.length + 1);
-      int importedCount = 0;
-
-      // Restore chats
-      for (final chatItem in chats) {
-        final id = chatItem['id'] as String;
-        final data = Map<String, dynamic>.from(chatItem['data'] as Map);
-        
-        await FirebaseService.firestore.collection('chats').doc(id).set(data, SetOptions(merge: true));
-
-        // Restore messages
-        final list = chatMessages[id] as List? ?? [];
-        for (final mItem in list) {
-          final mId = mItem['id'] as String;
-          final mData = Map<String, dynamic>.from(mItem['data'] as Map);
-          
-          // Re-convert timestamp maps
-          if (mData['createdAt'] is Map && mData['createdAt']['_seconds'] != null) {
-            mData['createdAt'] = Timestamp(mData['createdAt']['_seconds'], mData['createdAt']['_nanoseconds'] ?? 0);
-          } else if (mData['createdAt'] == null) {
-            mData['createdAt'] = FieldValue.serverTimestamp();
-          }
-
-          await FirebaseService.firestore
-              .collection('chats')
-              .doc(id)
-              .collection('messages')
-              .doc(mId)
-              .set(mData, SetOptions(merge: true));
-          importedCount++;
-        }
-
-        setState(() {
-          _progress = (_progress + stepSize).clamp(0.0, 0.95);
-          _statusText = 'Restoring chats... ($importedCount messages)';
-        });
-      }
-
-      // Restore groups
-      for (final groupItem in groups) {
-        final id = groupItem['id'] as String;
-        final data = Map<String, dynamic>.from(groupItem['data'] as Map);
-        
-        await FirebaseService.firestore.collection('groups').doc(id).set(data, SetOptions(merge: true));
-
-        // Restore messages
-        final list = groupMessages[id] as List? ?? [];
-        for (final mItem in list) {
-          final mId = mItem['id'] as String;
-          final mData = Map<String, dynamic>.from(mItem['data'] as Map);
-          
-          if (mData['createdAt'] is Map && mData['createdAt']['_seconds'] != null) {
-            mData['createdAt'] = Timestamp(mData['createdAt']['_seconds'], mData['createdAt']['_nanoseconds'] ?? 0);
-          } else if (mData['createdAt'] == null) {
-            mData['createdAt'] = FieldValue.serverTimestamp();
-          }
-
-          await FirebaseService.firestore
-              .collection('groups')
-              .doc(id)
-              .collection('messages')
-              .doc(mId)
-              .set(mData, SetOptions(merge: true));
-          importedCount++;
-        }
-
-        setState(() {
-          _progress = (_progress + stepSize).clamp(0.0, 0.95);
-          _statusText = 'Restoring groups... ($importedCount messages)';
-        });
-      }
+      await ChatBackupService.performRestore(uid, url);
 
       setState(() {
         _progress = 1.0;
