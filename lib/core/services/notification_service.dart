@@ -461,6 +461,31 @@ class NotificationService {
     );
   }
 
+  /// Send a status comment notification
+  static Future<void> sendStatusCommentNotification({
+    String recipientPlayerId = '',
+    String recipientUid = '',
+    required String commenterName,
+    required String commentText,
+    String commenterPhotoUrl = '',
+    bool sound = true,
+    bool vibration = true,
+    String? soundFile,
+  }) async {
+    await _sendOneSignalNotification(
+      playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
+      recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
+      title: 'Status Reply',
+      body: '$commenterName: $commentText',
+      largeIcon: commenterPhotoUrl,
+      androidChannelId: 'ripple_social',
+      sound: sound,
+      vibration: vibration,
+      soundFile: soundFile,
+      data: {'type': 'status_comment'},
+    );
+  }
+
   /// Send a call notification with high-priority Android channel
   static Future<void> sendCallNotification({
     String recipientPlayerId = '',

@@ -14,6 +14,7 @@ import '../models/mood_config.dart';
 import '../models/status_model.dart';
 import '../services/status_service.dart';
 import '../widgets/mood_aura_ring.dart';
+import '../widgets/status_stories_carousel.dart';
 import 'create_status_screen.dart';
 import 'status_viewer_screen.dart';
 
@@ -60,7 +61,47 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
 
             const SizedBox(height: 16),
 
-            // My Status section
+            // Horizontal Stories Carousel
+            StreamBuilder<List<StatusModel>>(
+              stream: StatusService.getMyStatuses(),
+              builder: (context, mySnap) {
+                final myStatuses = mySnap.data ?? [];
+                return StreamBuilder<DocumentSnapshot>(
+                  stream: FirebaseService.usersCollection.doc(_currentUid).snapshots(),
+                  builder: (context, userSnap) {
+                    final userData = userSnap.data?.data() as Map<String, dynamic>? ?? {};
+                    final friends = List<String>.from(userData['friends'] as List? ?? []);
+
+                    if (friends.isEmpty) {
+                      return StatusStoriesCarousel(
+                        myStatuses: myStatuses,
+                        friendsGroupedStatuses: const {},
+                        onAddStatusTap: _showCreateStatusSheet,
+                      );
+                    }
+
+                    return StreamBuilder<List<StatusModel>>(
+                      stream: StatusService.getFriendsStatuses(friends),
+                      builder: (context, friendSnap) {
+                        final allFriendsStatuses = friendSnap.data ?? [];
+                        final grouped = <String, List<StatusModel>>{};
+                        for (final s in allFriendsStatuses) {
+                          grouped.putIfAbsent(s.uid, () => []).add(s);
+                        }
+
+                        return StatusStoriesCarousel(
+                          myStatuses: myStatuses,
+                          friendsGroupedStatuses: grouped,
+                          onAddStatusTap: _showCreateStatusSheet,
+                        );
+                      },
+                    );
+                  },
+                );
+              },
+            ),
+
+            // My Status list tile
             _buildMyStatusSection(),
 
             // Divider
@@ -439,14 +480,34 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
           fontSize: 12,
         ),
       ),
-      trailing:
-          mood != null
-              ? Icon(
-                MoodConfig.getIcon(mood),
-                size: 20,
-                color: AppColors.aquaCore,
-              )
-              : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (latest.commentCount > 0) ...[
+            Icon(
+              Icons.chat_bubble_outline_rounded,
+              size: 16,
+              color: Colors.white.withValues(alpha: 0.5),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '${latest.commentCount}',
+              style: TextStyle(
+                color: Colors.white.withValues(alpha: 0.6),
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 8),
+          ],
+          if (mood != null)
+            Icon(
+              MoodConfig.getIcon(mood),
+              size: 20,
+              color: AppColors.aquaCore,
+            ),
+        ],
+      ),
       onTap: () {
         final userName = FirebaseAuth.instance.currentUser?.displayName ?? '';
         Navigator.of(context).push(

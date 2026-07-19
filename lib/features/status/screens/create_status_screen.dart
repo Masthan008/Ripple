@@ -54,14 +54,25 @@ class CreateStatusSheet extends StatelessWidget {
           const SizedBox(height: 12),
 
           _OptionTile(
-            icon: Icons.photo_camera_rounded,
-            title: 'Photo',
+            icon: Icons.camera_alt_rounded,
+            title: 'Live Camera',
+            subtitle: 'Snap a live photo for your status',
+            onTap: () {
+              final nav = Navigator.of(context, rootNavigator: true);
+              final scaffold = ScaffoldMessenger.of(context);
+              nav.pop();
+              _pickAndPostPhoto(nav.context, scaffold, source: ImageSource.camera);
+            },
+          ),
+          _OptionTile(
+            icon: Icons.photo_library_rounded,
+            title: 'Photo Gallery',
             subtitle: 'Share a photo from your gallery',
             onTap: () {
               final nav = Navigator.of(context, rootNavigator: true);
               final scaffold = ScaffoldMessenger.of(context);
               nav.pop();
-              _pickAndPostPhoto(nav.context, scaffold);
+              _pickAndPostPhoto(nav.context, scaffold, source: ImageSource.gallery);
             },
           ),
           _OptionTile(
@@ -112,12 +123,13 @@ class CreateStatusSheet extends StatelessWidget {
 
   static Future<void> _pickAndPostPhoto(
     BuildContext context,
-    ScaffoldMessengerState scaffold,
-  ) async {
+    ScaffoldMessengerState scaffold, {
+    ImageSource source = ImageSource.gallery,
+  }) async {
     try {
       final picker = ImagePicker();
       final picked = await picker.pickImage(
-        source: ImageSource.gallery,
+        source: source,
         maxWidth: 1080,
         maxHeight: 1920,
         imageQuality: 80,

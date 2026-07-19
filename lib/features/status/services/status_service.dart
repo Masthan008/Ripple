@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/services/notification_service.dart';
 
+import '../models/status_comment_model.dart';
 import '../models/status_model.dart';
 
 /// Service for creating, reading, and managing statuses in Firestore.
@@ -259,6 +260,137 @@ class StatusService {
       }
     } catch (e) {
       debugPrint('Mood cleanup error: $e');
+    }
+  }
+
+  // ── ADD COMMENT / REPLY TO STATUS ────────────────────
+  static Future<void> addComment({
+    required String statusId,
+    required String text,
+    String type = 'text',
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || text.trim().isEmpty) return;
+
+    final userDoc = await _fs.collection('users').doc(user.uid).get();
+    final userData = userDoc.data() ?? {};
+    final name = userData['name'] as String? ?? user.displayName ?? 'Someone';
+    final photoUrl = userData['photoUrl'] as String? ?? user.photoURL ?? '';
+
+    // 1. Add document to comments sub-collection
+    await _fs
+        .collection('statuses')
+        .doc(statusId)
+        .collection('comments')
+        .add({
+      'uid': user.uid,
+      'name': name,
+      'photoUrl': photoUrl,
+      'text': text.trim(),
+      'type': type,
+      'createdAt': Timestamp.now(),
+    });
+
+    // 2. Increment commentCount on status document
+    await _fs.collection('statuses').doc(statusId).update({
+      'commentCount': FieldValue.increment(1),
+    });
+
+    // 3. Send notification to status owner if commenter is not status owner
+    try {
+      final statusDoc = await _fs.collection('statuses').doc(statusId).get();
+      final ownerUid = statusDoc.data()?['uid'] as String?;
+      if (ownerUid == null || ownerUid == user.uid) return;
+
+      final ownerDoc = await _fs.collection('users').doc(ownerUid).get();
+      final playerId = ownerDoc.data()?['oneSignalPlayerId'] as String? ?? '';
+      final notifSettings = ownerDoc.data()?['notificationSettings'] as Map? ?? {};
+      final sound = notifSettings['sounds'] ?? true;
+      final vibration = notifSettings['vibration'] ?? true;
+
+      await NotificationService.sendStatusCommentNotification(
+        recipientPlayerId: playerId,
+        recipientUid: ownerUid,
+        commenterName: name,
+        commentText: text.trim(),
+        commenterPhotoUrl: photoUrl,
+        sound: sound as bool,
+        vibration: vibration as bool,
+      );
+    } catch (e) {
+      debugPrint('⚠️ Status comment notification error: $e');
+    }
+  }
+
+  // ── GET COMMENTS STREAM ───────────────────────────────
+  static Stream<List<StatusCommentModel>> getComments(String statusId) {
+    return _fs
+        .collection('statuses')
+        .doc(statusId)
+        .collection('comments')
+        .orderBy('createdAt', descending: false)
+        .snapshots()
+        .map((snap) => snap.docs.map(StatusCommentModel.fromFirestore).toList());
+  }
+
+  // ── DELETE COMMENT ────────────────────────────────────
+  static Future<void> deleteComment({
+    required String statusId,
+    required String commentId,
+  }) async {
+    await _fs
+        .collection('statuses')
+        .doc(statusId)
+        .collection('comments')
+        .doc(commentId)
+        .delete();
+
+    await _fs.collection('statuses').doc(statusId).update({
+      'commentCount': FieldValue.increment(-1),
+    });
+  }
+
+  // ── SHARE STATUS TO CHAT ──────────────────────────────
+  static Future<void> shareStatusToChat({
+    required StatusModel status,
+    required List<String> recipientUids,
+  }) async {
+    final user = _auth.currentUser;
+    if (user == null || recipientUids.isEmpty) return;
+
+    for (final recipientUid in recipientUids) {
+      final uids = [user.uid, recipientUid]..sort();
+      final chatId = uids.join('_');
+
+      String content = 'Forwarded Status from ${status.ownerName}:\n';
+      if (status.text != null && status.text!.isNotEmpty) {
+        content += '"${status.text}"';
+      } else if (status.type == 'photo') {
+        content += '📷 [Photo Status]';
+      } else if (status.type == 'video') {
+        content += '📹 [Video Status]';
+      } else if (status.type == 'mood') {
+        content += '✨ Mood: ${status.mood ?? "Vibing"}';
+      }
+
+      await _fs.collection('chats').doc(chatId).collection('messages').add({
+        'senderId': user.uid,
+        'receiverId': recipientUid,
+        'text': content,
+        'mediaUrl': status.mediaUrl,
+        'type': status.type == 'photo' || status.type == 'video' ? status.type : 'text',
+        'timestamp': Timestamp.now(),
+        'isRead': false,
+        'isForwarded': true,
+      });
+
+      // Update chat document lastMessage
+      await _fs.collection('chats').doc(chatId).set({
+        'lastMessage': content,
+        'lastMessageTime': Timestamp.now(),
+        'lastSenderId': user.uid,
+        'users': [user.uid, recipientUid],
+      }, SetOptions(merge: true));
     }
   }
 }

@@ -18,6 +18,7 @@ class StatusModel {
   final Map<String, String> reactions; // { uid: emoji }
   final String privacy; // everyone | friends | custom
   final List<String> customViewers;
+  final int commentCount;
   final Timestamp expiresAt;
   final Timestamp createdAt;
 
@@ -36,6 +37,7 @@ class StatusModel {
     this.reactions = const {},
     this.privacy = 'friends',
     this.customViewers = const [],
+    this.commentCount = 0,
     required this.expiresAt,
     required this.createdAt,
   });
@@ -63,6 +65,7 @@ class StatusModel {
       reactions: Map<String, String>.from(data['reactions'] as Map? ?? {}),
       privacy: data['privacy'] as String? ?? 'friends',
       customViewers: List<String>.from(data['customViewers'] as List? ?? []),
+      commentCount: data['commentCount'] as int? ?? 0,
       expiresAt: data['expiresAt'] as Timestamp? ?? Timestamp.now(),
       createdAt: data['createdAt'] as Timestamp? ?? Timestamp.now(),
     );
@@ -82,6 +85,7 @@ class StatusModel {
     'reactions': reactions,
     'privacy': privacy,
     'customViewers': customViewers,
+    'commentCount': commentCount,
     'expiresAt': expiresAt,
     'createdAt': createdAt,
   };
