@@ -47,6 +47,22 @@ class NotificationService {
         return;
       }
 
+      if (actionId == 'accept_friend') {
+        final senderUid = data['senderUid'] as String?;
+        if (senderUid != null && senderUid.isNotEmpty) {
+          await _acceptFriendRequestFromNotif(senderUid);
+        }
+        return;
+      }
+
+      if (actionId == 'decline_friend') {
+        final senderUid = data['senderUid'] as String?;
+        if (senderUid != null && senderUid.isNotEmpty) {
+          await _declineFriendRequestFromNotif(senderUid);
+        }
+        return;
+      }
+
       _handleGlobalNavigation(data);
     });
 
@@ -108,6 +124,67 @@ class NotificationService {
     });
   }
 
+  /// Setup notification click navigation handler with BuildContext bridge
+  static void setupNotificationHandlers(BuildContext context) {
+    debugPrint('🔔 setupNotificationHandlers context bridge bound.');
+  }
+
+  /// Show Mute Notification dialog (8 hours, 1 week, Always)
+  static Future<void> showMuteDialog(BuildContext context, String chatId) async {
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null) return;
+
+    final selected = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E293B),
+        title: const Text('Mute Notifications', style: TextStyle(color: Colors.white)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              title: const Text('8 Hours', style: TextStyle(color: Colors.white70)),
+              onTap: () => Navigator.pop(ctx, '8_hours'),
+            ),
+            ListTile(
+              title: const Text('1 Week', style: TextStyle(color: Colors.white70)),
+              onTap: () => Navigator.pop(ctx, '1_week'),
+            ),
+            ListTile(
+              title: const Text('Always', style: TextStyle(color: Colors.white70)),
+              onTap: () => Navigator.pop(ctx, 'always'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (selected != null) {
+      DateTime? expiry;
+      if (selected == '8_hours') {
+        expiry = DateTime.now().add(const Duration(hours: 8));
+      } else if (selected == '1_week') {
+        expiry = DateTime.now().add(const Duration(days: 7));
+      }
+
+      final expiryValue = expiry != null ? expiry.toIso8601String() : 'always';
+
+      await FirebaseService.firestore.collection('users').doc(uid).set({
+        'mutedChats': {chatId: expiryValue}
+      }, SetOptions(merge: true));
+    }
+  }
+
+  /// Unmute chat notifications
+  static Future<void> unmuteChat(String chatId) async {
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null) return;
+
+    await FirebaseService.firestore.collection('users').doc(uid).set({
+      'mutedChats': {chatId: FieldValue.delete()}
+    }, SetOptions(merge: true));
+  }
+
   static void _handleGlobalNavigation(Map<String, dynamic> data) {
     final context = navigatorKey.currentState?.context;
     if (context == null) {
@@ -134,8 +211,8 @@ class NotificationService {
       debugPrint('🔔 Starting OneSignal identity sync for uid: $uid');
 
       // 1. Log in user to OneSignal SDK to bind external_id = uid
-      await OneSignal.User.login(uid);
-      await OneSignal.User.addTag('user_id', uid);
+      await OneSignal.login(uid);
+      await OneSignal.User.addTags({'user_id': uid});
 
       // 2. Request notification permission if not granted
       final isOptedIn = OneSignal.User.pushSubscription.optedIn ?? false;
@@ -341,6 +418,7 @@ class NotificationService {
     bool sound = true,
     bool vibration = true,
   }) async {
+    final currentUid = FirebaseService.auth.currentUser?.uid ?? '';
     await _sendOneSignalNotification(
       playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
@@ -350,7 +428,11 @@ class NotificationService {
       androidChannelId: 'ripple_social',
       sound: sound,
       vibration: vibration,
-      data: {'type': 'friend_request'},
+      data: {
+        'type': 'friend_request',
+        'senderUid': currentUid,
+        'senderName': senderName,
+      },
     );
   }
 
@@ -514,7 +596,7 @@ class NotificationService {
         payload['badge_inc'] = 1;
       }
 
-      // Add WhatsApp styling, threading, and direct reply quick actions
+      // Add quick actions for messaging and social requests
       if (data != null && (data['type'] == 'chat' || data['type'] == 'group')) {
         payload['buttons'] = [
           {'id': 'reply', 'text': 'Reply'},
@@ -523,6 +605,11 @@ class NotificationService {
         final threadId = data['chatId'] ?? data['groupId'] ?? 'default_thread';
         payload['thread_id'] = threadId;
         payload['android_group'] = threadId;
+      } else if (data != null && data['type'] == 'friend_request') {
+        payload['buttons'] = [
+          {'id': 'accept_friend', 'text': 'Accept'},
+          {'id': 'decline_friend', 'text': 'Decline'},
+        ];
       }
 
       if (largeIcon != null && largeIcon.isNotEmpty) payload['large_icon'] = largeIcon;
@@ -598,10 +685,10 @@ class NotificationService {
         }
       }
 
-      final sound = CustomSoundService.getSoundByName(soundName);
-      if (sound != null && sound.assetPath.isNotEmpty) {
+      final assetPath = CustomSoundService.getSoundAssetPath(soundName);
+      if (assetPath.isNotEmpty) {
         await _inAppPlayer.stop();
-        await _inAppPlayer.setAsset(sound.assetPath);
+        await _inAppPlayer.setAsset(assetPath);
         await _inAppPlayer.play();
       }
     } catch (e) {
@@ -620,4 +707,49 @@ class NotificationService {
       debugPrint('⚠️ Error marking chat read from notification action: $e');
     }
   }
+
+  static Future<void> _acceptFriendRequestFromNotif(String fromUid) async {
+    try {
+      final myUid = FirebaseService.auth.currentUser?.uid;
+      if (myUid == null) return;
+      final batch = FirebaseService.firestore.batch();
+      final myRef = FirebaseService.firestore.collection('users').doc(myUid);
+      final foreignRef = FirebaseService.firestore.collection('users').doc(fromUid);
+
+      batch.update(myRef, {
+        'friends': FieldValue.arrayUnion([fromUid]),
+        'friendRequests.received': FieldValue.arrayRemove([fromUid]),
+      });
+      batch.update(foreignRef, {
+        'friends': FieldValue.arrayUnion([myUid]),
+        'friendRequests.sent': FieldValue.arrayRemove([myUid]),
+      });
+      await batch.commit();
+      debugPrint('✅ Accepted friend request from notification: $fromUid');
+    } catch (e) {
+      debugPrint('⚠️ Error accepting friend request from notification: $e');
+    }
+  }
+
+  static Future<void> _declineFriendRequestFromNotif(String fromUid) async {
+    try {
+      final myUid = FirebaseService.auth.currentUser?.uid;
+      if (myUid == null) return;
+      final batch = FirebaseService.firestore.batch();
+      final myRef = FirebaseService.firestore.collection('users').doc(myUid);
+      final foreignRef = FirebaseService.firestore.collection('users').doc(fromUid);
+
+      batch.update(myRef, {
+        'friendRequests.received': FieldValue.arrayRemove([fromUid]),
+      });
+      batch.update(foreignRef, {
+        'friendRequests.sent': FieldValue.arrayRemove([myUid]),
+      });
+      await batch.commit();
+      debugPrint('✅ Declined friend request from notification: $fromUid');
+    } catch (e) {
+      debugPrint('⚠️ Error declining friend request from notification: $e');
+    }
+  }
 }
+

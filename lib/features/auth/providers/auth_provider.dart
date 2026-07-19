@@ -403,7 +403,7 @@ class AuthService {
   /// Clear push token on logout
   Future<void> _clearFcmToken(String uid) async {
     try {
-      await OneSignal.User.logout();
+      await OneSignal.logout();
       await _firestore.collection('users').doc(uid).set({
         'oneSignalPlayerId': '',
       }, SetOptions(merge: true));

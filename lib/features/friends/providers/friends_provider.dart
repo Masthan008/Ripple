@@ -142,11 +142,13 @@ class FriendsService {
       final myDoc =
           await _firestore.collection('users').doc(_myUid).get();
       final myName = myDoc.data()?['name'] as String? ?? 'Someone';
+      final myPhoto = myDoc.data()?['photoUrl'] as String? ?? '';
 
       await NotificationService.sendFriendRequestNotification(
         recipientPlayerId: playerId,
         recipientUid: targetUid,
         senderName: myName,
+        senderPhotoUrl: myPhoto,
         sound: sound as bool,
         vibration: vibration as bool,
       );

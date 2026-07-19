@@ -228,6 +228,9 @@ class GroupService {
         } catch (_) {}
 
         final pid = data['oneSignalPlayerId'] as String? ?? '';
+        final unreadCounts = Map<String, dynamic>.from(data['unreadCount'] as Map? ?? {});
+        final unreadCount = (unreadCounts[groupId] as int? ?? 0) + 1;
+
         final rawNotifText = type == 'text'
             ? text
             : type == 'image'
@@ -258,6 +261,7 @@ class GroupService {
           sound: memberSound as bool,
           vibration: memberVibration as bool,
           soundFile: soundFile.isNotEmpty ? soundFile : null,
+          badgeCount: unreadCount,
         );
       }
     } catch (_) {}

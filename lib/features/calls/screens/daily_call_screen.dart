@@ -112,7 +112,7 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
 
           await NotificationService.sendCallNotification(
             recipientPlayerId: playerId,
-            recipientUid: uid,
+            recipientUid: memberId,
             callerName: widget.currentUserName,
             callerUserId: widget.currentUserId,
             callId: widget.callId,

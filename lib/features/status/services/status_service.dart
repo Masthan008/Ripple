@@ -110,6 +110,7 @@ class StatusService {
       final myName = myDoc.data()?['name'] as String? ??
           _auth.currentUser?.displayName ??
           'Someone';
+      final myPhoto = myDoc.data()?['photoUrl'] as String? ?? '';
 
       final notifSettings = ownerDoc.data()?['notificationSettings'] as Map? ?? {};
       final sound = notifSettings['sounds'] ?? true;
@@ -133,6 +134,7 @@ class StatusService {
         recipientUid: ownerUid,
         reactorName: myName,
         emoji: emoji,
+        reactorPhotoUrl: myPhoto,
         sound: sound as bool,
         vibration: vibration as bool,
         soundFile: soundFile,
