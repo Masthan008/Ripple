@@ -7,9 +7,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/theme_provider.dart';
 
-/// Telegram-style bottom navbar with animated pill indicator,
-/// unread badges, and frosted glass background.
-/// Fully theme-aware — adapts to dark and light themes.
+/// Telegram-style floating pill navbar with frosted glass,
+/// animated pill indicator, unread badges, and theme awareness.
+/// Redesigned as a floating capsule with rounded ends.
 class RippleNavBar extends ConsumerStatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -20,7 +20,7 @@ class RippleNavBar extends ConsumerStatefulWidget {
     super.key,
     required this.currentIndex,
     required this.onTap,
-    this.unreadCounts = const [0, 0, 0, 0, 0, 0],
+    this.unreadCounts = const [0, 0, 0, 0],
     this.userPhotoUrl,
   });
 
@@ -33,13 +33,11 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
   late AnimationController _pillController;
   late Animation<double> _pillScale;
 
-  static const _labels = ['Chats', 'Status', 'Groups', 'Calls', 'AI', 'Profile'];
+  static const _labels = ['Chats', 'Status', 'AI', 'Profile'];
 
   static const _activeIcons = [
     Icons.chat_bubble_rounded,
     Icons.circle_notifications_rounded,
-    Icons.group_rounded,
-    Icons.call_rounded,
     Icons.smart_toy_rounded,
     Icons.person_rounded,
   ];
@@ -47,8 +45,6 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
   static const _inactiveIcons = [
     Icons.chat_bubble_outline_rounded,
     Icons.circle_notifications_outlined,
-    Icons.group_outlined,
-    Icons.call_outlined,
     Icons.smart_toy_outlined,
     Icons.person_outline_rounded,
   ];
@@ -58,10 +54,10 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
     super.initState();
     _pillController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 300),
     );
     _pillScale = Tween<double>(begin: 0.85, end: 1.0).animate(
-      CurvedAnimation(parent: _pillController, curve: Curves.easeOut),
+      CurvedAnimation(parent: _pillController, curve: Curves.easeOutCubic),
     );
     _pillController.forward();
   }
@@ -85,51 +81,58 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
     final bottomPad = MediaQuery.of(context).padding.bottom;
     final theme = ref.watch(rippleThemeProvider);
 
-    return ClipRRect(
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(20),
-        topRight: Radius.circular(20),
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 16,
+        right: 16,
+        bottom: bottomPad + 10,
       ),
-      child: _buildBarContent(bottomPad, theme),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(28),
+        child: _buildBarContent(theme),
+      ),
     );
   }
 
-  Widget _buildBarContent(double bottomPad, dynamic theme) {
+  Widget _buildBarContent(dynamic theme) {
     final content = Container(
-      height: 72 + bottomPad,
-      padding: EdgeInsets.only(bottom: bottomPad),
-      clipBehavior: Clip.hardEdge,
+      height: 64,
       decoration: BoxDecoration(
-        color: theme.colors.surface.withOpacity(theme.isDark ? 0.95 : 0.92),
-        border: Border(
-          top: BorderSide(
-            color: theme.colors.glassBorder,
-            width: 1,
+        color: theme.isDark
+            ? theme.colors.surface.withOpacity(0.88)
+            : Colors.white.withOpacity(0.92),
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(
+          color: theme.isDark
+              ? theme.colors.glassBorder.withOpacity(0.18)
+              : Colors.black.withOpacity(0.06),
+          width: 0.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(theme.isDark ? 0.35 : 0.10),
+            blurRadius: 24,
+            offset: const Offset(0, 6),
+            spreadRadius: -2,
           ),
-        ),
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(20),
-          topRight: Radius.circular(20),
-        ),
-        boxShadow: theme.isDark
-            ? null
-            : [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
-                  blurRadius: 20,
-                  offset: const Offset(0, -4),
-                ),
-              ],
+          if (theme.isDark)
+            BoxShadow(
+              color: theme.colors.primary.withOpacity(0.06),
+              blurRadius: 40,
+              offset: const Offset(0, -2),
+              spreadRadius: 0,
+            ),
+        ],
       ),
       child: Row(
-        children: List.generate(6, (i) => Expanded(child: _buildTab(i, theme))),
+        children: List.generate(4, (i) => Expanded(child: _buildTab(i, theme))),
       ),
     );
 
     if (kIsWeb) return content;
 
     return BackdropFilter(
-      filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+      filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
       child: content,
     );
   }
@@ -143,10 +146,13 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: () => widget.onTap(index),
-      child: ClipRect(
-        child: SizedBox(
-          height: 72,
-          child: Center(
+      child: SizedBox(
+        height: 64,
+        child: Center(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            switchInCurve: Curves.easeOutCubic,
+            switchOutCurve: Curves.easeIn,
             child: isActive
                 ? ScaleTransition(
                     scale: _pillScale,
@@ -161,12 +167,20 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
 
   Widget _buildActivePill(int index, int unread, dynamic theme) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      key: ValueKey('active_$index'),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: theme.colors.primary.withOpacity(0.15),
+        gradient: LinearGradient(
+          colors: [
+            theme.colors.primary.withOpacity(0.18),
+            theme.colors.secondary.withOpacity(0.10),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: theme.colors.primary.withOpacity(0.3),
+          color: theme.colors.primary.withOpacity(0.25),
           width: 1,
         ),
       ),
@@ -174,16 +188,17 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
         mainAxisSize: MainAxisSize.min,
         children: [
           _buildIcon(index, true, unread, theme),
-          const SizedBox(width: 3),
+          const SizedBox(width: 4),
           Flexible(
             child: Text(
               _labels[index],
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
               style: GoogleFonts.dmSans(
-                fontSize: 10,
-                fontWeight: FontWeight.w600,
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
                 color: theme.colors.primary,
+                letterSpacing: -0.2,
               ),
             ),
           ),
@@ -194,16 +209,20 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
 
   Widget _buildInactiveItem(int index, int unread, dynamic theme) {
     return Column(
+      key: ValueKey('inactive_$index'),
       mainAxisSize: MainAxisSize.min,
       children: [
         _buildIcon(index, false, unread, theme),
-        const SizedBox(height: 4),
+        const SizedBox(height: 3),
         Text(
           _labels[index],
           style: GoogleFonts.dmSans(
-            fontSize: 10,
-            fontWeight: FontWeight.w400,
-            color: theme.colors.textMuted,
+            fontSize: 9,
+            fontWeight: FontWeight.w500,
+            color: theme.isDark
+                ? theme.colors.textMuted.withOpacity(0.6)
+                : Colors.black45,
+            letterSpacing: -0.1,
           ),
         ),
       ],
@@ -212,26 +231,28 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
 
   Widget _buildIcon(int index, bool isActive, int unread, dynamic theme) {
     Widget icon;
-    if (index == 5 && isActive && widget.userPhotoUrl != null && widget.userPhotoUrl!.isNotEmpty) {
+    if (index == 3 && widget.userPhotoUrl != null && widget.userPhotoUrl!.isNotEmpty) {
       icon = Container(
         width: 22,
         height: 22,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
           border: Border.all(
-            color: theme.colors.primary,
-            width: 1.5,
+            color: isActive
+                ? theme.colors.primary
+                : theme.colors.textMuted.withOpacity(0.3),
+            width: isActive ? 2 : 1,
           ),
         ),
         child: ClipOval(
           child: CachedNetworkImage(
             imageUrl: widget.userPhotoUrl!,
-            width: 19,
-            height: 19,
+            width: 18,
+            height: 18,
             fit: BoxFit.cover,
             errorWidget: (_, __, ___) => Icon(
               _activeIcons[index],
-              color: theme.colors.primary,
+              color: isActive ? theme.colors.primary : theme.colors.textMuted,
               size: 18,
             ),
           ),
@@ -242,8 +263,10 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
         isActive ? _activeIcons[index] : _inactiveIcons[index],
         color: isActive
             ? theme.colors.primary
-            : theme.colors.textMuted,
-        size: 20,
+            : theme.isDark
+                ? theme.colors.textMuted.withOpacity(0.6)
+                : Colors.black38,
+        size: 21,
       );
     }
 
@@ -256,26 +279,33 @@ class _RippleNavBarState extends ConsumerState<RippleNavBar>
         icon,
         Positioned(
           right: -8,
-          top: -4,
+          top: -5,
           child: Container(
             padding: EdgeInsets.symmetric(
               horizontal: unread > 9 ? 4 : 0,
             ),
             constraints: const BoxConstraints(
-              minWidth: 14,
-              minHeight: 14,
+              minWidth: 16,
+              minHeight: 16,
             ),
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [theme.colors.primary, theme.colors.secondary],
               ),
-              borderRadius: BorderRadius.circular(7),
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: [
+                BoxShadow(
+                  color: theme.colors.primary.withOpacity(0.4),
+                  blurRadius: 6,
+                  spreadRadius: 0,
+                ),
+              ],
             ),
             child: Center(
               child: Text(
                 unread > 99 ? '99+' : '$unread',
                 style: GoogleFonts.dmSans(
-                  fontSize: 8,
+                  fontSize: 9,
                   fontWeight: FontWeight.w700,
                   color: Colors.white,
                   height: 1.2,

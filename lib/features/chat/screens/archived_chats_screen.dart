@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/firebase_service.dart';
 import '../services/chat_organisation_service.dart';
+import '../../../shared/widgets/pill_header.dart';
 
 /// Screen showing archived chats.
 class ArchivedChatsScreen extends StatelessWidget {
@@ -17,21 +18,23 @@ class ArchivedChatsScreen extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFF060D1A),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF0A1628),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text('Archived Chats',
-            style: TextStyle(color: Colors.white, fontSize: 18)),
-      ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseService.firestore
-            .collection('users')
-            .doc(uid)
-            .snapshots(),
-        builder: (context, userSnap) {
+      body: Column(
+        children: [
+          PillHeader(
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+              onPressed: () => Navigator.pop(context),
+            ),
+            title: 'Archived Chats',
+            subtitle: 'Quiet conversations',
+          ),
+          Expanded(
+            child: StreamBuilder<DocumentSnapshot>(
+              stream: FirebaseService.firestore
+                  .collection('users')
+                  .doc(uid)
+                  .snapshots(),
+              builder: (context, userSnap) {
           final archivedIds = List<String>.from(
               userSnap.data?.data() is Map
                   ? ((userSnap.data!.data() as Map)['archivedChats']
@@ -181,6 +184,9 @@ class ArchivedChatsScreen extends StatelessWidget {
             },
           );
         },
+      ),
+      ),
+      ],
       ),
     );
   }

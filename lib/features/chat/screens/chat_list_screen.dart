@@ -64,8 +64,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _tabs = const [
     _ChatsTab(),
     StatusListScreen(),
-    _GroupsTab(),
-    _CallsTab(),
     _AiTab(),
     _ProfileTab(),
   ];
@@ -427,7 +425,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: rippleTheme.colors.background,
-      extendBody: true, // Need this so body can flow under navbar glass
+      extendBody: true,
       body: Stack(
         children: [
           // Subtle floating particles background with theme color
@@ -447,18 +445,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               children: _tabs,
             ),
           ),
+
+          // Floating pill navbar overlay
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: myUid != null
+                ? _buildNavBarWithUnread(myUid, currentUser?.photoUrl)
+                : RippleNavBar(
+                    currentIndex: _currentIndex,
+                    onTap: (i) {
+                      AppHaptics.selectionTick();
+                      setState(() => _currentIndex = i);
+                    },
+                  ),
+          ),
         ],
       ),
-      bottomNavigationBar:
-          myUid != null
-              ? _buildNavBarWithUnread(myUid, currentUser?.photoUrl)
-              : RippleNavBar(
-                currentIndex: _currentIndex,
-                onTap: (i) {
-                  AppHaptics.selectionTick();
-                  setState(() => _currentIndex = i);
-                },
-              ),
     );
   }
 
@@ -512,7 +516,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 AppHaptics.selectionTick();
                 setState(() => _currentIndex = i);
               },
-              unreadCounts: [totalChatUnread, 0, totalGroupUnread, 0, 0, 0],
+              unreadCounts: [totalUnread, 0, 0, 0],
               userPhotoUrl: photoUrl,
             );
           },
@@ -558,11 +562,13 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
     return SafeArea(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with action buttons
+            const SizedBox(height: 12),
+
+            // Header: Title + Lock + Actions
             Row(
               children: [
                 Text(L10n.s(ref, 'chats'), style: AppTextStyles.heading),
@@ -571,36 +577,72 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                   icon: Icons.video_call_rounded,
                   onTap: () => GoRouter.of(context).push('/meetings'),
                 ),
-                const SizedBox(width: 8),
-                _GlassIconButton(
-                  icon: Icons.search_rounded,
-                  onTap: () => GoRouter.of(context).push('/search'),
-                ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 _GlassIconButton(
                   icon: Icons.person_add_rounded,
                   onTap: () => GoRouter.of(context).push('/requests'),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 6),
                 _GlassIconButton(
                   icon: Icons.explore_rounded,
                   onTap: () => GoRouter.of(context).push('/users'),
+                ),
+                const SizedBox(width: 6),
+                _GlassIconButton(
+                  icon: Icons.lock_outline_rounded,
+                  onTap: () => GoRouter.of(context).push('/app-lock-settings'),
                 ),
               ],
             ),
             const SizedBox(height: 12),
 
-            // Status Stories Row
-            _buildStatusStoriesRow(),
+            // Pill-shaped search bar
+            GestureDetector(
+              onTap: () => GoRouter.of(context).push('/search'),
+              child: Container(
+                height: 40,
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.06),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: Colors.white.withOpacity(0.08),
+                    width: 0.5,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    const SizedBox(width: 14),
+                    Icon(
+                      Icons.search_rounded,
+                      color: Colors.white.withOpacity(0.35),
+                      size: 20,
+                    ),
+                    const SizedBox(width: 10),
+                    Text(
+                      L10n.s(ref, 'search') + '...',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.30),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
             const SizedBox(height: 12),
 
-            // Filter chips
+            // Status Stories Row
+            _buildStatusStoriesRow(),
+            const SizedBox(height: 10),
+
+            // Telegram-style folder tabs with underline
             SingleChildScrollView(
               scrollDirection: Axis.horizontal,
               physics: const BouncingScrollPhysics(),
               child: Row(
                 children: [
-                  _FilterChip(
+                  _TabChip(
                     label: L10n.s(ref, 'all'),
                     selected: _filter == 'all',
                     onTap: () {
@@ -608,8 +650,8 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                       setState(() => _filter = 'all');
                     },
                   ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
+                  const SizedBox(width: 4),
+                  _TabChip(
                     label: L10n.s(ref, 'unread'),
                     selected: _filter == 'unread',
                     onTap: () {
@@ -617,61 +659,60 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                       setState(() => _filter = 'unread');
                     },
                   ),
-                  const SizedBox(width: 8),
-                  _FilterChip(
-                  label: L10n.s(ref, 'groups'),
-                  selected: _filter == 'groups',
-                  onTap: () {
-                    AppHaptics.selectionTick();
-                    setState(() => _filter = 'groups');
-                  },
-                ),
-                 const SizedBox(width: 8),
-                 // Dynamic folder chips from stream
-                 StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-                  stream: _foldersStream,
-                  builder: (context, foldersSnap) {
-                    if (!foldersSnap.hasData || foldersSnap.data!.docs.isEmpty) {
-                      return const SizedBox.shrink();
-                    }
-                    
-                    // Cache folders for use in chat list filtering
-                    _folders = foldersSnap.data!.docs;
-                    
-                    final folders = foldersSnap.data!.docs;
-                    return Row(
-                      children: folders.map((folder) {
-                        final data = folder.data();
-                        final folderId = folder.id;
-                        final name = data['name'] as String? ?? 'Folder';
-                        final isSelected = _filter == folderId;
-                        
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 8),
-                          child: _FilterChip(
-                            label: name,
-                            selected: isSelected,
-                            onTap: () {
-                              AppHaptics.selectionTick();
-                              setState(() => _filter = isSelected ? 'all' : folderId);
-                            },
-                          ),
-                        );
-                      }).toList(),
-                    );
-                  },
-                ),
-                 const SizedBox(width: 8),
-                 // Folder management button
-                 _FilterChip(
-                  label: '+',
-                  selected: false,
-                  onTap: () => _showFolderManagement(context),
-                ),
+                  const SizedBox(width: 4),
+                  _TabChip(
+                    label: L10n.s(ref, 'groups'),
+                    selected: _filter == 'groups',
+                    onTap: () {
+                      AppHaptics.selectionTick();
+                      setState(() => _filter = 'groups');
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                  // Dynamic folder tabs from stream
+                  StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+                    stream: _foldersStream,
+                    builder: (context, foldersSnap) {
+                      if (!foldersSnap.hasData || foldersSnap.data!.docs.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      
+                      _folders = foldersSnap.data!.docs;
+                      
+                      final folders = foldersSnap.data!.docs;
+                      return Row(
+                        children: folders.map((folder) {
+                          final data = folder.data();
+                          final folderId = folder.id;
+                          final name = data['name'] as String? ?? 'Folder';
+                          final isSelected = _filter == folderId;
+                          
+                          return Padding(
+                            padding: const EdgeInsets.only(right: 4),
+                            child: _TabChip(
+                              label: name,
+                              selected: isSelected,
+                              onTap: () {
+                                AppHaptics.selectionTick();
+                                setState(() => _filter = isSelected ? 'all' : folderId);
+                              },
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    },
+                  ),
+                  const SizedBox(width: 4),
+                  // Folder management button
+                  _TabChip(
+                    label: '+',
+                    selected: false,
+                    onTap: () => _showFolderManagement(context),
+                  ),
                 ],
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 10),
 
             // Chat list
             Expanded(
@@ -857,22 +898,24 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                                       1 + // Saved Messages row
                                       (archivedIds.isNotEmpty ? 1 : 0),
                                   itemBuilder: (ctx, i) {
-                                    // First item: Saved Messages
-                                    if (i == 0) {
-                                      return _savedMessagesTile(context);
+                                    if (archivedIds.isNotEmpty) {
+                                      if (i == 0) {
+                                        return _archivedRow(
+                                          context,
+                                          archivedIds.length,
+                                        );
+                                      }
+                                      if (i == 1) {
+                                        return _savedMessagesTile(context);
+                                      }
+                                    } else {
+                                      if (i == 0) {
+                                        return _savedMessagesTile(context);
+                                      }
                                     }
 
-                                    // Last item: Archived row
-                                    if (archivedIds.isNotEmpty &&
-                                        i == chats.length + 1) {
-                                      return _archivedRow(
-                                        context,
-                                        archivedIds.length,
-                                      );
-                                    }
-
-                                    final chatIndex = i - 1;
-                                    if (chatIndex >= chats.length) {
+                                    final chatIndex = archivedIds.isNotEmpty ? i - 2 : i - 1;
+                                    if (chatIndex >= chats.length || chatIndex < 0) {
                                       return const SizedBox.shrink();
                                     }
 
@@ -1811,6 +1854,54 @@ class _FilterChip extends ConsumerWidget {
             fontWeight: selected ? FontWeight.bold : FontWeight.w500,
             letterSpacing: 0.2,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Telegram-style Tab Chip/underline indicator
+class _TabChip extends ConsumerWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _TabChip({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: selected ? theme.colors.primary : theme.colors.textMuted.withOpacity(0.65),
+                fontSize: 14,
+                fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 4),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              height: 2.5,
+              width: selected ? 20 : 0,
+              decoration: BoxDecoration(
+                color: theme.colors.primary,
+                borderRadius: BorderRadius.circular(1.25),
+              ),
+            ),
+          ],
         ),
       ),
     );

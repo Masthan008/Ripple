@@ -33,6 +33,7 @@ import 'features/calls/screens/daily_call_screen.dart';
 import 'features/calls/screens/meetings_screen.dart';
 import 'features/calls/screens/incoming_call_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
+import 'features/profile/screens/settings_screen.dart';
 import 'features/profile/screens/linked_devices_screen.dart';
 import 'features/premium/screens/plans_screen.dart';
 import 'features/premium/screens/verification_waiting_screen.dart';
@@ -360,6 +361,15 @@ final routerProvider = Provider<GoRouter>((ref) {
             (context, state) => CustomTransitionPage(
               key: state.pageKey,
               child: const ProfileScreen(),
+              transitionsBuilder: HolographicGlitchTransition.transitionBuilder,
+            ),
+      ),
+      GoRoute(
+        path: '/settings',
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const SettingsScreen(),
               transitionsBuilder: HolographicGlitchTransition.transitionBuilder,
             ),
       ),

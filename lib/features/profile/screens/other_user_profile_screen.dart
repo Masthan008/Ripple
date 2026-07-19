@@ -14,6 +14,7 @@ import '../../chat/providers/chat_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../social/services/social_service.dart';
 import '../../social/widgets/achievements_section.dart';
+import '../../../shared/widgets/pill_header.dart';
 
 class OtherUserProfileScreen extends ConsumerStatefulWidget {
   final String uid;
@@ -115,26 +116,40 @@ class _OtherUserProfileScreenState
 
         return Scaffold(
           backgroundColor: AppColors.abyssBackground,
-          appBar: AppBar(
-            title: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    user['name'] as String? ?? 'User',
-                    style: AppTextStyles.headingSmall,
-                  ),
+          body: Column(
+            children: [
+              PillHeader(
+                leading: IconButton(
+                  icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white, size: 20),
+                  onPressed: () => Navigator.pop(context),
                 ),
-                VerifiedBadge(
-                  isVerified: user['isVerified'] as bool? ?? false,
-                  userId: widget.uid,
-                  size: 14,
+                titleWidget: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Flexible(
+                      child: Text(
+                        user['name'] as String? ?? 'User',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 4),
+                    VerifiedBadge(
+                      isVerified: user['isVerified'] as bool? ?? false,
+                      userId: widget.uid,
+                      size: 14,
+                    ),
+                  ],
                 ),
-              ],
-            ),
-            backgroundColor: Colors.transparent,
-          ),
-          body: SingleChildScrollView(
+                subtitle: isOnline && (user['isOnline'] as bool? ?? false) ? 'online' : 'offline',
+              ),
+              Expanded(
+                child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Column(
               children: [
@@ -222,6 +237,9 @@ class _OtherUserProfileScreenState
                 _buildMutualFriendsSection(),
               ],
             ),
+          ),
+          ),
+          ],
           ),
         );
       },

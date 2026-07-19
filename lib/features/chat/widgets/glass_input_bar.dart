@@ -73,64 +73,78 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
 
   @override
   Widget build(BuildContext context) {
-    final content = Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        // Reply preview bar
-        if (widget.replyTo != null) _buildReplyPreview(),
+    final content = Padding(
+      padding: EdgeInsets.only(
+        left: 12,
+        right: 12,
+        bottom: MediaQuery.of(context).padding.bottom + 8,
+        top: 4,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Reply preview bar
+          if (widget.replyTo != null) _buildReplyPreview(),
 
-        // Recording UI or normal input bar
-        if (_isRecording)
-          VoiceRecorderWidget(
-            key: _voiceRecorderKey,
-            onRecordingComplete: (path, duration, waveform) {
-              setState(() => _isRecording = false);
-              widget.onVoiceRecorded?.call(path, duration, waveform);
-            },
-            onCancelled: () {
-              setState(() => _isRecording = false);
-            },
-          )
-        else if (_isRecordingVideo)
-          CircularVideoRecorder(
-            onVideoRecorded: (path, duration) {
-              setState(() => _isRecordingVideo = false);
-              widget.onVideoRecorded?.call(path, duration);
-            },
-            onCancelled: () {
-              setState(() => _isRecordingVideo = false);
-            },
-          )
-        else
-          _buildInputBar(),
-      ],
-    );
-
-    if (kIsWeb) {
-      return content;
-    }
-
-    return ClipRRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-        child: content,
+          // Recording UI or normal input bar
+          if (_isRecording)
+            VoiceRecorderWidget(
+              key: _voiceRecorderKey,
+              onRecordingComplete: (path, duration, waveform) {
+                setState(() => _isRecording = false);
+                widget.onVoiceRecorded?.call(path, duration, waveform);
+              },
+              onCancelled: () {
+                setState(() => _isRecording = false);
+              },
+            )
+          else if (_isRecordingVideo)
+            CircularVideoRecorder(
+              onVideoRecorded: (path, duration) {
+                setState(() => _isRecordingVideo = false);
+                widget.onVideoRecorded?.call(path, duration);
+              },
+              onCancelled: () {
+                setState(() => _isRecordingVideo = false);
+              },
+            )
+          else
+            _buildInputBar(),
+        ],
       ),
     );
+
+    return content;
   }
 
   Widget _buildInputBar() {
     final hasText = widget.controller.text.trim().isNotEmpty;
 
-    return Container(
-      padding: EdgeInsets.only(
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(26),
+      child: BackdropFilter(
+        filter: kIsWeb ? ImageFilter.blur() : ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: Container(
+      padding: const EdgeInsets.only(
         left: 8,
         right: 8,
-        top: 8,
-        bottom: MediaQuery.of(context).padding.bottom + 8,
+        top: 6,
+        bottom: 6,
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xCC060D1A),
-        border: Border(top: BorderSide(color: Color(0x0FFFFFFF), width: 1)),
+      decoration: BoxDecoration(
+        color: const Color(0xCC060D1A),
+        borderRadius: BorderRadius.circular(26),
+        border: Border.all(
+          color: const Color(0x18FFFFFF),
+          width: 0.5,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.25),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -325,18 +339,34 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
             ),
         ],
       ),
+    ),
+    ),
     );
   }
 
   Widget _buildReplyPreview() {
     return Container(
+      margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: AppColors.aquaCore.withOpacity(0.1),
-        border: Border(left: BorderSide(color: AppColors.aquaCore, width: 3)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.aquaCore.withOpacity(0.2),
+          width: 0.5,
+        ),
       ),
       child: Row(
         children: [
+          Container(
+            width: 3,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.aquaCore,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

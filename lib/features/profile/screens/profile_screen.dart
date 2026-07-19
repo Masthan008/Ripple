@@ -193,23 +193,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
           return FadeTransition(
             opacity: _animController,
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              physics: const BouncingScrollPhysics(),
               child: Column(
                 children: [
                   const SizedBox(height: 12),
 
-                  // Header
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      L10n.s(ref, 'profile'),
-                      style: AppTextStyles.heading,
-                    ),
+                  // Telegram-style Top bar
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.qr_code_2_rounded, color: Colors.white, size: 24),
+                        onPressed: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const QrCodeScreen()),
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        icon: const Icon(Icons.settings_outlined, color: Colors.white, size: 24),
+                        onPressed: () => context.push('/settings'),
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 8),
 
-                  const SizedBox(height: 16),
-
-                  // ─── Avatar with glow ─────────────────────
+                  // Large centered avatar with cyan glow
                   Stack(
                     alignment: Alignment.bottomRight,
                     children: [
@@ -218,646 +227,182 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           shape: BoxShape.circle,
                           boxShadow: [
                             BoxShadow(
-                              color: AppColors.aquaCyan.withValues(alpha: 0.3),
+                              color: AppColors.aquaCyan.withOpacity(0.25),
                               blurRadius: 30,
-                              spreadRadius: 5,
+                              spreadRadius: 4,
                             ),
                           ],
                         ),
                         child: AquaAvatar(
                           imageUrl: u.photoUrl,
                           name: u.name,
-                          size: 100,
+                          size: 110,
                         ),
                       ),
-                      Container(
-                        width: 34,
-                        height: 34,
-                        decoration: BoxDecoration(
-                          gradient: AppColors.buttonGradient,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: AppColors.abyssBackground,
-                            width: 3,
-                          ),
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const EditProfileScreen()),
                         ),
-                        child: const Icon(
-                          Icons.camera_alt_rounded,
-                          color: Colors.white,
-                          size: 14,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            gradient: AppColors.buttonGradient,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: AppColors.abyssBackground,
+                              width: 3,
+                            ),
+                          ),
+                          child: const Icon(
+                            Icons.camera_alt_rounded,
+                            color: Colors.white,
+                            size: 14,
+                          ),
                         ),
                       ),
                     ],
                   ),
-
                   const SizedBox(height: 16),
 
-                  // ─── Name & Email ──────────────────────────
+                  // User name + verified badge
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Flexible(
                         child: Text(
                           u.name,
-                          style: AppTextStyles.display.copyWith(fontSize: 26),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.5,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
                       VerifiedBadge(
                         isVerified: u.isVerified,
                         userId: u.uid,
                         plan: u.subscriptionPlan,
-                        size: 24,
+                        size: 20,
                         padding: const EdgeInsets.only(left: 6),
                       ),
                     ],
                   ),
                   const SizedBox(height: 4),
+
+                  // Status text (Online)
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Text(u.email, style: AppTextStyles.caption),
-                      const SizedBox(width: 8),
-                      // Ripple Score
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
+                        width: 6,
+                        height: 6,
                         decoration: BoxDecoration(
-                          color: SocialService.getRippleRankColor(
-                            u.rippleScore,
-                          ).withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(10),
+                          color: u.isOnline ? AppColors.onlineGreen : Colors.white30,
+                          shape: BoxShape.circle,
                         ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              SocialService.getRippleRank(u.rippleScore),
-                              style: TextStyle(
-                                color: SocialService.getRippleRankColor(
-                                  u.rippleScore,
-                                ),
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(width: 4),
-                            Text(
-                              u.rippleScore.toString(),
-                              style: TextStyle(
-                                color: SocialService.getRippleRankColor(
-                                  u.rippleScore,
-                                ),
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        u.isOnline ? L10n.s(ref, 'online') : L10n.s(ref, 'offline'),
+                        style: TextStyle(
+                          color: u.isOnline ? AppColors.onlineGreen : Colors.white30,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 24),
 
-                  const SizedBox(height: 8),
-
-                  // Online status badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppColors.aquaCore.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color:
-                                u.isOnline
-                                    ? AppColors.onlineGreen
-                                    : AppColors.textMuted,
-                            shape: BoxShape.circle,
-                          ),
+                  // Action Buttons Row: Edit Info, Settings, Saved Messages
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildPillAction(
+                        icon: Icons.edit_note_rounded,
+                        label: 'Edit Info',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const EditProfileScreen()),
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          u.isOnline
-                              ? L10n.s(ref, 'online')
-                              : L10n.s(ref, 'offline'),
-                          style: AppTextStyles.caption.copyWith(
-                            fontSize: 11,
-                            color:
-                                u.isOnline
-                                    ? AppColors.onlineGreen
-                                    : AppColors.textMuted,
-                          ),
+                      ),
+                      _buildPillAction(
+                        icon: Icons.settings_rounded,
+                        label: 'Settings',
+                        onTap: () => context.push('/settings'),
+                      ),
+                      _buildPillAction(
+                        icon: Icons.bookmark_rounded,
+                        label: 'Saved',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const SavedMessagesScreen()),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+
+                  // Details Cards Group
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.only(left: 4, bottom: 8),
+                      child: Text(
+                        'Details'.toUpperCase(),
+                        style: const TextStyle(
+                          color: Colors.white38,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                  ),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.03),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.white.withOpacity(0.05), width: 0.5),
+                    ),
+                    child: Column(
+                      children: [
+                        _buildDetailTile(
+                          icon: Icons.alternate_email_rounded,
+                          title: u.email,
+                          subtitle: 'Email / Username',
+                        ),
+                        Divider(
+                          height: 0.5,
+                          thickness: 0.5,
+                          color: Colors.white.withOpacity(0.04),
+                          indent: 52,
+                        ),
+                        _buildDetailTile(
+                          icon: Icons.emoji_events_outlined,
+                          title: '${SocialService.getRippleRank(u.rippleScore)} (${u.rippleScore} pts)',
+                          subtitle: 'Ripple Rank & Score',
                         ),
                       ],
                     ),
                   ),
+                  const SizedBox(height: 24),
 
-                  const SizedBox(height: 28),
+                  // Achievements Section
                   AchievementsSection(uid: u.uid),
-
                   const SizedBox(height: 24),
-
-                  // ─── Social & Activity Section ────────────
-                  _SectionHeader(title: L10n.s(ref, 'socialAndActivity')),
-                  const SizedBox(height: 8),
-
-                  _SettingsTile(
-                    icon: Icons.emoji_events_rounded,
-                    title: L10n.s(ref, 'leaderboard'),
-                    subtitle: L10n.s(ref, 'leaderboardDesc'),
-                    iconColor: Colors.amber,
-                    onTap: () => context.push('/leaderboard'),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.military_tech_rounded,
-                    title: 'Challenges',
-                    subtitle: 'Complete weekly challenges & earn badges',
-                    iconColor: Colors.green,
-                    onTap: () => context.push('/challenges'),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.card_giftcard_rounded,
-                    title: 'Gift Cards',
-                    subtitle: 'Send themed digital gifts to friends',
-                    iconColor: Colors.pink,
-                    onTap: () => context.push('/gift-cards'),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.people_alt_rounded,
-                    title: L10n.s(ref, 'friendSuggestions'),
-                    subtitle: L10n.s(ref, 'friendSuggestionsDesc'),
-                    iconColor: AppColors.aquaCore,
-                    onTap: () => context.push('/friend-suggestions'),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.local_fire_department_rounded,
-                    title: L10n.s(ref, 'activityFeed'),
-                    subtitle: L10n.s(ref, 'activityFeedDesc'),
-                    iconColor: Colors.orange,
-                    onTap: () => context.push('/activity-feed'),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.visibility_rounded,
-                    title: L10n.s(ref, 'profileVisitors'),
-                    subtitle: L10n.s(ref, 'profileVisitorsDesc'),
-                    iconColor: Colors.purple,
-                    onTap: () => context.push('/profile-visitors'),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  if (_subStatus == 'expiring_soon') ...[
-                    GestureDetector(
-                      onTap: () => context.push('/plans'),
-                      child: Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          gradient: const LinearGradient(
-                            colors: [Color(0x20F59E0B), Color(0x10EF4444)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(16),
-                          border: Border.all(color: Colors.amber.withOpacity(0.3), width: 1),
-                        ),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 28),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Verified Badge Expiring Soon!',
-                                    style: AppTextStyles.headingSmall.copyWith(
-                                      color: Colors.amber,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Your Ripple Verified tick mark will expire in less than 3 days. Tap here to renew your plan.',
-                                    style: AppTextStyles.body.copyWith(
-                                      color: Colors.white70,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                            const Icon(Icons.chevron_right_rounded, color: Colors.white30),
-                          ],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                  ],
-
-                  // ─── Premium Section ──────────────────────
-                  _SectionHeader(title: 'Ripple Premium'),
-                  const SizedBox(height: 8),
-                  _SettingsTile(
-                    icon: Icons.verified_rounded,
-                    title: 'Ripple Verified Badge',
-                    subtitle: u.isVerified 
-                        ? 'Your profile is verified and active' 
-                        : u.verificationStatus == 'pending'
-                            ? 'Verification status: Pending review'
-                            : 'Get a verified blue badge & premium plans',
-                    iconColor: AppColors.aquaCore,
-                    onTap: () {
-                      if (u.verificationStatus == 'pending') {
-                        context.push('/verification-waiting');
-                      } else {
-                        context.push('/plans');
-                      }
-                    },
-                  ),
-                  const SizedBox(height: 12),
-
-                  // ─── Account Section ──────────────────────
-                  _SectionHeader(title: L10n.s(ref, 'account')),
-                  const SizedBox(height: 8),
-
-                  _SettingsTile(
-                    icon: Icons.person_outline_rounded,
-                    title: L10n.s(ref, 'editProfile'),
-                    subtitle: L10n.s(ref, 'editProfileDesc'),
-                    iconColor: AppColors.aquaCore,
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const EditProfileScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.qr_code_rounded,
-                    title: L10n.s(ref, 'qrCode'),
-                    subtitle: L10n.s(ref, 'qrCodeDesc'),
-                    iconColor: const Color(0xFF9C27B0),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const QrCodeScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.shield_outlined,
-                    title: L10n.s(ref, 'accountSecurity'),
-                    subtitle: L10n.s(ref, 'accountSecurityDesc'),
-                    iconColor: const Color(0xFFFF9800),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AccountSecurityScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.devices_other_rounded,
-                    title: 'Linked Devices',
-                    subtitle: 'Manage active companion sessions and pair devices',
-                    iconColor: AppColors.aquaCore,
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const LinkedDevicesScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.bookmark_rounded,
-                    title: L10n.s(ref, 'savedMessages'),
-                    subtitle: L10n.s(ref, 'savedMessagesDesc'),
-                    iconColor: Colors.amber,
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SavedMessagesScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.psychology_rounded,
-                    title: L10n.s(ref, 'aiFeatures'),
-                    subtitle: L10n.s(ref, 'aiFeaturesDesc'),
-                    iconColor: AppColors.aquaCore,
-                    onTap: () => context.push('/ai-settings'),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // ─── Preferences Section ──────────────────
-                  _SectionHeader(title: L10n.s(ref, 'preferences')),
-                  const SizedBox(height: 8),
-
-                  _SettingsTile(
-                    icon: Icons.notifications_outlined,
-                    title: L10n.s(ref, 'notifications'),
-                    subtitle: L10n.s(ref, 'notificationsDesc'),
-                    iconColor: const Color(0xFF2196F3),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const NotificationsSettingsScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.lock_outline_rounded,
-                    title: L10n.s(ref, 'privacyAndSecurity'),
-                    subtitle: L10n.s(ref, 'privacyAndSecurityDesc'),
-                    iconColor: const Color(0xFF4CAF50),
-                    onTap: () => context.push('/privacy-settings'),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.color_lens_outlined,
-                    title: L10n.s(ref, 'appearance'),
-                    subtitle: L10n.s(ref, 'appearanceDesc'),
-                    iconColor: const Color(0xFFE91E63),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AppearanceScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.accessibility_new_outlined,
-                    title: 'Accessibility',
-                    subtitle: 'High contrast, larger text, reduced motion',
-                    iconColor: const Color(0xFF673AB7),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AccessibilityScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.cloud_upload_rounded,
-                    title: 'Chat Backup & Restore',
-                    subtitle: 'Back up and restore your chats to Cloud Drive',
-                    iconColor: AppColors.aquaCore,
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ChatBackupScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.language_rounded,
-                    title: L10n.s(ref, 'language'),
-                    subtitle: ref.watch(languageProvider),
-                    iconColor: const Color(0xFF009688),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const LanguageScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.app_settings_alt_rounded,
-                    title: 'App Icon',
-                    subtitle: 'Change app launcher icon',
-                    iconColor: const Color(0xFFFF9800),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AppIconScreen(),
-                          ),
-                        ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // ─── Storage Section ──────────────────────
-                  _SectionHeader(title: L10n.s(ref, 'storageAndData')),
-                  const SizedBox(height: 8),
-
-                  _SettingsTile(
-                    icon: Icons.storage_rounded,
-                    title: L10n.s(ref, 'storageUsage'),
-                    subtitle: L10n.s(ref, 'storageUsageDesc'),
-                    iconColor: const Color(0xFF795548),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const StorageUsageScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.cloud_download_outlined,
-                    title: L10n.s(ref, 'dataUsage'),
-                    subtitle: L10n.s(ref, 'dataUsageDesc'),
-                    iconColor: const Color(0xFF607D8B),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const DataUsageScreen(),
-                          ),
-                        ),
-                  ),
-
-                  const SizedBox(height: 20),
-
-                  // ─── Support Section ──────────────────────
-                  _SectionHeader(title: L10n.s(ref, 'support')),
-                  const SizedBox(height: 8),
-
-                  _SettingsTile(
-                    icon: Icons.help_outline_rounded,
-                    title: L10n.s(ref, 'helpFaq'),
-                    subtitle: L10n.s(ref, 'helpFaqDesc'),
-                    iconColor: const Color(0xFF3F51B5),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(builder: (_) => const HelpScreen()),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.contact_support_outlined,
-                    title: 'Contact Support',
-                    subtitle: 'Submit a feedback or bug report ticket',
-                    iconColor: const Color(0xFF00E676),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const ContactSupportScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.analytics_outlined,
-                    title: 'System Diagnostics',
-                    subtitle: 'Check Firebase server latency & status',
-                    iconColor: const Color(0xFFE040FB),
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const SystemStatusScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.info_outline_rounded,
-                    title: L10n.s(ref, 'aboutRipple'),
-                    subtitle: L10n.s(ref, 'aboutRippleDesc'),
-                    iconColor: AppColors.aquaCyan,
-                    onTap:
-                        () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const AboutScreen(),
-                          ),
-                        ),
-                  ),
-                  _SettingsTile(
-                    icon: Icons.star_outline_rounded,
-                    title: L10n.s(ref, 'rateUs'),
-                    subtitle: L10n.s(ref, 'rateUsDesc'),
-                    iconColor: const Color(0xFFFFC107),
-                    onTap: () async {
-                      final url =
-                          Platform.isAndroid
-                              ? 'market://details?id=com.yourcompany.ripple'
-                              : 'https://apps.apple.com/app/idYOUR_APP_ID';
-                      try {
-                        await launchUrl(Uri.parse(url));
-                      } catch (_) {
-                        if (Platform.isAndroid) {
-                          await launchUrl(
-                            Uri.parse(
-                              'https://play.google.com/store/apps/details?id=com.yourcompany.ripple',
-                            ),
-                          );
-                        }
-                      }
-                    },
-                  ),
-
-                  const SizedBox(height: 24),
-
-                  // ─── Sign Out ─────────────────────────────
-                  WaterRippleEffect(
-                    onTap: () async {
-                      final confirmed = await showDialog<bool>(
-                        context: context,
-                        builder:
-                            (ctx) => AlertDialog(
-                              backgroundColor: const Color(0xFF0D1B2A),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(16),
-                              ),
-                              title: Text(
-                                L10n.s(ref, 'signOutTitle'),
-                                style: AppTextStyles.body.copyWith(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              content: Text(
-                                L10n.s(ref, 'confirmSignOut'),
-                                style: AppTextStyles.caption,
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, false),
-                                  child: Text(
-                                    L10n.s(ref, 'cancel'),
-                                    style: TextStyle(
-                                      color: AppColors.textMuted,
-                                    ),
-                                  ),
-                                ),
-                                TextButton(
-                                  onPressed: () => Navigator.pop(ctx, true),
-                                  child: Text(
-                                    L10n.s(ref, 'signOut'),
-                                    style: TextStyle(color: AppColors.errorRed),
-                                  ),
-                                ),
-                              ],
-                            ),
-                      );
-                      if (confirmed == true && mounted) {
-                        final authService = ref.read(authServiceProvider);
-                        await authService.signOut();
-                        // GoRouter auto-redirects to /login via auth state listener
-                      }
-                    },
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      decoration: BoxDecoration(
-                        color: AppColors.errorRed.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(14),
-                        border: Border.all(
-                          color: AppColors.errorRed.withValues(alpha: 0.3),
-                        ),
-                      ),
-                      child: Center(
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.logout_rounded,
-                              color: AppColors.errorRed,
-                              size: 18,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              L10n.s(ref, 'signOut'),
-                              style: AppTextStyles.button.copyWith(
-                                color: AppColors.errorRed,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-
-                  const SizedBox(height: 16),
 
                   // App version
                   Text(
                     'Ripple v1.0.0',
-                    style: AppTextStyles.caption.copyWith(
-                      color: AppColors.textMuted,
-                      fontSize: 10,
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.2),
+                      fontSize: 11,
                     ),
                   ),
                   const SizedBox(height: 32),
@@ -866,6 +411,86 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
             ),
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildPillAction({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.white.withOpacity(0.08), width: 0.5),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, color: AppColors.aquaCore, size: 16),
+            const SizedBox(width: 6),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDetailTile({
+    required IconData icon,
+    required String title,
+    required String subtitle,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.aquaCore.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.aquaCore, size: 16),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 1),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    color: Colors.white38,
+                    fontSize: 11,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

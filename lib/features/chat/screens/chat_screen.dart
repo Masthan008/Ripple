@@ -79,6 +79,7 @@ import '../widgets/sonic_whisper_overlay.dart';
 import '../../../shared/widgets/sentient_breathing_wrapper.dart';
 import '../../../shared/widgets/gyroscopic_parallax.dart';
 import '../../../shared/widgets/liquid_glass_container.dart';
+import '../../../shared/widgets/pill_header.dart';
 
 /// 1-to-1 Chat Screen — PRD §6.3
 /// Phase 1: context menu, reactions, reply, edit, delete, forward, pin,
@@ -1504,445 +1505,439 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildHeader(AsyncValue<UserModel?> partner) {
     if (_isSearching) {
-      return Container(
+      return Padding(
         padding: EdgeInsets.only(
-          top: MediaQuery.of(context).padding.top + 8,
-          left: 8,
-          right: 16,
-          bottom: 12,
+          top: MediaQuery.of(context).padding.top + 6,
+          left: 12,
+          right: 12,
+          bottom: 6,
         ),
-        decoration: const BoxDecoration(
-          color: Color(0xE6060D1A),
-          border: Border(bottom: BorderSide(color: Color(0x0FFFFFFF), width: 1)),
-        ),
-        child: Row(
-          children: [
-            IconButton(
-              icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
-              onPressed: () {
-                setState(() {
-                  _isSearching = false;
-                  _searchController.clear();
-                });
-              },
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(
+            color: const Color(0xE6060D1A),
+            borderRadius: BorderRadius.circular(28),
+            border: Border.all(
+              color: Colors.white.withOpacity(0.08),
+              width: 0.5,
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: TextField(
-                controller: _searchController,
-                autofocus: true,
-                style: const TextStyle(color: Colors.white, fontSize: 15),
-                decoration: const InputDecoration(
-                  hintText: 'Search messages...',
-                  hintStyle: TextStyle(color: Colors.white30, fontSize: 15),
-                  border: InputBorder.none,
-                ),
-                onChanged: (val) {
-                  setState(() {});
-                },
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 4),
               ),
-            ),
-            if (_searchController.text.isNotEmpty)
+            ],
+          ),
+          child: Row(
+            children: [
               IconButton(
-                icon: const Icon(Icons.clear_rounded, color: Colors.white, size: 20),
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white, size: 20),
                 onPressed: () {
                   setState(() {
+                    _isSearching = false;
                     _searchController.clear();
                   });
                 },
               ),
-          ],
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextField(
+                  controller: _searchController,
+                  autofocus: true,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                  decoration: const InputDecoration(
+                    hintText: 'Search messages...',
+                    hintStyle: TextStyle(color: Colors.white30, fontSize: 15),
+                    border: InputBorder.none,
+                  ),
+                  onChanged: (val) {
+                    setState(() {});
+                  },
+                ),
+              ),
+              if (_searchController.text.isNotEmpty)
+                IconButton(
+                  icon: const Icon(Icons.clear_rounded, color: Colors.white, size: 20),
+                  onPressed: () {
+                    setState(() {
+                      _searchController.clear();
+                    });
+                  },
+                ),
+              const SizedBox(width: 8),
+            ],
+          ),
         ),
       );
     }
 
-    return Container(
-      padding: EdgeInsets.only(
-        top: MediaQuery.of(context).padding.top + 8,
-        left: 8,
-        right: 16,
-        bottom: 12,
+    final isOnline = partner.valueOrNull?.isOnline ?? false;
+
+    return PillHeader(
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
+        onPressed: () => Navigator.of(context).pop(),
       ),
-      decoration: const BoxDecoration(
-        color: Color(0xE6060D1A),
-        border: Border(bottom: BorderSide(color: Color(0x0FFFFFFF), width: 1)),
+      avatar: Hero(
+        tag: 'chat_avatar_${_chatId}',
+        child: AquaAvatar(
+          imageUrl: widget.partnerPhoto,
+          name: widget.partnerName,
+          size: 36,
+          showOnlineDot: true,
+          isOnline: isOnline,
+        ),
       ),
-      child: Row(
+      titleWidget: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Back button
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_rounded, size: 20),
-            onPressed: () => Navigator.of(context).pop(),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  widget.partnerName,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: -0.2,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 4),
+              VerifiedBadge(
+                isVerified: partner.valueOrNull?.isVerified ?? false,
+                userId: widget.partnerUid,
+                plan: partner.valueOrNull?.subscriptionPlan,
+                size: 14,
+              ),
+            ],
           ),
-
-          // Avatar
-          Hero(
-            tag: 'chat_avatar_${_chatId}',
-            child: AquaAvatar(
-              imageUrl: widget.partnerPhoto,
-              name: widget.partnerName,
-              size: 36,
-              showOnlineDot: true,
-              isOnline: partner.valueOrNull?.isOnline ?? false,
-            ),
-          ),
-
-          const SizedBox(width: 12),
-
-          // Name + status
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+          const SizedBox(height: 1),
+          partner.when(
+            data: (p) {
+              if (p == null) return const SizedBox.shrink();
+              if (p.isOnline) {
+                return Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Flexible(
-                      child: Text(
-                        widget.partnerName,
-                        style: AppTextStyles.headingSmall.copyWith(fontSize: 15),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
+                    Container(
+                      width: 5,
+                      height: 5,
+                      decoration: const BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: AppColors.onlineGreen,
                       ),
                     ),
-                    VerifiedBadge(
-                      isVerified: partner.valueOrNull?.isVerified ?? false,
-                      userId: widget.partnerUid,
-                      plan: partner.valueOrNull?.subscriptionPlan,
-                      size: 14,
+                    const SizedBox(width: 4),
+                    const Text(
+                      'online',
+                      style: TextStyle(
+                        color: AppColors.onlineGreen,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                   ],
-                ),
-                const SizedBox(height: 1),
-                partner.when(
-                  data: (p) {
-                    if (p == null) {
-                      return const SizedBox.shrink();
-                    }
-                    if (p.isOnline) {
-                      return Row(
-                        children: [
-                          Container(
-                            width: 6,
-                            height: 6,
-                            decoration: const BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.onlineGreen,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            L10n.s(ref, 'online'),
-                            style: AppTextStyles.caption.copyWith(
-                              color: AppColors.onlineGreen,
-                              fontSize: 10,
-                            ),
-                          ),
-                        ],
-                      );
-                    }
-                    if (p.lastSeen != null) {
-                      return Text(
-                        Helpers.formatLastSeen(p.lastSeen!),
-                        style: AppTextStyles.caption.copyWith(fontSize: 10),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                  loading: () => const SizedBox.shrink(),
-                  error: (_, __) => const SizedBox.shrink(),
-                ),
-              ],
-            ),
-          ),
-
-          // Catch up / Summarize button
-          GestureDetector(
-            onTap: _isSummarizing ? null : _summarizeConversation,
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.glassBorder, width: 0.5),
-              ),
-              child:
-                  _isSummarizing
-                      ? const Padding(
-                        padding: EdgeInsets.all(10),
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: AppColors.aquaCore,
-                        ),
-                      )
-                      : const Icon(
-                        Icons.auto_awesome_rounded,
-                        color: AppColors.aquaCore,
-                        size: 18,
-                      ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Video call button
-          GestureDetector(
-            onTap: () => _startCall(isVideo: true),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.glassBorder, width: 0.5),
-              ),
-              child: const Icon(
-                Icons.videocam_rounded,
-                color: AppColors.lightWave,
-                size: 18,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Audio call button
-          GestureDetector(
-            onTap: () => _startCall(isVideo: false),
-            child: Container(
-              width: 36,
-              height: 36,
-              decoration: BoxDecoration(
-                color: AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.glassBorder, width: 0.5),
-              ),
-              child: const Icon(
-                Icons.call_rounded,
-                color: AppColors.lightWave,
-                size: 18,
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 4),
-
-          // More menu (Media gallery)
-          PopupMenuButton<String>(
-            icon: const Icon(
-              Icons.more_vert_rounded,
-              color: AppColors.lightWave,
-              size: 20,
-            ),
-            color: const Color(0xFF0C1E3A),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            onSelected: (value) {
-              if (value == 'media') {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder:
-                        (_) => ChatMediaGalleryScreen(
-                          chatId: _chatId,
-                          isGroup: false,
-                        ),
-                  ),
                 );
-              } else if (value == 'summary') {
-                _showChatSummary();
-              } else if (value == 'self_destruct') {
-                _showSelfDestructPicker();
-              } else if (value == 'theme') {
-                final currentUser = ref.read(currentUserProvider).value;
-                final plan = currentUser?.subscriptionPlan ?? '';
-                if (plan != 'Premium Trial' && plan != 'Gold Monthly' && plan != 'Abyss Platinum') {
-                  _showUpgradeRequiredDialog(
-                    context,
-                    title: 'Unlock Chat Themes',
-                    message: 'Custom chat backgrounds, colors, and premium glass presets are available on the Gold Monthly and Abyss Platinum subscription plans. Start your 1-month Free Trial to unlock them today!',
-                  );
-                  return;
-                }
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: Colors.transparent,
-                  isScrollControlled: true,
-                  builder:
-                      (_) => ChatThemePicker(
-                        chatId: _chatId,
-                        onThemeChanged: (colors) {
-                          setState(() => _appliedWallpaperColors = colors);
-                        },
-                      ),
-                );
-              } else if (value == 'export') {
-                _exportChat();
-              } else if (value == 'mute') {
-                NotificationService.showMuteDialog(context, _chatId);
-              } else if (value == 'unmute') {
-                NotificationService.unmuteChat(_chatId);
-              } else if (value == 'custom_sound') {
-                showModalBottomSheet(
-                  context: context,
-                  backgroundColor: Colors.transparent,
-                  isScrollControlled: true,
-                  builder:
-                      (_) => CustomNotificationsPicker(
-                        chatId: _chatId,
-                        partnerName: widget.partnerName,
-                      ),
-                );
-              } else if (value == 'search') {
-                setState(() {
-                  _isSearching = true;
-                });
               }
+              if (p.lastSeen != null) {
+                return Text(
+                  Helpers.formatLastSeen(p.lastSeen!),
+                  style: const TextStyle(color: Colors.white38, fontSize: 10),
+                );
+              }
+              return const SizedBox.shrink();
             },
-            itemBuilder:
-                (_) => [
-                  const PopupMenuItem(
-                    value: 'media',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.photo_library_rounded,
-                          color: AppColors.aquaCore,
-                          size: 20,
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Media & Files',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: 'summary',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.summarize_rounded,
-                          color: AppColors.aquaCore,
-                          size: 20,
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Summarise Chat',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'self_destruct',
-                    child: Row(
-                      children: [
-                        Text('💣', style: TextStyle(fontSize: 18)),
-                        SizedBox(width: 12),
-                        Text(
-                          'Self-Destruct Timer',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'theme',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.palette_rounded,
-                          color: AppColors.aquaCore,
-                          size: 20,
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Chat Theme',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'export',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.import_export_rounded,
-                          color: AppColors.aquaCore,
-                          size: 20,
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Export Chat',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  PopupMenuItem(
-                    value: _isMuted ? 'unmute' : 'mute',
-                    child: Row(
-                      children: [
-                        Icon(
-                          _isMuted
-                              ? Icons.volume_up_rounded
-                              : Icons.volume_off_rounded,
-                          color: AppColors.aquaCore,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          _isMuted
-                              ? 'Unmute Notifications'
-                              : 'Mute Notifications',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'custom_sound',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.music_note_rounded,
-                          color: AppColors.aquaCore,
-                          size: 20,
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          'Custom Notifications',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const PopupMenuItem(
-                    value: 'search',
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.search_rounded,
-                          color: AppColors.aquaCore,
-                          size: 20,
-                        ),
-                        SizedBox(width: 12),
-                        Text(
-                          'Search Messages',
-                          style: TextStyle(color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            loading: () => const SizedBox.shrink(),
+            error: (_, __) => const SizedBox.shrink(),
           ),
         ],
       ),
+      actions: [
+        // Summarize
+        GestureDetector(
+          onTap: _isSummarizing ? null : _summarizeConversation,
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.glassPanel,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.glassBorder, width: 0.5),
+            ),
+            child: _isSummarizing
+                ? const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: AppColors.aquaCore,
+                    ),
+                  )
+                : const Icon(
+                    Icons.auto_awesome_rounded,
+                    color: AppColors.aquaCore,
+                    size: 16,
+                  ),
+          ),
+        ),
+        const SizedBox(width: 6),
+
+        // Video call
+        GestureDetector(
+          onTap: () => _startCall(isVideo: true),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.glassPanel,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.glassBorder, width: 0.5),
+            ),
+            child: const Icon(
+              Icons.videocam_rounded,
+              color: AppColors.lightWave,
+              size: 16,
+            ),
+          ),
+        ),
+        const SizedBox(width: 6),
+
+        // Audio call
+        GestureDetector(
+          onTap: () => _startCall(isVideo: false),
+          child: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: AppColors.glassPanel,
+              shape: BoxShape.circle,
+              border: Border.all(color: AppColors.glassBorder, width: 0.5),
+            ),
+            child: const Icon(
+              Icons.call_rounded,
+              color: AppColors.lightWave,
+              size: 16,
+            ),
+          ),
+        ),
+        const SizedBox(width: 2),
+
+        // More menu
+        PopupMenuButton<String>(
+          icon: const Icon(
+            Icons.more_vert_rounded,
+            color: AppColors.lightWave,
+            size: 20,
+          ),
+          color: const Color(0xFF0C1E3A),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          onSelected: (value) {
+            if (value == 'media') {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => ChatMediaGalleryScreen(
+                    chatId: _chatId,
+                    isGroup: false,
+                  ),
+                ),
+              );
+            } else if (value == 'summary') {
+              _showChatSummary();
+            } else if (value == 'self_destruct') {
+              _showSelfDestructPicker();
+            } else if (value == 'theme') {
+              final currentUser = ref.read(currentUserProvider).value;
+              final plan = currentUser?.subscriptionPlan ?? '';
+              if (plan != 'Premium Trial' && plan != 'Gold Monthly' && plan != 'Abyss Platinum') {
+                _showUpgradeRequiredDialog(
+                  context,
+                  title: 'Unlock Chat Themes',
+                  message: 'Custom chat backgrounds, colors, and premium glass presets are available on the Gold Monthly and Abyss Platinum subscription plans. Start your 1-month Free Trial to unlock them today!',
+                );
+                return;
+              }
+              showModalBottomSheet(
+                context: context,
+                backgroundColor: Colors.transparent,
+                isScrollControlled: true,
+                builder: (_) => ChatThemePicker(
+                  chatId: _chatId,
+                  onThemeChanged: (colors) {
+                    setState(() => _appliedWallpaperColors = colors);
+                  },
+                ),
+              );
+            } else if (value == 'export') {
+              _exportChat();
+            } else if (value == 'mute') {
+              NotificationService.showMuteDialog(context, _chatId);
+            } else if (value == 'unmute') {
+              NotificationService.unmuteChat(_chatId);
+            } else if (value == 'custom_sound') {
+              showModalBottomSheet(
+                context: context,
+                backgroundColor: Colors.transparent,
+                isScrollControlled: true,
+                builder: (_) => CustomNotificationsPicker(
+                  chatId: _chatId,
+                  partnerName: widget.partnerName,
+                ),
+              );
+            } else if (value == 'search') {
+              setState(() {
+                _isSearching = true;
+              });
+            }
+          },
+          itemBuilder: (_) => [
+            const PopupMenuItem(
+              value: 'media',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.photo_library_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Media & Files',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'summary',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.summarize_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Summarise Chat',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'self_destruct',
+              child: Row(
+                children: [
+                  Text('💣', style: TextStyle(fontSize: 18)),
+                  SizedBox(width: 12),
+                  Text(
+                    'Self-Destruct Timer',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'theme',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.palette_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Chat Theme',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'export',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.import_export_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Export Chat',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: _isMuted ? 'unmute' : 'mute',
+              child: Row(
+                children: [
+                  Icon(
+                    _isMuted
+                        ? Icons.volume_up_rounded
+                        : Icons.volume_off_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _isMuted
+                        ? 'Unmute Notifications'
+                        : 'Mute Notifications',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'custom_sound',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.music_note_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    'Custom Notifications',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'search',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.search_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Search Messages',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
