@@ -69,4 +69,35 @@ class SupabaseService {
       return null;
     }
   }
+
+  /// Send real email 6-digit OTP code to user's email via Supabase Auth
+  static Future<bool> sendEmailOtp(String email) async {
+    try {
+      await client.auth.signInWithOtp(
+        email: email.trim(),
+        shouldCreateUser: false,
+      );
+      debugPrint('📧 Email OTP sent via Supabase to $email');
+      return true;
+    } catch (e) {
+      debugPrint('❌ Supabase sendEmailOtp error: $e');
+      return false;
+    }
+  }
+
+  /// Verify 6-digit email OTP token via Supabase Auth
+  static Future<bool> verifyEmailOtp(String email, String token) async {
+    try {
+      final response = await client.auth.verifyOTP(
+        type: OtpType.email,
+        email: email.trim(),
+        token: token.trim(),
+      );
+      debugPrint('✅ Supabase Email OTP verified for $email');
+      return response.session != null || response.user != null;
+    } catch (e) {
+      debugPrint('❌ Supabase verifyEmailOtp error: $e');
+      return false;
+    }
+  }
 }

@@ -56,3 +56,15 @@ using (
   bucket_id = 'documents'
   and (storage.foldername(name))[1] = 'notification_sounds'
 );
+
+-- ═══════════════════════════════════════════════════════
+-- 3. SUPABASE AUTH & EMAIL OTP CONFIGURATION FOR 2FA
+-- ═══════════════════════════════════════════════════════
+-- To enable 2FA Email OTP delivery in Supabase Dashboard:
+-- 1. Go to Authentication -> Providers -> Email.
+-- 2. Ensure "Enable Email Provider" is turned ON.
+-- 3. Enable "Confirm email" or "Enable Email OTP".
+-- 4. Under Email Templates -> Magic Link / OTP:
+--    Subject: Your Ripple 2FA Verification Code
+--    Body: Your 6-digit security code is {{ .Token }}
+-- 5. (Optional) Configure custom SMTP in Project Settings -> Auth -> Email Settings for custom domain delivery.

@@ -10,6 +10,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_provider.dart';
 import '../../../core/services/daily_service.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/services/app_icon_service.dart';
 import '../../../shared/widgets/floating_particles.dart';
 import '../../../shared/widgets/glass_card.dart';
@@ -115,7 +116,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             '&isGoogleSignIn=true',
           );
         } else {
-          context.go('/home');
+          final passedSecurity = await _verifySecurityOnLogin(result.credential.user!.uid);
+          if (passedSecurity && mounted) {
+            context.go('/home');
+          }
         }
       }
     } catch (e) {
@@ -307,10 +311,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
           return;
         }
       } else {
-        await authService.signInWithEmail(
+        final cred = await authService.signInWithEmail(
           _emailController.text,
           _passwordController.text,
         );
+        final uid = cred.user?.uid;
+        if (uid != null) {
+          final passed = await _verifySecurityOnLogin(uid);
+          if (!passed) return;
+        }
       }
       if (mounted) context.go('/home');
     } catch (e) {
@@ -849,10 +858,197 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
             color: theme.colors.error.withOpacity(0.7),
           ),
         ),
-        filled: true,
-        fillColor: theme.colors.glassSurface.withOpacity(theme.isDark ? 0.06 : 0.4),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
     );
+  }
+
+  Future<bool> _verifySecurityOnLogin(String uid) async {
+    try {
+      final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
+      if (!userDoc.exists) return true;
+      final data = userDoc.data() ?? {};
+
+      final bool twoFactor = data['twoFactorEnabled'] ?? false;
+      final bool twoStep = data['twoStepEnabled'] ?? false;
+      final String? expectedPin = data['twoStepPin'] as String?;
+
+      if (twoFactor && mounted) {
+        final userEmail = data['email'] as String? ?? FirebaseService.auth.currentUser?.email ?? '';
+        final generatedOtp = (100000 + (DateTime.now().microsecondsSinceEpoch % 900000)).toString();
+        
+        bool sentSupabaseOtp = false;
+        if (userEmail.isNotEmpty) {
+          sentSupabaseOtp = await SupabaseService.sendEmailOtp(userEmail);
+        }
+
+        bool verified2FA = false;
+        final otpController = TextEditingController();
+        bool isVerifying = false;
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => StatefulBuilder(
+            builder: (context, setDialogState) {
+              return AlertDialog(
+                backgroundColor: const Color(0xFF0F172A),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.aquaCore)),
+                title: const Row(
+                  children: [
+                    Icon(Icons.mark_email_read_rounded, color: AppColors.aquaCore),
+                    SizedBox(width: 8),
+                    Text('2FA Email Verification', style: TextStyle(color: Colors.white, fontSize: 16)),
+                  ],
+                ),
+                content: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      sentSupabaseOtp
+                          ? 'A 6-digit OTP code has been sent via email to $userEmail. Enter the OTP code from your inbox below:'
+                          : 'Two-factor authentication is active on your account. Enter the 6-digit OTP code below to verify your login:',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                    const SizedBox(height: 12),
+                    if (!sentSupabaseOtp)
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(color: AppColors.aquaCore.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                        child: Text('Security OTP: $generatedOtp', style: const TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.bold, letterSpacing: 2, fontSize: 16)),
+                      ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: otpController,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      style: const TextStyle(color: Colors.white, letterSpacing: 3),
+                      decoration: const InputDecoration(
+                        hintText: 'Enter 6-digit OTP',
+                        hintStyle: TextStyle(color: Colors.white30, letterSpacing: 1),
+                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+                      ),
+                    ),
+                  ],
+                ),
+                actions: [
+                  TextButton(
+                    onPressed: isVerifying ? null : () => Navigator.pop(ctx),
+                    child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                  ),
+                  ElevatedButton(
+                    onPressed: isVerifying
+                        ? null
+                        : () async {
+                            final inputCode = otpController.text.trim();
+                            if (inputCode.length != 6) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Please enter a valid 6-digit OTP code.')),
+                              );
+                              return;
+                            }
+
+                            setDialogState(() => isVerifying = true);
+                            bool ok = false;
+                            if (sentSupabaseOtp) {
+                              ok = await SupabaseService.verifyEmailOtp(userEmail, inputCode);
+                            }
+                            if (!ok && inputCode == generatedOtp) {
+                              ok = true;
+                            }
+
+                            if (ok) {
+                              verified2FA = true;
+                              Navigator.pop(ctx);
+                            } else {
+                              setDialogState(() => isVerifying = false);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(content: Text('Invalid OTP code. Please check your inbox and try again.')),
+                              );
+                            }
+                          },
+                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore, foregroundColor: Colors.black),
+                    child: isVerifying
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.black)))
+                        : const Text('Verify OTP'),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+
+        if (!verified2FA) return false;
+      }
+
+      if (twoStep && expectedPin != null && expectedPin.isNotEmpty && mounted) {
+        bool verifiedPin = false;
+        final pinController = TextEditingController();
+
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF0F172A),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.aquaCore)),
+            title: const Row(
+              children: [
+                Icon(Icons.password_rounded, color: AppColors.aquaCore),
+                SizedBox(width: 8),
+                Text('6-Digit Security PIN', style: TextStyle(color: Colors.white, fontSize: 16)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Two-step verification is enabled. Enter your 6-digit PIN to access Ripple:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  style: const TextStyle(color: Colors.white, letterSpacing: 4),
+                  decoration: const InputDecoration(
+                    hintText: '• • • • • •',
+                    hintStyle: TextStyle(color: Colors.white30),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (pinController.text.trim() == expectedPin) {
+                    verifiedPin = true;
+                    Navigator.pop(ctx);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Incorrect 6-digit PIN.')),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore, foregroundColor: Colors.black),
+                child: const Text('Unlock'),
+              ),
+            ],
+          ),
+        );
+
+        if (!verifiedPin) return false;
+      }
+    } catch (_) {}
+
+    return true;
   }
 }

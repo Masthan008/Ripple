@@ -45,7 +45,12 @@ service cloud.firestore {
                  'privacy.telepathyEnabled'
                ]));
 
-      allow delete: if false;
+      allow delete: if isOwner(userId);
+
+      // Custom notifications per-chat overrides subcollection
+      match /custom_notifications/{docId} {
+        allow read, write, delete: if isOwner(userId);
+      }
 
       // Achievements subcollection
       match /achievements/{docId} {
@@ -98,7 +103,8 @@ service cloud.firestore {
       allow update: if isSignedIn()
         && request.auth.uid in resource.data.participants;
 
-      allow delete: if false;
+      allow delete: if isSignedIn()
+        && request.auth.uid in resource.data.participants;
 
       match /messages/{messageId} {
         allow read, write: if isSignedIn()

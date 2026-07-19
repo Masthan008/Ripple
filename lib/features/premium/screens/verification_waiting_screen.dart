@@ -315,49 +315,22 @@ class _VerificationWaitingScreenState extends ConsumerState<VerificationWaitingS
                           ],
                         ),
                         clipBehavior: Clip.antiAlias,
-                        child: Stack(
-                          alignment: Alignment.center,
-                          children: [
-                            _isSuccessVideoInitialized
-                                ? ClipOval(
-                                    child: FittedBox(
-                                      fit: BoxFit.cover,
-                                      child: SizedBox(
-                                        width: _successVideoController!.value.size.width,
-                                        height: _successVideoController!.value.size.height,
-                                        child: VideoPlayer(_successVideoController!),
-                                      ),
-                                    ),
-                                  )
-                                : const Center(
-                                    child: CircularProgressIndicator(
-                                      valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
-                                    ),
+                        child: _isSuccessVideoInitialized
+                            ? ClipOval(
+                                child: FittedBox(
+                                  fit: BoxFit.cover,
+                                  child: SizedBox(
+                                    width: _successVideoController!.value.size.width,
+                                    height: _successVideoController!.value.size.height,
+                                    child: VideoPlayer(_successVideoController!),
                                   ),
-                            
-                            // Zooming Blue Verified Tick Badge overlaying on top of the phone
-                            ScaleTransition(
-                              scale: Tween<double>(begin: 0.0, end: 1.0).animate(
-                                CurvedAnimation(
-                                  parent: _fadeController,
-                                  curve: const Interval(0.4, 1.0, curve: Curves.elasticOut),
+                                ),
+                              )
+                            : const Center(
+                                child: CircularProgressIndicator(
+                                  valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
                                 ),
                               ),
-                              child: Container(
-                                padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: Colors.black54,
-                                ),
-                                child: Image.asset(
-                                  'assets/images/icons8-verified-badge-96.gif',
-                                  width: 72,
-                                  height: 72,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
                       ),
                       const SizedBox(height: 36),
                       Text(

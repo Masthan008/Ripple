@@ -206,6 +206,96 @@ class AuthService {
     await _auth.sendPasswordResetEmail(email: email.trim());
   }
 
+  /// Delete current user account and perform complete real-time database purge.
+  Future<void> deleteUserAccount(String uid) async {
+    final user = _auth.currentUser;
+    if (user == null) return;
+
+    try {
+      await PresenceService.setOffline(uid);
+
+      // 1. Delete custom_notifications & devices subcollections in users
+      try {
+        final custNotifs = await _firestore.collection('users').doc(uid).collection('custom_notifications').get();
+        for (final doc in custNotifs.docs) {
+          await doc.reference.delete();
+        }
+        final devices = await _firestore.collection('users').doc(uid).collection('devices').get();
+        for (final doc in devices.docs) {
+          await doc.reference.delete();
+        }
+      } catch (_) {}
+
+      // 2. Delete user document
+      try {
+        await _firestore.collection('users').doc(uid).delete();
+      } catch (_) {}
+
+      // 3. Delete user's statuses
+      try {
+        final statuses = await _firestore.collection('statuses').where('userId', isEqualTo: uid).get();
+        for (final doc in statuses.docs) {
+          await doc.reference.delete();
+        }
+      } catch (_) {}
+
+      // 4. Delete user_files metadata
+      try {
+        final userFiles = await _firestore.collection('user_files').doc(uid).collection('files').get();
+        for (final doc in userFiles.docs) {
+          await doc.reference.delete();
+        }
+        await _firestore.collection('user_files').doc(uid).delete();
+      } catch (_) {}
+
+      // 5. Update/clean up user's chats
+      try {
+        final chats = await _firestore.collection('chats').where('participants', arrayContains: uid).get();
+        for (final doc in chats.docs) {
+          final participants = List<String>.from(doc.data()['participants'] as List? ?? []);
+          participants.remove(uid);
+          if (participants.isEmpty) {
+            final msgs = await doc.reference.collection('messages').get();
+            for (final m in msgs.docs) {
+              await m.reference.delete();
+            }
+            await doc.reference.delete();
+          } else {
+            await doc.reference.update({'participants': participants});
+          }
+        }
+      } catch (_) {}
+
+      // 6. Update/clean up user's groups
+      try {
+        final groups = await _firestore.collection('groups').where('members', arrayContains: uid).get();
+        for (final doc in groups.docs) {
+          final members = List<String>.from(doc.data()['members'] as List? ?? []);
+          final admins = List<String>.from(doc.data()['admins'] as List? ?? []);
+          members.remove(uid);
+          admins.remove(uid);
+          if (members.isEmpty) {
+            final msgs = await doc.reference.collection('messages').get();
+            for (final m in msgs.docs) {
+              await m.reference.delete();
+            }
+            await doc.reference.delete();
+          } else {
+            await doc.reference.update({
+              'members': members,
+              'admins': admins,
+            });
+          }
+        }
+      } catch (_) {}
+
+      // 7. Delete Firebase Auth account
+      await user.delete();
+    } catch (e) {
+      rethrow;
+    }
+  }
+
   /// Sign out
   Future<void> signOut() async {
     final uid = _auth.currentUser?.uid;

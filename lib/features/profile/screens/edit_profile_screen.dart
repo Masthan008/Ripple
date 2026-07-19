@@ -5,6 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:image_picker/image_picker.dart';
 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/cloudinary_service.dart';
@@ -318,15 +321,264 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 valueColor: AlwaysStoppedAnimation(Colors.white),
                               ),
                             )
-                          : Text('Save Changes',
-                              style: AppTextStyles.button),
+                  ),
+                ),
+                const SizedBox(height: 32),
+
+                // Danger Zone / Delete Account Section
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'DANGER ZONE',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                      color: AppColors.errorRed.withOpacity(0.8),
                     ),
                   ),
                 ),
+                const SizedBox(height: 8),
+                GlassCard(
+                  borderRadius: 16,
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.warning_amber_rounded, color: AppColors.errorRed, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Permanently Delete Account',
+                            style: AppTextStyles.body.copyWith(
+                              color: AppColors.errorRed,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Deleting your account will permanently wipe all your messages, profile details, uploaded media, and cloud backups from Ripple. This action is real-time and cannot be undone.',
+                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted, height: 1.3),
+                      ),
+                      const SizedBox(height: 16),
+                      SizedBox(
+                        width: double.infinity,
+                        height: 44,
+                        child: OutlinedButton(
+                          onPressed: _showDeleteAccountConfirmDialog,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.errorRed,
+                            side: const BorderSide(color: AppColors.errorRed, width: 1.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          child: const Text('Delete Account', style: TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
               ],
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  Future<void> _showDeleteAccountConfirmDialog() async {
+    final user = FirebaseService.auth.currentUser;
+    if (user == null) return;
+    final isEmailUser = user.providerData.any((p) => p.providerId == 'password');
+
+    final passwordController = TextEditingController();
+    bool acceptedRules = false;
+    bool isDeleting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              backgroundColor: const Color(0xFF0F172A),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+                side: BorderSide(color: AppColors.errorRed.withOpacity(0.3)),
+              ),
+              title: const Row(
+                children: [
+                  Icon(Icons.report_problem_rounded, color: AppColors.errorRed),
+                  SizedBox(width: 10),
+                  Text('Delete Ripple Account', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Account Deletion Consequences:',
+                      style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold, fontSize: 13),
+                    ),
+                    const SizedBox(height: 10),
+                    _buildConsequenceRow('Profile data, bio, and display photo will be deleted.'),
+                    _buildConsequenceRow('All direct message history and chat threads will be erased.'),
+                    _buildConsequenceRow('You will be permanently removed from all group chats.'),
+                    _buildConsequenceRow('Cloud backups, custom sounds, and user files will be purged.'),
+                    _buildConsequenceRow('This process is immediate, real-time, and irreversible.'),
+                    const SizedBox(height: 16),
+                    const Divider(color: Colors.white12),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Checkbox(
+                          value: acceptedRules,
+                          activeColor: AppColors.errorRed,
+                          onChanged: isDeleting
+                              ? null
+                              : (val) {
+                                  setDialogState(() {
+                                    acceptedRules = val ?? false;
+                                  });
+                                },
+                        ),
+                        const Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(top: 8.0),
+                            child: Text(
+                              'I accept all rules and confirm I want to permanently delete my account and data.',
+                              style: TextStyle(color: Colors.white70, fontSize: 12, height: 1.3),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (isEmailUser) ...[
+                      const SizedBox(height: 12),
+                      TextField(
+                        controller: passwordController,
+                        obscureText: true,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: InputDecoration(
+                          hintText: 'Enter your password to confirm',
+                          hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
+                          filled: true,
+                          fillColor: Colors.white10,
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(10),
+                            borderSide: BorderSide.none,
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isDeleting ? null : () => Navigator.pop(dialogContext),
+                  child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                ),
+                ElevatedButton(
+                  onPressed: (!acceptedRules || isDeleting)
+                      ? null
+                      : () async {
+                          if (isEmailUser && passwordController.text.isEmpty) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('Please enter your password to confirm deletion.')),
+                            );
+                            return;
+                          }
+
+                          setDialogState(() {
+                            isDeleting = true;
+                          });
+
+                          try {
+                            if (isEmailUser) {
+                              final credential = EmailAuthProvider.credential(
+                                email: user.email!,
+                                password: passwordController.text,
+                              );
+                              await user.reauthenticateWithCredential(credential);
+                            }
+
+                            final uid = user.uid;
+                            await ref.read(authServiceProvider).deleteUserAccount(uid);
+
+                            if (context.mounted) {
+                              Navigator.pop(dialogContext);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Your Ripple account has been deleted.'),
+                                  backgroundColor: AppColors.errorRed,
+                                ),
+                              );
+                              context.go('/login');
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              setDialogState(() {
+                                isDeleting = false;
+                              });
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Failed to delete account: $e'),
+                                  backgroundColor: AppColors.errorRed,
+                                ),
+                              );
+                            }
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.errorRed,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  child: isDeleting
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(Colors.white),
+                          ),
+                        )
+                      : const Text('Delete Permanently'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildConsequenceRow(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(Icons.cancel_rounded, color: AppColors.errorRed, size: 14),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+          ),
+        ],
       ),
     );
   }

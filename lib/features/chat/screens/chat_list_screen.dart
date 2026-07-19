@@ -109,6 +109,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         // Check if restore is needed (new device check)
         _checkAndPromptRestore(uid);
 
+        // Run 6-digit PIN check on startup if 2-Step Verification enabled
+        _checkAndPromptTwoStepPin(uid);
+
         // Run auto backup check silently in background
         ChatBackupService.checkAndRunAutoBackup(uid);
       }
@@ -232,6 +235,77 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ],
       ),
     );
+  }
+
+  static bool _sessionPinVerified = false;
+
+  Future<void> _checkAndPromptTwoStepPin(String uid) async {
+    if (_sessionPinVerified) return;
+    try {
+      final doc = await FirebaseService.firestore.collection('users').doc(uid).get();
+      if (!doc.exists) return;
+      final data = doc.data() ?? {};
+      final bool twoStep = data['twoStepEnabled'] ?? false;
+      final String? expectedPin = data['twoStepPin'] as String?;
+
+      if (twoStep && expectedPin != null && expectedPin.isNotEmpty && mounted) {
+        final pinController = TextEditingController();
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            backgroundColor: const Color(0xFF0F172A),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16), side: const BorderSide(color: AppColors.aquaCore)),
+            title: const Row(
+              children: [
+                Icon(Icons.password_rounded, color: AppColors.aquaCore),
+                SizedBox(width: 8),
+                Text('6-Digit PIN Required', style: TextStyle(color: Colors.white, fontSize: 16)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Two-step verification is enabled for your account. Enter your 6-digit PIN to continue:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pinController,
+                  obscureText: true,
+                  keyboardType: TextInputType.number,
+                  maxLength: 6,
+                  style: const TextStyle(color: Colors.white, letterSpacing: 4),
+                  decoration: const InputDecoration(
+                    hintText: '• • • • • •',
+                    hintStyle: TextStyle(color: Colors.white30),
+                    enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                    focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+                  ),
+                ),
+              ],
+            ),
+            actions: [
+              ElevatedButton(
+                onPressed: () {
+                  if (pinController.text.trim() == expectedPin) {
+                    _sessionPinVerified = true;
+                    Navigator.pop(ctx);
+                  } else {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Incorrect 6-digit PIN.')),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore, foregroundColor: Colors.black),
+                child: const Text('Unlock'),
+              ),
+            ],
+          ),
+        );
+      }
+    } catch (_) {}
   }
 
   void _showRippleSupportDialog() {
