@@ -24,6 +24,9 @@ class _AccountSecurityScreenState extends ConsumerState<AccountSecurityScreen> {
   final _newPassController = TextEditingController();
   final _confirmPassController = TextEditingController();
   bool _isChangingPass = false;
+  bool _twoFactorEnabled = false;
+  bool _twoStepEnabled = false;
+  bool _isEmailUser = false;
   String? _existingPin;
 
   @override
