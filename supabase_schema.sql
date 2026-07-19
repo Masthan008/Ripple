@@ -60,11 +60,13 @@ using (
 -- ═══════════════════════════════════════════════════════
 -- 3. SUPABASE AUTH & EMAIL OTP CONFIGURATION FOR 2FA
 -- ═══════════════════════════════════════════════════════
--- To enable 2FA Email OTP delivery in Supabase Dashboard:
--- 1. Go to Authentication -> Providers -> Email.
--- 2. Ensure "Enable Email Provider" is turned ON.
--- 3. Enable "Confirm email" or "Enable Email OTP".
--- 4. Under Email Templates -> Magic Link / OTP:
---    Subject: Your Ripple 2FA Verification Code
---    Body: Your 6-digit security code is {{ .Token }}
--- 5. (Optional) Configure custom SMTP in Project Settings -> Auth -> Email Settings for custom domain delivery.
+-- To configure 2FA Email OTP delivery in Supabase Dashboard:
+-- 1. Go to Authentication -> Email Templates -> Magic Link (or Confirmation / OTP).
+-- 2. Set Subject:
+--    🔐 Your Ripple 2FA Code: {{ .Token }} | Security Check
+-- 3. Set Body (HTML):
+--    Use the custom dark glassmorphism template in supabase_email_templates.md
+--    Or standard body:
+--    Your Ripple 2FA Code is: {{ .Token }}
+--    Magic Link: {{ .ConfirmationURL }}
+-- 4. Set OTP expiry to 600 seconds (10 minutes) in Authentication -> Settings.
