@@ -557,7 +557,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                         ),
                   ),
                   _SettingsTile(
-                    icon: Icons.smart_toy_rounded,
+                    icon: Icons.psychology_rounded,
                     title: L10n.s(ref, 'aiFeatures'),
                     subtitle: L10n.s(ref, 'aiFeaturesDesc'),
                     iconColor: AppColors.aquaCore,
