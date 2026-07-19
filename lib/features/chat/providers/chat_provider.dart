@@ -208,6 +208,8 @@ class ChatService {
           final sUrl = customNotifDoc.data()?['soundUrl'] as String?;
           if (sUrl == null || sUrl.isEmpty) {
             soundFile = sName.toLowerCase().replaceAll(' ', '_');
+          } else {
+            soundFile = sUrl;
           }
         } else {
           final globalSounds = otherData['notificationSounds'] as Map? ?? {};
@@ -216,6 +218,8 @@ class ChatService {
           final sUrl = messageSoundInfo['url']?.toString();
           if (sUrl == null || sUrl.isEmpty) {
             soundFile = sName.toLowerCase().replaceAll(' ', '_');
+          } else {
+            soundFile = sUrl;
           }
         }
       } catch (_) {}

@@ -97,6 +97,19 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
           final playerId = userData['oneSignalPlayerId'] as String? ?? '';
           if (playerId.isEmpty) continue;
 
+          String? soundFile;
+          try {
+            final globalSounds = userData['notificationSounds'] as Map? ?? {};
+            final callsSoundInfo = globalSounds['calls'] as Map? ?? {};
+            final sName = callsSoundInfo['name']?.toString() ?? 'Ocean Wave';
+            final sUrl = callsSoundInfo['url']?.toString();
+            if (sUrl == null || sUrl.isEmpty) {
+              soundFile = sName.toLowerCase().replaceAll(' ', '_');
+            } else {
+              soundFile = sUrl;
+            }
+          } catch (_) {}
+
           await NotificationService.sendCallNotification(
             recipientPlayerId: playerId,
             callerName: widget.currentUserName,
@@ -108,6 +121,7 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
             callerPhotoUrl: myPhoto,
             sound: sound as bool,
             vibration: vibration as bool,
+            soundFile: soundFile,
           );
         }
       } else {
@@ -126,6 +140,19 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
         final playerId = userData['oneSignalPlayerId'] as String? ?? '';
         if (playerId.isEmpty) return;
 
+        String? soundFile;
+        try {
+          final globalSounds = userData['notificationSounds'] as Map? ?? {};
+          final callsSoundInfo = globalSounds['calls'] as Map? ?? {};
+          final sName = callsSoundInfo['name']?.toString() ?? 'Ocean Wave';
+          final sUrl = callsSoundInfo['url']?.toString();
+          if (sUrl == null || sUrl.isEmpty) {
+            soundFile = sName.toLowerCase().replaceAll(' ', '_');
+          } else {
+            soundFile = sUrl;
+          }
+        } catch (_) {}
+
         await NotificationService.sendCallNotification(
           recipientPlayerId: playerId,
           callerName: widget.currentUserName,
@@ -137,6 +164,7 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
           callerPhotoUrl: myPhoto,
           sound: sound as bool,
           vibration: vibration as bool,
+          soundFile: soundFile,
         );
       }
     } catch (e) {

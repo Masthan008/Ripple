@@ -4,6 +4,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:just_audio/just_audio.dart';
+import '../../profile/services/custom_sound_service.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/services/firebase_service.dart';
@@ -39,6 +41,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
   Timer? _timeoutTimer;
   StreamSubscription? _callStatusSub;
   bool _answered = false;
+  final AudioPlayer _ringPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -75,6 +78,38 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
 
     // Vibrate to alert user
     HapticFeedback.heavyImpact();
+
+    // Start ringtone
+    _startRingtone();
+  }
+
+  Future<void> _startRingtone() async {
+    try {
+      final uid = FirebaseAuth.instance.currentUser?.uid;
+      if (uid == null) return;
+
+      String soundName = 'Ocean Wave';
+      String? soundUrl;
+
+      final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
+      if (userDoc.exists) {
+        final globalSounds = userDoc.data()?['notificationSounds'] as Map? ?? {};
+        final categorySound = globalSounds['calls'] as Map? ?? {};
+        soundName = categorySound['name']?.toString() ?? 'Ocean Wave';
+        soundUrl = categorySound['url']?.toString();
+      }
+
+      if (soundUrl != null && soundUrl.isNotEmpty) {
+        await _ringPlayer.setUrl(soundUrl);
+      } else {
+        final path = CustomSoundService.getSoundAssetPath(soundName);
+        await _ringPlayer.setAsset(path);
+      }
+      await _ringPlayer.setLoopMode(LoopMode.one);
+      await _ringPlayer.play();
+    } catch (e) {
+      debugPrint('Error playing ringtone: $e');
+    }
   }
 
   Future<void> _acceptCall() async {
@@ -82,6 +117,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     setState(() => _answered = true);
     _timeoutTimer?.cancel();
     _callStatusSub?.cancel();
+    try {
+      await _ringPlayer.stop();
+    } catch (_) {}
 
     // Update call status to 'accepted'
     try {
@@ -113,6 +151,9 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     if (_answered) return;
     _timeoutTimer?.cancel();
     _callStatusSub?.cancel();
+    try {
+      await _ringPlayer.stop();
+    } catch (_) {}
 
     try {
       await FirebaseService.firestore
@@ -125,6 +166,15 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     } catch (_) {}
 
     if (mounted) Navigator.of(context).pop();
+  }
+
+  @override
+  void dispose() {
+    _pulseController.dispose();
+    _timeoutTimer?.cancel();
+    _callStatusSub?.cancel();
+    _ringPlayer.dispose();
+    super.dispose();
   }
 
   @override

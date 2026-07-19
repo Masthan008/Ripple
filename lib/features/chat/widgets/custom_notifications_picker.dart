@@ -187,15 +187,45 @@ class _CustomNotificationsPickerState extends State<CustomNotificationsPicker> {
                         const Divider(color: Colors.white10),
                         ListTile(
                           contentPadding: EdgeInsets.zero,
-                          leading: const Icon(Icons.audiotrack, color: AppColors.aquaCore),
-                          title: const Text('Upload Custom Audio...', style: TextStyle(color: AppColors.aquaCore)),
+                          leading: Icon(
+                            _soundUrl.isNotEmpty ? Icons.radio_button_checked : Icons.audiotrack,
+                            color: _soundUrl.isNotEmpty ? AppColors.aquaCore : Colors.white30,
+                          ),
+                          title: Text(
+                            _soundUrl.isNotEmpty ? _soundName : 'Upload Custom Audio...',
+                            style: TextStyle(
+                              color: _soundUrl.isNotEmpty ? Colors.white : AppColors.aquaCore,
+                            ),
+                          ),
                           subtitle: _soundUrl.isNotEmpty
-                              ? Text(
-                                  _soundName,
-                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                              ? const Text('Custom Uploaded Tone', style: TextStyle(color: Colors.white38, fontSize: 11))
+                              : null,
+                          trailing: _soundUrl.isNotEmpty
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.play_arrow_rounded, color: AppColors.aquaCore),
+                                      onPressed: () => _playPreview(_soundName, _soundUrl),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.upload_file_rounded, color: Colors.white54),
+                                      onPressed: _pickAndUploadSound,
+                                    ),
+                                  ],
                                 )
                               : null,
-                          onTap: _pickAndUploadSound,
+                          onTap: () async {
+                            if (_soundUrl.isEmpty) {
+                              _pickAndUploadSound();
+                            } else {
+                              setState(() {
+                                _soundName = _soundName;
+                                _soundUrl = _soundUrl;
+                              });
+                              await _saveSettings();
+                            }
+                          },
                         ),
                       ],
                     ),

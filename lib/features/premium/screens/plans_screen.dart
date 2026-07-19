@@ -488,7 +488,36 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
               color: hasUsed ? AppColors.textMuted : AppColors.textSecondary,
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
+          const Divider(color: AppColors.glassBorderLight),
+          const SizedBox(height: 10),
+          ...[
+            'Verified Badge across all chats & screens',
+            'Full trial of custom themes & backgrounds',
+            'Access to eye-tracking security controls',
+          ].map((feature) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(
+                      Icons.check_rounded,
+                      color: hasUsed ? AppColors.textMuted : AppColors.onlineGreen,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        feature,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: hasUsed ? AppColors.textMuted : AppColors.textSecondary,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              )),
+          const SizedBox(height: 15),
           SizedBox(
             width: double.infinity,
             height: 48,
@@ -581,7 +610,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Icon(
-                      Icons.check_circle_outline_rounded,
+                      Icons.check_rounded,
                       color: AppColors.onlineGreen,
                       size: 16,
                     ),

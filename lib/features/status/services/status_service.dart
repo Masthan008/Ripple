@@ -111,10 +111,30 @@ class StatusService {
           _auth.currentUser?.displayName ??
           'Someone';
 
+      final notifSettings = ownerDoc.data()?['notificationSettings'] as Map? ?? {};
+      final sound = notifSettings['sounds'] ?? true;
+      final vibration = notifSettings['vibration'] ?? true;
+
+      String? soundFile;
+      try {
+        final globalSounds = ownerDoc.data()?['notificationSounds'] as Map? ?? {};
+        final statusSoundInfo = globalSounds['statuses'] as Map? ?? {};
+        final sName = statusSoundInfo['name']?.toString() ?? 'Neon Splash';
+        final sUrl = statusSoundInfo['url']?.toString();
+        if (sUrl == null || sUrl.isEmpty) {
+          soundFile = sName.toLowerCase().replaceAll(' ', '_');
+        } else {
+          soundFile = sUrl;
+        }
+      } catch (_) {}
+
       await NotificationService.sendStatusReactionNotification(
         recipientPlayerId: playerId,
         reactorName: myName,
         emoji: emoji,
+        sound: sound as bool,
+        vibration: vibration as bool,
+        soundFile: soundFile,
       );
     } catch (e) {
       debugPrint('⚠️ Status reaction notification error: $e');

@@ -220,17 +220,55 @@ class _NotificationsSettingsScreenState
                         }),
                         const Divider(color: Colors.white10),
                         ListTile(
-                          leading: const Icon(Icons.audiotrack, color: AppColors.aquaCore),
-                          title: const Text('Upload Custom Audio...', style: TextStyle(color: AppColors.aquaCore)),
+                          leading: Icon(
+                            (_soundSettings[category]?['url'] ?? '').isNotEmpty
+                                ? Icons.radio_button_checked
+                                : Icons.audiotrack,
+                            color: (_soundSettings[category]?['url'] ?? '').isNotEmpty
+                                ? AppColors.aquaCore
+                                : Colors.white30,
+                          ),
+                          title: Text(
+                            (_soundSettings[category]?['url'] ?? '').isNotEmpty
+                                ? _soundSettings[category]!['name']!
+                                : 'Upload Custom Audio...',
+                            style: TextStyle(
+                              color: (_soundSettings[category]?['url'] ?? '').isNotEmpty
+                                  ? Colors.white
+                                  : AppColors.aquaCore,
+                            ),
+                          ),
                           subtitle: (_soundSettings[category]?['url'] ?? '').isNotEmpty
-                              ? Text(
-                                  _soundSettings[category]!['name']!,
-                                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                              ? const Text('Custom Uploaded Tone', style: TextStyle(color: Colors.white38, fontSize: 11))
+                              : null,
+                          trailing: (_soundSettings[category]?['url'] ?? '').isNotEmpty
+                              ? Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(Icons.play_arrow_rounded, color: AppColors.aquaCore),
+                                      onPressed: () => _playPreview(
+                                        _soundSettings[category]!['name']!,
+                                        _soundSettings[category]!['url'],
+                                      ),
+                                    ),
+                                    IconButton(
+                                      icon: const Icon(Icons.upload_file_rounded, color: Colors.white54),
+                                      onPressed: () async {
+                                        Navigator.pop(ctx);
+                                        await _pickAndUploadCustomSound(category);
+                                      },
+                                    ),
+                                  ],
                                 )
                               : null,
                           onTap: () async {
-                            Navigator.pop(ctx);
-                            await _pickAndUploadCustomSound(category);
+                            if ((_soundSettings[category]?['url'] ?? '').isEmpty) {
+                              Navigator.pop(ctx);
+                              await _pickAndUploadCustomSound(category);
+                            } else {
+                              // Already selected
+                            }
                           },
                         ),
                       ],

@@ -3,6 +3,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+import 'package:just_audio/just_audio.dart';
+import '../../features/profile/services/custom_sound_service.dart';
 
 import '../../features/calls/screens/incoming_call_screen.dart';
 import '../utils/env.dart';
@@ -22,6 +24,7 @@ class NotificationService {
   static const _oneSignalBaseUrl =
       'https://onesignal.com/api/v1/notifications';
   static final Dio _dio = Dio();
+  static final AudioPlayer _inAppPlayer = AudioPlayer();
 
   /// Track which chat the user is currently viewing.
   /// Set by ChatScreen/GroupChatScreen to suppress foreground notifications.
@@ -80,6 +83,11 @@ class NotificationService {
         return;
       }
 
+      bool isMuted = false;
+      if (incomingChatId != null && await _isChatMuted(incomingChatId)) {
+        isMuted = true;
+      }
+
       if ((type == 'chat' || type == 'group') &&
           currentActiveChatId != null &&
           incomingChatId == currentActiveChatId) {
@@ -89,10 +97,15 @@ class NotificationService {
         return;
       }
 
-      if (incomingChatId != null && await _isChatMuted(incomingChatId)) {
+      if (isMuted) {
         event.preventDefault();
         debugPrint(
             '🔕 Suppressed foreground notification for muted chat: $incomingChatId');
+      } else if (type != 'call') {
+        final uid = FirebaseService.auth.currentUser?.uid;
+        if (uid != null) {
+          _playInAppNotificationSound(uid, type, incomingChatId);
+        }
       }
     });
   }
@@ -351,6 +364,7 @@ class NotificationService {
     String reactorPhotoUrl = '',
     bool sound = true,
     bool vibration = true,
+    String? soundFile,
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
@@ -360,6 +374,7 @@ class NotificationService {
       androidChannelId: 'ripple_social',
       sound: sound,
       vibration: vibration,
+      soundFile: soundFile,
       data: {'type': 'status_reaction'},
     );
   }
@@ -376,6 +391,7 @@ class NotificationService {
     String callerPhotoUrl = '',
     bool sound = true,
     bool vibration = true,
+    String? soundFile,
   }) async {
     final title = callType == 'video'
         ? '📹 Incoming Video Call'
@@ -388,6 +404,7 @@ class NotificationService {
       androidChannelId: 'ripple_calls',
       sound: sound,
       vibration: vibration,
+      soundFile: soundFile,
       data: {
         'type': 'call',
         'callId': callId,
@@ -626,5 +643,62 @@ class NotificationService {
       }
     }
     debugPrint('✅ Marked chat $chatId as read from notification action');
+  }
+
+  static Future<void> _playInAppNotificationSound(
+      String uid, String? type, String? incomingChatId) async {
+    try {
+      String soundName = 'Aqua Chime';
+      String? soundUrl;
+      
+      String category = 'messages';
+      String defaultSound = 'Aqua Chime';
+      if (type == 'group') {
+        category = 'groups';
+        defaultSound = 'Liquid Drip';
+      } else if (type == 'call') {
+        category = 'calls';
+        defaultSound = 'Ocean Wave';
+      } else if (type == 'status' || type == 'status_reaction') {
+        category = 'statuses';
+        defaultSound = 'Neon Splash';
+      }
+
+      if (incomingChatId != null) {
+        final overrideDoc = await FirebaseService.firestore
+            .collection('users')
+            .doc(uid)
+            .collection('custom_notifications')
+            .doc(incomingChatId)
+            .get();
+        if (overrideDoc.exists && (overrideDoc.data()?['enabled'] ?? false)) {
+          soundName = overrideDoc.data()?['soundName'] as String? ?? defaultSound;
+          soundUrl = overrideDoc.data()?['soundUrl'] as String?;
+        } else {
+          final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
+          final globalSounds = userDoc.data()?['notificationSounds'] as Map? ?? {};
+          final categorySound = globalSounds[category] as Map? ?? {};
+          soundName = categorySound['name']?.toString() ?? defaultSound;
+          soundUrl = categorySound['url']?.toString();
+        }
+      } else {
+        final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
+        final globalSounds = userDoc.data()?['notificationSounds'] as Map? ?? {};
+        final categorySound = globalSounds[category] as Map? ?? {};
+        soundName = categorySound['name']?.toString() ?? defaultSound;
+        soundUrl = categorySound['url']?.toString();
+      }
+
+      await _inAppPlayer.stop();
+      if (soundUrl != null && soundUrl.isNotEmpty) {
+        await _inAppPlayer.setUrl(soundUrl);
+      } else {
+        final path = CustomSoundService.getSoundAssetPath(soundName);
+        await _inAppPlayer.setAsset(path);
+      }
+      await _inAppPlayer.play();
+    } catch (e) {
+      debugPrint('Error playing in-app notification sound: $e');
+    }
   }
 }

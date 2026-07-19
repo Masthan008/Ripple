@@ -211,6 +211,8 @@ class GroupService {
             final sUrl = customNotifDoc.data()?['soundUrl'] as String?;
             if (sUrl == null || sUrl.isEmpty) {
               soundFile = sName.toLowerCase().replaceAll(' ', '_');
+            } else {
+              soundFile = sUrl;
             }
           } else {
             final globalSounds = data['notificationSounds'] as Map? ?? {};
@@ -219,6 +221,8 @@ class GroupService {
             final sUrl = groupSoundInfo['url']?.toString();
             if (sUrl == null || sUrl.isEmpty) {
               soundFile = sName.toLowerCase().replaceAll(' ', '_');
+            } else {
+              soundFile = sUrl;
             }
           }
         } catch (_) {}
