@@ -112,6 +112,7 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
 
           await NotificationService.sendCallNotification(
             recipientPlayerId: playerId,
+            recipientUid: uid,
             callerName: widget.currentUserName,
             callerUserId: widget.currentUserId,
             callId: widget.callId,
@@ -138,7 +139,6 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
         final sound = notifSettings['sounds'] ?? true;
         final vibration = notifSettings['vibration'] ?? true;
         final playerId = userData['oneSignalPlayerId'] as String? ?? '';
-        if (playerId.isEmpty) return;
 
         String? soundFile;
         try {
@@ -155,6 +155,7 @@ class _DailyCallScreenState extends State<DailyCallScreen> {
 
         await NotificationService.sendCallNotification(
           recipientPlayerId: playerId,
+          recipientUid: widget.otherUserId!,
           callerName: widget.currentUserName,
           callerUserId: widget.currentUserId,
           callId: widget.callId,

@@ -138,19 +138,18 @@ class FriendsService {
       final sound = notifSettings['sounds'] ?? true;
       final vibration = notifSettings['vibration'] ?? true;
 
-      final playerId = targetData['oneSignalPlayerId'] as String?;
+      final playerId = targetData['oneSignalPlayerId'] as String? ?? '';
       final myDoc =
           await _firestore.collection('users').doc(_myUid).get();
       final myName = myDoc.data()?['name'] as String? ?? 'Someone';
 
-      if (playerId != null && playerId.isNotEmpty) {
-        await NotificationService.sendFriendRequestNotification(
-          recipientPlayerId: playerId,
-          senderName: myName,
-          sound: sound as bool,
-          vibration: vibration as bool,
-        );
-      }
+      await NotificationService.sendFriendRequestNotification(
+        recipientPlayerId: playerId,
+        recipientUid: targetUid,
+        senderName: myName,
+        sound: sound as bool,
+        vibration: vibration as bool,
+      );
     } catch (_) {}
   }
 

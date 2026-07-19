@@ -224,37 +224,40 @@ class ChatService {
         }
       } catch (_) {}
 
-      if (playerId != null && playerId.isNotEmpty) {
-        final rawNotifText = type == 'text'
-            ? text
-            : type == 'image'
-                ? 'sent an image'
-                : type == 'video'
-                    ? 'sent a video'
-                    : type == 'voice'
-                        ? 'sent a voice message'
-                        : type == 'gif'
-                            ? 'sent a GIF'
-                            : type == 'sticker'
-                                ? 'sent a sticker'
-                                : type == 'poll'
-                                    ? 'sent a poll'
-                                    : 'sent a file';
-        
-        final notifText = showPreviews ? rawNotifText : 'Sent you a message';
+      final unreadCounts = Map<String, dynamic>.from(otherData['unreadCount'] as Map? ?? {});
+      final unreadCount = (unreadCounts[chatId] as int? ?? 0) + 1;
 
-        await NotificationService.sendMessageNotification(
-          recipientPlayerId: playerId,
-          senderName: myName,
-          messageText: notifText,
-          chatId: chatId,
-          senderUid: _myUid,
-          senderPhotoUrl: myDoc.data()?['photoUrl'] as String? ?? '',
-          sound: sound as bool,
-          vibration: vibration as bool,
-          soundFile: soundFile.isNotEmpty ? soundFile : null,
-        );
-      }
+      final rawNotifText = type == 'text'
+          ? text
+          : type == 'image'
+              ? 'sent an image'
+              : type == 'video'
+                  ? 'sent a video'
+                  : type == 'voice'
+                      ? 'sent a voice message'
+                      : type == 'gif'
+                          ? 'sent a GIF'
+                          : type == 'sticker'
+                              ? 'sent a sticker'
+                              : type == 'poll'
+                                  ? 'sent a poll'
+                                  : 'sent a file';
+      
+      final notifText = showPreviews ? rawNotifText : 'Sent you a message';
+
+      await NotificationService.sendMessageNotification(
+        recipientPlayerId: playerId ?? '',
+        recipientUid: otherUid,
+        senderName: myName,
+        messageText: notifText,
+        chatId: chatId,
+        senderUid: _myUid,
+        senderPhotoUrl: myDoc.data()?['photoUrl'] as String? ?? '',
+        sound: sound as bool,
+        vibration: vibration as bool,
+        soundFile: soundFile.isNotEmpty ? soundFile : null,
+        badgeCount: unreadCount,
+      );
     } catch (_) {}
   }
 

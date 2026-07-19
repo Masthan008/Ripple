@@ -5,8 +5,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../core/services/firebase_service.dart';
+import '../../../core/services/notification_service.dart';
 import '../../../core/services/presence_service.dart';
 import '../models/user_model.dart';
+import 'package:onesignal_flutter/onesignal_flutter.dart';
 
 // ─── Auth State Provider ─────────────────────────────────
 /// Stream of Firebase auth state changes — uses .distinct() to prevent
@@ -391,14 +393,17 @@ class AuthService {
     } catch (_) {}
   }
 
-  /// Save push token — OneSignal handles this via syncPlayerId in HomeScreen
+  /// Save push token & bind OneSignal identity
   Future<void> _saveFcmToken(String uid) async {
-    // No-op: OneSignal manages player ID sync automatically
+    try {
+      await NotificationService.syncPlayerId(uid);
+    } catch (_) {}
   }
 
   /// Clear push token on logout
   Future<void> _clearFcmToken(String uid) async {
     try {
+      await OneSignal.User.logout();
       await _firestore.collection('users').doc(uid).set({
         'oneSignalPlayerId': '',
       }, SetOptions(merge: true));

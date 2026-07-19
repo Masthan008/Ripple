@@ -130,6 +130,7 @@ class StatusService {
 
       await NotificationService.sendStatusReactionNotification(
         recipientPlayerId: playerId,
+        recipientUid: ownerUid,
         reactorName: myName,
         emoji: emoji,
         sound: sound as bool,

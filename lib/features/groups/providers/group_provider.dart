@@ -227,39 +227,38 @@ class GroupService {
           }
         } catch (_) {}
 
-        final pid = data['oneSignalPlayerId'] as String?;
-        if (pid != null && pid.isNotEmpty) {
-          final rawNotifText = type == 'text'
-              ? text
-              : type == 'image'
-                  ? 'sent an image'
-                  : type == 'video'
-                      ? 'sent a video'
-                      : type == 'voice'
-                          ? 'sent a voice message'
-                          : type == 'gif'
-                              ? 'sent a GIF'
-                              : type == 'sticker'
-                                  ? 'sent a sticker'
-                                  : type == 'poll'
-                                      ? 'sent a poll'
-                                      : 'sent a file';
-          
-          final memberNotifText = showPreviews ? rawNotifText : 'sent a message';
-          final groupPhoto = groupDoc.data()?['photoUrl'] as String? ?? '';
+        final pid = data['oneSignalPlayerId'] as String? ?? '';
+        final rawNotifText = type == 'text'
+            ? text
+            : type == 'image'
+                ? 'sent an image'
+                : type == 'video'
+                    ? 'sent a video'
+                    : type == 'voice'
+                        ? 'sent a voice message'
+                        : type == 'gif'
+                            ? 'sent a GIF'
+                            : type == 'sticker'
+                                ? 'sent a sticker'
+                                : type == 'poll'
+                                    ? 'sent a poll'
+                                    : 'sent a file';
+        
+        final memberNotifText = showPreviews ? rawNotifText : 'sent a message';
+        final groupPhoto = groupDoc.data()?['photoUrl'] as String? ?? '';
 
-          await NotificationService.sendGroupMessageNotification(
-            recipientPlayerIds: [pid],
-            senderName: myName,
-            groupName: groupName,
-            messageText: memberNotifText,
-            groupId: groupId,
-            groupPhotoUrl: groupPhoto,
-            sound: memberSound as bool,
-            vibration: memberVibration as bool,
-            soundFile: soundFile.isNotEmpty ? soundFile : null,
-          );
-        }
+        await NotificationService.sendGroupMessageNotification(
+          recipientPlayerIds: pid.isNotEmpty ? [pid] : null,
+          recipientUids: [uid],
+          senderName: myName,
+          groupName: groupName,
+          messageText: memberNotifText,
+          groupId: groupId,
+          groupPhotoUrl: groupPhoto,
+          sound: memberSound as bool,
+          vibration: memberVibration as bool,
+          soundFile: soundFile.isNotEmpty ? soundFile : null,
+        );
       }
     } catch (_) {}
   }
