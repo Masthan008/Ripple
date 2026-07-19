@@ -321,6 +321,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 valueColor: AlwaysStoppedAnimation(Colors.white),
                               ),
                             )
+                          : Text('Save Changes', style: AppTextStyles.button),
+                    ),
                   ),
                 ),
                 const SizedBox(height: 32),
