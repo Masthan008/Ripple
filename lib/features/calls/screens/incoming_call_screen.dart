@@ -317,13 +317,7 @@ class _IncomingCallScreenState extends State<IncomingCallScreen>
     );
   }
 
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    _timeoutTimer?.cancel();
-    _callStatusSub?.cancel();
-    super.dispose();
-  }
+
 }
 
 // ─── Call Action Button ─────────────────────────────────
