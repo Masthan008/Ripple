@@ -6,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/privacy_service.dart';
 import '../../chat/providers/gaze_privacy_provider.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../../core/constants/app_colors.dart';
 
 /// Full Privacy & Security settings screen.
 class PrivacySettingsScreen extends ConsumerStatefulWidget {
@@ -336,6 +338,52 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
               ],
             ),
           ),
+    );
+  }
+
+  void _showUpgradeRequiredDialog(BuildContext context, {required String title, required String message}) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.glassBorder),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFBBF24)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.aquaCore,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/plans');
+            },
+            child: const Text('Upgrade Now', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -789,6 +837,16 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                         Switch(
                           value: ref.watch(telepathyEnabledProvider),
                           onChanged: (_) {
+                            final currentUser = ref.read(currentUserProvider).value;
+                            final plan = currentUser?.subscriptionPlan ?? '';
+                            if (plan != 'Premium Trial' && plan != 'Abyss Platinum') {
+                              _showUpgradeRequiredDialog(
+                                context,
+                                title: 'Abyss Platinum Required',
+                                message: 'Ripple Telepathy eye-tracking, gaze privacy, and auto-blur features are exclusive Abyss Platinum benefits. Upgrade to Abyss Platinum or activate the Free Trial to unlock this revolutionary privacy shield!',
+                              );
+                              return;
+                            }
                             ref.read(telepathyEnabledProvider.notifier).toggle();
                           },
                           activeThumbColor: const Color(0xFF0EA5E9),
@@ -899,6 +957,16 @@ class _PrivacySettingsScreenState extends ConsumerState<PrivacySettingsScreen> {
                         Switch(
                           value: ref.watch(antiShoulderSurfingEnabledProvider),
                           onChanged: (_) {
+                            final currentUser = ref.read(currentUserProvider).value;
+                            final plan = currentUser?.subscriptionPlan ?? '';
+                            if (plan != 'Premium Trial' && plan != 'Abyss Platinum') {
+                              _showUpgradeRequiredDialog(
+                                context,
+                                title: 'Abyss Platinum Required',
+                                message: 'Anti-Shoulder Surfing screen protection is an exclusive Abyss Platinum benefit. Upgrade to Abyss Platinum or activate the Free Trial to unlock this revolutionary privacy shield!',
+                              );
+                              return;
+                            }
                             ref.read(antiShoulderSurfingEnabledProvider.notifier).toggle();
                           },
                           activeThumbColor: const Color(0xFFEF4444),

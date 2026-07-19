@@ -170,14 +170,58 @@ class ChatService {
       final playerId = otherData['oneSignalPlayerId'] as String?;
       final myName = myDoc.data()?['name'] as String? ?? 'Someone';
 
+      // Check if recipient has muted this specific chat
+      final mutedChats = Map<String, dynamic>.from(otherData['mutedChats'] as Map? ?? {});
+      bool isMuted = false;
+      if (mutedChats.containsKey(chatId)) {
+        final expiryStr = mutedChats[chatId] as String?;
+        if (expiryStr == 'always') {
+          isMuted = true;
+        } else if (expiryStr != null) {
+          final expiry = DateTime.tryParse(expiryStr);
+          if (expiry != null && expiry.isAfter(DateTime.now())) {
+            isMuted = true;
+          }
+        }
+      }
+      if (isMuted) return; // Skip sending notification if chat is muted
+
       // Check recipient's notification settings
       final notifSettings = otherData['notificationSettings'] as Map? ?? {};
       if (notifSettings['messages'] == false) return;
       final sound = notifSettings['sounds'] ?? true;
       final vibration = notifSettings['vibration'] ?? true;
+      final showPreviews = notifSettings['previews'] ?? true;
+
+      // Fetch custom sound override or global sound settings
+      String soundFile = '';
+      try {
+        final customNotifDoc = await _firestore
+            .collection('users')
+            .doc(otherUid)
+            .collection('custom_notifications')
+            .doc(chatId)
+            .get();
+        
+        if (customNotifDoc.exists && (customNotifDoc.data()?['enabled'] ?? false)) {
+          final sName = customNotifDoc.data()?['soundName'] as String? ?? 'Aqua Chime';
+          final sUrl = customNotifDoc.data()?['soundUrl'] as String?;
+          if (sUrl == null || sUrl.isEmpty) {
+            soundFile = sName.toLowerCase().replaceAll(' ', '_');
+          }
+        } else {
+          final globalSounds = otherData['notificationSounds'] as Map? ?? {};
+          final messageSoundInfo = globalSounds['messages'] as Map? ?? {};
+          final sName = messageSoundInfo['name']?.toString() ?? 'Aqua Chime';
+          final sUrl = messageSoundInfo['url']?.toString();
+          if (sUrl == null || sUrl.isEmpty) {
+            soundFile = sName.toLowerCase().replaceAll(' ', '_');
+          }
+        }
+      } catch (_) {}
 
       if (playerId != null && playerId.isNotEmpty) {
-        final notifText = type == 'text'
+        final rawNotifText = type == 'text'
             ? text
             : type == 'image'
                 ? 'sent an image'
@@ -192,6 +236,9 @@ class ChatService {
                                 : type == 'poll'
                                     ? 'sent a poll'
                                     : 'sent a file';
+        
+        final notifText = showPreviews ? rawNotifText : 'Sent you a message';
+
         await NotificationService.sendMessageNotification(
           recipientPlayerId: playerId,
           senderName: myName,
@@ -201,6 +248,7 @@ class ChatService {
           senderPhotoUrl: myDoc.data()?['photoUrl'] as String? ?? '',
           sound: sound as bool,
           vibration: vibration as bool,
+          soundFile: soundFile.isNotEmpty ? soundFile : null,
         );
       }
     } catch (_) {}

@@ -35,18 +35,50 @@ class NotificationService {
     debugPrint('🔔 NotificationService initialized globally (OneSignal-only mode)');
 
     // 1. OneSignal notification opened handler (runs globally at launch)
-    OneSignal.Notifications.addClickListener((event) {
+    OneSignal.Notifications.addClickListener((event) async {
+      final actionId = event.result.actionId;
       final data = event.notification.additionalData ?? {};
-      debugPrint('🔔 Notification clicked with data: $data');
+      debugPrint('🔔 Notification clicked. ActionId: $actionId, Data: $data');
+
+      if (actionId == 'read') {
+        final chatId = data['chatId'] as String? ?? data['groupId'] as String?;
+        if (chatId != null) {
+          await _markChatAsRead(chatId);
+        }
+        return;
+      }
+
       _handleGlobalNavigation(data);
     });
 
-    // 2. Foreground will display listener (suppression logic)
+    // 2. Foreground will display listener (suppression logic & instant calling ring)
     OneSignal.Notifications.addForegroundWillDisplayListener((event) async {
       final data = event.notification.additionalData ?? {};
       final type = data['type'] as String?;
       final incomingChatId =
           data['chatId'] as String? ?? data['groupId'] as String?;
+
+      if (type == 'call') {
+        event.preventDefault(); // Suppress the push card
+        final callId = data['callId'] as String? ?? '';
+        final channelName = data['channelName'] as String? ?? '';
+        final callerName = data['callerName'] as String? ?? 'Unknown';
+        final callerUserId = data['callerUserId'] as String? ?? '';
+        final callType = data['callType'] as String? ?? 'audio';
+        
+        if (callId.isNotEmpty && channelName.isNotEmpty) {
+          navigatorKey.currentState?.push(MaterialPageRoute(
+            builder: (_) => IncomingCallScreen(
+              callId: callId,
+              channelName: channelName,
+              callerName: callerName,
+              callerUserId: callerUserId,
+              isVideo: callType == 'video',
+            ),
+          ));
+        }
+        return;
+      }
 
       if ((type == 'chat' || type == 'group') &&
           currentActiveChatId != null &&
@@ -245,6 +277,7 @@ class NotificationService {
     String senderPhotoUrl = '',
     bool sound = true,
     bool vibration = true,
+    String? soundFile,
   }) async {
     await _sendOneSignalNotification(
       playerIds: [recipientPlayerId],
@@ -254,6 +287,7 @@ class NotificationService {
       androidChannelId: 'ripple_messages',
       sound: sound,
       vibration: vibration,
+      soundFile: soundFile,
       data: {
         'type': 'chat',
         'chatId': chatId,
@@ -273,6 +307,7 @@ class NotificationService {
     String groupPhotoUrl = '',
     bool sound = true,
     bool vibration = true,
+    String? soundFile,
   }) async {
     if (recipientPlayerIds.isEmpty) return;
     await _sendOneSignalNotification(
@@ -283,6 +318,7 @@ class NotificationService {
       androidChannelId: 'ripple_groups',
       sound: sound,
       vibration: vibration,
+      soundFile: soundFile,
       data: {'type': 'group', 'groupId': groupId},
     );
   }
@@ -402,6 +438,7 @@ class NotificationService {
     String? largeIcon,
     bool sound = true,
     bool vibration = true,
+    String? soundFile,
   }) async {
     final appId = Env.oneSignalAppId;
     final restKey = Env.oneSignalRestApiKey;
@@ -435,6 +472,18 @@ class NotificationService {
         'small_icon': 'ic_stat_notification',
         'priority': 10,
       };
+
+      // Add WhatsApp styling, threading, and direct reply quick actions
+      if (data != null && (data['type'] == 'chat' || data['type'] == 'group')) {
+        payload['buttons'] = [
+          {'id': 'reply', 'text': 'Reply'},
+          {'id': 'read', 'text': 'Mark as Read'},
+        ];
+        final threadId = data['chatId'] ?? data['groupId'] ?? 'default_thread';
+        payload['thread_id'] = threadId; // iOS Stacking
+        payload['android_group'] = threadId; // Android Stacking
+      }
+
       if (largeIcon != null && largeIcon.isNotEmpty) payload['large_icon'] = largeIcon;
       if (data != null) payload['data'] = data;
       if (ttl != null) payload['ttl'] = ttl;
@@ -442,6 +491,9 @@ class NotificationService {
       if (!sound) {
         payload['ios_sound'] = 'nil';
         payload['android_sound'] = 'nil';
+      } else if (soundFile != null && soundFile.isNotEmpty) {
+        payload['ios_sound'] = soundFile;
+        payload['android_sound'] = soundFile;
       }
       if (!vibration) payload['ios_badgeType'] = 'None';
 
@@ -550,5 +602,29 @@ class NotificationService {
     });
 
     if (onDone != null) onDone();
+  }
+
+  static Future<void> _markChatAsRead(String chatId) async {
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null) return;
+    
+    final docRef = FirebaseService.firestore.collection('chats').doc(chatId);
+    final doc = await docRef.get();
+    if (doc.exists) {
+      await docRef.set(
+        {'unreadCount.$uid': 0},
+        SetOptions(merge: true),
+      );
+    } else {
+      final groupRef = FirebaseService.firestore.collection('groups').doc(chatId);
+      final groupDoc = await groupRef.get();
+      if (groupDoc.exists) {
+        await groupRef.set(
+          {'unreadCount.$uid': 0},
+          SetOptions(merge: true),
+        );
+      }
+    }
+    debugPrint('✅ Marked chat $chatId as read from notification action');
   }
 }

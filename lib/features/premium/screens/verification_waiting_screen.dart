@@ -178,6 +178,60 @@ class _VerificationWaitingScreenState extends ConsumerState<VerificationWaitingS
                 
                 const SizedBox(height: 40),
                 
+                if (userAsync.value != null) ...[
+                  Builder(builder: (context) {
+                    final user = userAsync.value!;
+                    final plan = user.subscriptionPlan ?? '';
+                    final isVIP = plan == 'Abyss Platinum' || plan == 'Premium Trial';
+                    
+                    return Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: isVIP
+                              ? AppColors.aquaCore.withOpacity(0.15)
+                              : Colors.white10,
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: isVIP
+                                ? AppColors.aquaCore.withOpacity(0.4)
+                                : Colors.white24,
+                            width: 1,
+                          ),
+                          boxShadow: [
+                            if (isVIP)
+                              BoxShadow(
+                                color: AppColors.aquaCore.withOpacity(0.1),
+                                blurRadius: 8,
+                              ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              isVIP ? Icons.workspace_premium_rounded : Icons.schedule_rounded,
+                              color: isVIP ? AppColors.aquaCore : Colors.white70,
+                              size: 14,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              isVIP ? 'VIP High-Priority Queue' : 'Standard Priority Queue',
+                              style: TextStyle(
+                                color: isVIP ? Colors.white : Colors.white70,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                  const SizedBox(height: 16),
+                ],
+                
                 // Real-time Text Status
                 Text(
                   'Waiting for Approval',
@@ -191,7 +245,9 @@ class _VerificationWaitingScreenState extends ConsumerState<VerificationWaitingS
                 const SizedBox(height: 12),
                 
                 Text(
-                  'Please wait while the admin verifies your profile. Verification usually takes up to 24 hours depending on the subscription level.',
+                  (userAsync.value != null && (userAsync.value!.subscriptionPlan == 'Abyss Platinum' || userAsync.value!.subscriptionPlan == 'Premium Trial'))
+                      ? 'Please wait while the admin verifies your profile. Your request is in the VIP High-Priority queue and is typically approved in under 2 hours.'
+                      : 'Please wait while the admin verifies your profile. Verification usually takes up to 24 hours on the standard priority queue.',
                   textAlign: TextAlign.center,
                   style: AppTextStyles.body.copyWith(
                     color: AppColors.textSecondary,

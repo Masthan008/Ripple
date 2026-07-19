@@ -168,51 +168,94 @@ class GroupService {
       final myName = myDoc.data()?['name'] as String? ?? 'Someone';
       final groupName = groupDoc.data()?['name'] as String? ?? 'Group';
 
-      final playerIds = <String>[];
-      bool sound = true;
-      bool vibration = true;
       for (final uid in recipients) {
         final doc = await _firestore.collection('users').doc(uid).get();
         final data = doc.data() ?? {};
-        // Check member's notification settings
+
+        // 1. Check if member has muted this group
+        final mutedChats = Map<String, dynamic>.from(data['mutedChats'] as Map? ?? {});
+        bool isMuted = false;
+        if (mutedChats.containsKey(groupId)) {
+          final expiryStr = mutedChats[groupId] as String?;
+          if (expiryStr == 'always') {
+            isMuted = true;
+          } else if (expiryStr != null) {
+            final expiry = DateTime.tryParse(expiryStr);
+            if (expiry != null && expiry.isAfter(DateTime.now())) {
+              isMuted = true;
+            }
+          }
+        }
+        if (isMuted) continue; // Skip sending push to this user if they muted the group
+
+        // 2. Check member's notification settings
         final notifSettings = data['notificationSettings'] as Map? ?? {};
         if (notifSettings['groupMessages'] == false) continue;
-        // Use the most restrictive setting across all members
+
         final memberSound = notifSettings['sounds'] ?? true;
         final memberVibration = notifSettings['vibration'] ?? true;
-        if (memberSound is bool && !memberSound) sound = false;
-        if (memberVibration is bool && !memberVibration) vibration = false;
-        final pid = data['oneSignalPlayerId'] as String?;
-        if (pid != null && pid.isNotEmpty) playerIds.add(pid);
-      }
+        final showPreviews = notifSettings['previews'] ?? true;
 
-      if (playerIds.isNotEmpty) {
-        final notifText = type == 'text'
-            ? text
-            : type == 'image'
-                ? 'sent an image'
-                : type == 'video'
-                    ? 'sent a video'
-                    : type == 'voice'
-                        ? 'sent a voice message'
-                        : type == 'gif'
-                            ? 'sent a GIF'
-                            : type == 'sticker'
-                                ? 'sent a sticker'
-                                : type == 'poll'
-                                    ? 'sent a poll'
-                                    : 'sent a file';
-        final groupPhoto = groupDoc.data()?['photoUrl'] as String? ?? '';
-        await NotificationService.sendGroupMessageNotification(
-          recipientPlayerIds: playerIds,
-          senderName: myName,
-          groupName: groupName,
-          messageText: notifText,
-          groupId: groupId,
-          groupPhotoUrl: groupPhoto,
-          sound: sound,
-          vibration: vibration,
-        );
+        // Fetch custom sound override or global group sound settings
+        String soundFile = '';
+        try {
+          final customNotifDoc = await _firestore
+              .collection('users')
+              .doc(uid)
+              .collection('custom_notifications')
+              .doc(groupId)
+              .get();
+          
+          if (customNotifDoc.exists && (customNotifDoc.data()?['enabled'] ?? false)) {
+            final sName = customNotifDoc.data()?['soundName'] as String? ?? 'Liquid Drip';
+            final sUrl = customNotifDoc.data()?['soundUrl'] as String?;
+            if (sUrl == null || sUrl.isEmpty) {
+              soundFile = sName.toLowerCase().replaceAll(' ', '_');
+            }
+          } else {
+            final globalSounds = data['notificationSounds'] as Map? ?? {};
+            final groupSoundInfo = globalSounds['groups'] as Map? ?? {};
+            final sName = groupSoundInfo['name']?.toString() ?? 'Liquid Drip';
+            final sUrl = groupSoundInfo['url']?.toString();
+            if (sUrl == null || sUrl.isEmpty) {
+              soundFile = sName.toLowerCase().replaceAll(' ', '_');
+            }
+          }
+        } catch (_) {}
+
+        final pid = data['oneSignalPlayerId'] as String?;
+        if (pid != null && pid.isNotEmpty) {
+          final rawNotifText = type == 'text'
+              ? text
+              : type == 'image'
+                  ? 'sent an image'
+                  : type == 'video'
+                      ? 'sent a video'
+                      : type == 'voice'
+                          ? 'sent a voice message'
+                          : type == 'gif'
+                              ? 'sent a GIF'
+                              : type == 'sticker'
+                                  ? 'sent a sticker'
+                                  : type == 'poll'
+                                      ? 'sent a poll'
+                                      : 'sent a file';
+          
+          final memberNotifText = showPreviews ? rawNotifText : 'sent a message';
+          final groupPhoto = groupDoc.data()?['photoUrl'] as String? ?? '';
+
+          await NotificationService.sendGroupMessageNotification(
+            recipientPlayerIds: [pid],
+            senderName: myName,
+            groupName: groupName,
+            messageText: memberNotifText,
+            groupId: groupId,
+            groupPhotoUrl: groupPhoto,
+            sound: memberSound as bool,
+            vibration: memberVibration as bool,
+            soundFile: soundFile.isNotEmpty ? soundFile : null,
+          );
+        }
       }
     } catch (_) {}
   }

@@ -265,6 +265,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       ),
                       VerifiedBadge(
                         isVerified: u.isVerified,
+                        userId: u.uid,
+                        plan: u.subscriptionPlan,
                         size: 24,
                         padding: const EdgeInsets.only(left: 6),
                       ),

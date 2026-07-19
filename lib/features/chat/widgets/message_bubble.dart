@@ -222,6 +222,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
                               ),
                               VerifiedBadge(
                                 isVerified: widget.isSenderVerified,
+                                userId: widget.message.senderId,
                                 size: 12,
                               ),
                             ],

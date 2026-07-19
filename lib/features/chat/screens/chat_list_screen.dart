@@ -45,6 +45,7 @@ import '../services/schedule_service.dart';
 import '../../../core/services/privacy_service.dart';
 import '../../../core/services/chat_lock_service.dart';
 import '../../../app.dart'; // Add this for routerProvider
+import '../../profile/screens/chat_backup_screen.dart';
 
 /// Home screen with Telegram-style RippleNavBar — glass design per PRD §4.3
 class HomeScreen extends ConsumerStatefulWidget {
@@ -103,8 +104,154 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         // Listen for incoming calls (foreground detection)
         _listenForIncomingCalls(uid);
+
+        // Check if restore is needed (new device check)
+        _checkAndPromptRestore(uid);
       }
     });
+  }
+
+  Future<void> _checkAndPromptRestore(String uid) async {
+    try {
+      final chatsSnap = await FirebaseService.firestore
+          .collection('chats')
+          .where('participants', arrayContains: uid)
+          .limit(1)
+          .get();
+
+      final groupsSnap = await FirebaseService.firestore
+          .collection('groups')
+          .where('members', arrayContains: uid)
+          .limit(1)
+          .get();
+
+      if (chatsSnap.docs.isEmpty && groupsSnap.docs.isEmpty) {
+        final backupsSnap = await FirebaseService.firestore
+            .collection('user_files')
+            .doc(uid)
+            .collection('files')
+            .where('type', isEqualTo: 'backup')
+            .limit(1)
+            .get();
+
+        if (backupsSnap.docs.isNotEmpty && mounted) {
+          final backupRecord = backupsSnap.docs.first.data();
+          final userDoc = await FirebaseService.firestore.collection('users').doc(uid).get();
+          final userData = userDoc.data() ?? {};
+          
+          final String driveEmail = userData['googleDriveEmail'] as String? ?? '';
+          final String backupEmail = userData['backupEmail'] as String? ?? userData['email'] as String? ?? '';
+          
+          _showRestoreBackupPrompt(uid, backupRecord, driveEmail, backupEmail);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking restore queue: $e');
+    }
+  }
+
+  void _showRestoreBackupPrompt(
+    String uid, 
+    Map<String, dynamic> backupRecord, 
+    String driveEmail, 
+    String backupEmail
+  ) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.glassBorder),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.cloud_download_rounded, color: AppColors.aquaCore),
+            SizedBox(width: 10),
+            Text(
+              'Restore Chat History',
+              style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'We detected a cloud backup snapshot for your account. Would you like to restore your chats, groups, and settings now?',
+              style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 16),
+            if (driveEmail.isNotEmpty) ...[
+              Text(
+                'Connected Google Drive:\n$driveEmail',
+                style: const TextStyle(color: Colors.white54, fontSize: 12),
+              ),
+              const SizedBox(height: 8),
+            ],
+            Text(
+              'Recovery Email:\n$backupEmail',
+              style: const TextStyle(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Skip', style: TextStyle(color: Colors.white38)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.aquaCore,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ChatBackupScreen(),
+                ),
+              );
+            },
+            child: const Text('Restore Now', style: TextStyle(color: Colors.white)),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _showRippleSupportDialog();
+            },
+            child: const Text('Support', style: TextStyle(color: AppColors.aquaCyan)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showRippleSupportDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.glassBorder),
+        ),
+        title: const Text('Ripple Support Restore Request', style: TextStyle(color: Colors.white)),
+        content: const Text(
+          'To request a manual backup restoration from Ripple support, please contact us at support@ripple.im with your phone number/email, or submit a request ticket to our admin dashboard.',
+          style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -2248,6 +2395,8 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
                                   ),
                                   VerifiedBadge(
                                     isVerified: userData['isVerified'] as bool? ?? false,
+                                    userId: widget.otherUid,
+                                    plan: userData['subscriptionPlan'] as String?,
                                     size: 14,
                                   ),
                                 ],

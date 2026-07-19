@@ -127,6 +127,7 @@ class _OtherUserProfileScreenState
                 ),
                 VerifiedBadge(
                   isVerified: user['isVerified'] as bool? ?? false,
+                  userId: widget.uid,
                   size: 14,
                 ),
               ],
@@ -172,6 +173,7 @@ class _OtherUserProfileScreenState
                     ),
                     VerifiedBadge(
                       isVerified: user['isVerified'] as bool? ?? false,
+                      userId: widget.uid,
                       size: 24,
                       padding: const EdgeInsets.only(left: 6),
                     ),

@@ -9,6 +9,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/utils/haptic_feedback.dart';
 import '../providers/gaze_privacy_provider.dart';
+import '../../auth/providers/auth_provider.dart';
 
 /// Gaze Lock Overlay — Ripple Telepathy™
 ///
@@ -87,12 +88,33 @@ class _GazeLockOverlayState extends ConsumerState<GazeLockOverlay>
         final sigma = _blurAnimation.value;
         final isBlurred = sigma > 0.5;
 
+        final currentUser = ref.watch(currentUserProvider).value;
+        final isAbyssGlow = currentUser?.subscriptionPlan == 'Abyss Platinum' || currentUser?.subscriptionPlan == 'Premium Trial';
+
+        Widget content = widget.child;
+        if (isAbyssGlow && !isBlurred) {
+          content = AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: AppColors.aquaCore.withOpacity(0.35),
+                  blurRadius: 16,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: widget.child,
+          );
+        }
+
         return ClipRRect(
           borderRadius: BorderRadius.circular(20),
           child: Stack(
             children: [
-              // The actual message content
-              widget.child,
+              // The actual message content (glowing or normal)
+              content,
 
               // Blur overlay
               if (isBlurred)

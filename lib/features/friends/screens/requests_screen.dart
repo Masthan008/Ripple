@@ -146,6 +146,8 @@ class _RequestCardState extends ConsumerState<_RequestCard> {
                       ),
                       VerifiedBadge(
                         isVerified: widget.user.isVerified,
+                        userId: widget.user.uid,
+                        plan: widget.user.subscriptionPlan,
                         size: 12,
                       ),
                     ],

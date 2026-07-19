@@ -48,6 +48,7 @@ import '../services/message_actions_service.dart';
 import '../widgets/forward_message_sheet.dart';
 import '../widgets/gif_picker_sheet.dart';
 import '../widgets/glass_input_bar.dart';
+import '../widgets/custom_notifications_picker.dart';
 import '../../../shared/widgets/verified_badge.dart';
 import '../../stickers/widgets/sticker_picker_sheet.dart';
 import '../widgets/message_bubble.dart';
@@ -1606,6 +1607,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                     VerifiedBadge(
                       isVerified: partner.valueOrNull?.isVerified ?? false,
+                      userId: widget.partnerUid,
+                      plan: partner.valueOrNull?.subscriptionPlan,
                       size: 14,
                     ),
                   ],
@@ -1753,6 +1756,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               } else if (value == 'self_destruct') {
                 _showSelfDestructPicker();
               } else if (value == 'theme') {
+                final currentUser = ref.read(currentUserProvider).value;
+                final plan = currentUser?.subscriptionPlan ?? '';
+                if (plan != 'Premium Trial' && plan != 'Gold Monthly' && plan != 'Abyss Platinum') {
+                  _showUpgradeRequiredDialog(
+                    context,
+                    title: 'Unlock Chat Themes',
+                    message: 'Custom chat backgrounds, colors, and premium glass presets are available on the Gold Monthly and Abyss Platinum subscription plans. Start your 1-month Free Trial to unlock them today!',
+                  );
+                  return;
+                }
                 showModalBottomSheet(
                   context: context,
                   backgroundColor: Colors.transparent,
@@ -1771,6 +1784,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 NotificationService.showMuteDialog(context, _chatId);
               } else if (value == 'unmute') {
                 NotificationService.unmuteChat(_chatId);
+              } else if (value == 'custom_sound') {
+                showModalBottomSheet(
+                  context: context,
+                  backgroundColor: Colors.transparent,
+                  isScrollControlled: true,
+                  builder:
+                      (_) => CustomNotificationsPicker(
+                        chatId: _chatId,
+                        partnerName: widget.partnerName,
+                      ),
+                );
               } else if (value == 'search') {
                 setState(() {
                   _isSearching = true;
@@ -1877,6 +1901,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               ? 'Unmute Notifications'
                               : 'Mute Notifications',
                           style: const TextStyle(color: Colors.white),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const PopupMenuItem(
+                    value: 'custom_sound',
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.music_note_rounded,
+                          color: AppColors.aquaCore,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          'Custom Notifications',
+                          style: TextStyle(color: Colors.white),
                         ),
                       ],
                     ),
@@ -3120,6 +3161,52 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             });
       }
     }
+  }
+
+  void _showUpgradeRequiredDialog(BuildContext context, {required String title, required String message}) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+          side: const BorderSide(color: AppColors.glassBorder),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.workspace_premium_rounded, color: Color(0xFFFBBF24)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                title,
+                style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(color: Colors.white70, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.aquaCore,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            onPressed: () {
+              Navigator.pop(context);
+              context.push('/plans');
+            },
+            child: const Text('Upgrade Now', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showChatSummary() async {

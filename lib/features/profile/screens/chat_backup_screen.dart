@@ -381,6 +381,181 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
                 ],
               ),
             ),
+            const SizedBox(height: 20),
+            if (uid != null)
+              StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                stream: FirebaseService.usersCollection.doc(uid).snapshots(),
+                builder: (context, snapshot) {
+                  if (!snapshot.hasData) {
+                    return const SizedBox.shrink();
+                  }
+                  
+                  final userData = snapshot.data!.data() ?? {};
+                  final bool driveConnected = userData['googleDriveConnected'] as bool? ?? false;
+                  final String driveEmail = userData['googleDriveEmail'] as String? ?? 'Not Connected';
+                  final String backupEmail = userData['backupEmail'] as String? ?? userData['email'] as String? ?? '';
+                  final String autoFrequency = userData['autoBackupFrequency'] as String? ?? 'Off';
+
+                  return GlassCard(
+                    borderRadius: 16,
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.settings_suggest_rounded, color: AppColors.aquaCore, size: 24),
+                            SizedBox(width: 10),
+                            Text(
+                              'Auto Backup Settings',
+                              style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        
+                        Row(
+                          children: [
+                            const Icon(Icons.add_to_drive_rounded, color: Colors.white70, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Google Account', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 2),
+                                  Text(driveEmail, style: TextStyle(color: driveConnected ? AppColors.aquaCore : Colors.white54, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () async {
+                                AppHaptics.mediumTap();
+                                if (driveConnected) {
+                                  await FirebaseService.usersCollection.doc(uid).update({
+                                    'googleDriveConnected': false,
+                                    'googleDriveEmail': FieldValue.delete(),
+                                  });
+                                } else {
+                                  await FirebaseService.usersCollection.doc(uid).update({
+                                    'googleDriveConnected': true,
+                                    'googleDriveEmail': userData['email'] ?? 'google_drive@gmail.com',
+                                  });
+                                }
+                              },
+                              child: Text(
+                                driveConnected ? 'Disconnect' : 'Connect',
+                                style: const TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.bold, fontSize: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Divider(color: Colors.white10, height: 24),
+                        
+                        Row(
+                          children: [
+                            const Icon(Icons.email_rounded, color: Colors.white70, size: 20),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Backup Email', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 2),
+                                  Text(backupEmail.isEmpty ? 'None added' : backupEmail, style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.edit_rounded, color: AppColors.aquaCore, size: 20),
+                              onPressed: () {
+                                AppHaptics.mediumTap();
+                                final controller = TextEditingController(text: backupEmail);
+                                showDialog(
+                                  context: context,
+                                  builder: (context) => AlertDialog(
+                                    backgroundColor: const Color(0xFF0F172A),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(20),
+                                      side: const BorderSide(color: AppColors.glassBorder),
+                                    ),
+                                    title: const Text('Update Backup Email', style: TextStyle(color: Colors.white)),
+                                    content: TextField(
+                                      controller: controller,
+                                      style: const TextStyle(color: Colors.white),
+                                      decoration: const InputDecoration(
+                                        labelText: 'Recovery Email',
+                                        labelStyle: TextStyle(color: Colors.white54),
+                                        enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: Colors.white24)),
+                                        focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(context),
+                                        child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+                                      ),
+                                      ElevatedButton(
+                                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore),
+                                        onPressed: () async {
+                                          await FirebaseService.usersCollection.doc(uid).update({
+                                            'backupEmail': controller.text.trim(),
+                                          });
+                                          if (context.mounted) Navigator.pop(context);
+                                        },
+                                        child: const Text('Save', style: TextStyle(color: Colors.white)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
+                        ),
+                        const Divider(color: Colors.white10, height: 24),
+                        
+                        Row(
+                          children: [
+                            const Icon(Icons.autorenew_rounded, color: Colors.white70, size: 20),
+                            const SizedBox(width: 12),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Backup Frequency', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                  const SizedBox(height: 2),
+                                  Text('Automatically save snapshots', style: TextStyle(color: Colors.white54, fontSize: 11)),
+                                ],
+                              ),
+                            ),
+                            DropdownButton<String>(
+                              value: autoFrequency,
+                              dropdownColor: const Color(0xFF0F172A),
+                              icon: const Icon(Icons.arrow_drop_down_rounded, color: AppColors.aquaCore),
+                              underline: const SizedBox.shrink(),
+                              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold),
+                              items: ['Off', 'Daily', 'Weekly', 'Monthly'].map((val) {
+                                return DropdownMenuItem<String>(
+                                  value: val,
+                                  child: Text(val),
+                                );
+                              }).toList(),
+                              onChanged: (newVal) async {
+                                if (newVal != null) {
+                                  AppHaptics.selectionTick();
+                                  await FirebaseService.usersCollection.doc(uid).update({
+                                    'autoBackupFrequency': newVal,
+                                  });
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
             const SizedBox(height: 28),
 
             const Text(

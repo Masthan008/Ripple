@@ -273,6 +273,8 @@ class _UserTileState extends ConsumerState<_UserTile> {
                 ),
                 VerifiedBadge(
                   isVerified: widget.user.isVerified,
+                  userId: widget.user.uid,
+                  plan: widget.user.subscriptionPlan,
                   size: 16,
                 ),
               ],
@@ -355,6 +357,8 @@ class _UserTileState extends ConsumerState<_UserTile> {
                       ),
                       VerifiedBadge(
                         isVerified: widget.user.isVerified,
+                        userId: widget.user.uid,
+                        plan: widget.user.subscriptionPlan,
                         size: 12,
                       ),
                     ],

@@ -21,7 +21,8 @@ service cloud.firestore {
       // User can create their own document
       allow create: if isOwner(userId);
 
-      // User can fully update their own document
+      // User can fully update their own document (including recovery settings:
+      // googleDriveConnected, googleDriveEmail, backupEmail, autoBackupFrequency)
       // OTHER users can update social/friend fields
       allow update: if isOwner(userId)
         || (isSignedIn()
