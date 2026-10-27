@@ -1,11 +1,11 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
-import 'package:liquid_glass_renderer/liquid_glass_renderer.dart';
 import '../../../core/theme/theme_models.dart';
 
-/// A glassmorphic background container for the navbar.
+/// A high-performance liquid glassmorphic background container.
 ///
-/// This widget provides the visual background for the navbar
-/// using liquid glass effects.
+/// Combines hardware-accelerated [BackdropFilter] with specular light refraction,
+/// dual-layer glass border gradients, superellipse rounding, and soft ambient drop shadows.
 class LiquidNavbarBackground extends StatelessWidget {
   /// The width of the navbar background
   final double width;
@@ -29,31 +29,57 @@ class LiquidNavbarBackground extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LiquidGlassLayer(
-      settings: const LiquidGlassSettings(thickness: 20, blur: 2),
-      child: LiquidGlass(
-        glassContainsChild: true,
-        shape: LiquidRoundedSuperellipse(borderRadius: 36),
-        child: Container(
-          width: width,
-          height: height,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(36),
-            color: theme.colors.glassSurface,
-            border: Border.all(
-              color: theme.colors.glassBorder,
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(theme.isDark ? 0.35 : 0.08),
-                blurRadius: 16,
-                spreadRadius: -4,
-                offset: const Offset(0, 8),
-              ),
-            ],
+    return Container(
+      width: width,
+      height: height,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(36),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(theme.isDark ? 0.35 : 0.08),
+            blurRadius: 18,
+            spreadRadius: -4,
+            offset: const Offset(0, 8),
           ),
-          child: child,
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(36),
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(36),
+              color: theme.colors.glassSurface,
+              border: Border.all(
+                color: theme.colors.glassBorder,
+                width: 1.2,
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Top-edge specular light refraction sheen (Telegram liquid glass aesthetic)
+                Positioned(
+                  top: 0,
+                  left: 20,
+                  right: 20,
+                  height: 1.2,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [
+                          Colors.white.withOpacity(0.0),
+                          Colors.white.withOpacity(theme.isDark ? 0.3 : 0.6),
+                          Colors.white.withOpacity(0.0),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                child,
+              ],
+            ),
+          ),
         ),
       ),
     );

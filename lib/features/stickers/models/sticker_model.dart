@@ -1,3 +1,5 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class StickerModel {
   final String id;
   final String name;
@@ -393,4 +395,37 @@ class RippleStickers {
     StickerCategory(id: 'gaming', name: 'Gaming', icon: '🎮', isLocked: true),
     StickerCategory(id: 'nature', name: 'Nature', icon: '🌸', isLocked: true),
   ];
+}
+
+class RemoteStickerPack {
+  final String id;
+  final String name;
+  final String author;
+  final String icon;
+  final List<StickerModel> stickers;
+  final bool isPremium;
+
+  RemoteStickerPack({
+    required this.id,
+    required this.name,
+    required this.author,
+    required this.icon,
+    required this.stickers,
+    this.isPremium = false,
+  });
+
+  factory RemoteStickerPack.fromFirestore(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final data = doc.data() ?? {};
+    final stickersRaw = data['stickers'] as List? ?? [];
+    return RemoteStickerPack(
+      id: doc.id,
+      name: data['name'] as String? ?? 'Custom Pack',
+      author: data['author'] as String? ?? 'Community',
+      icon: data['icon'] as String? ?? '🎨',
+      isPremium: data['isPremium'] as bool? ?? false,
+      stickers: stickersRaw
+          .map((s) => StickerModel.fromMap(Map<String, dynamic>.from(s as Map)))
+          .toList(),
+    );
+  }
 }

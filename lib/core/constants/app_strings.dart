@@ -4,7 +4,8 @@ class AppStrings {
 
   // ─── App ─────────────────────────────────────────────
   static const String appName = 'Ripple';
-  static const String appTagline = 'Connect in liquid-clear conversations';
+  static const String appTagline = 'Next-Generation Ultra-Secure Encrypted Communications';
+  static const String appDescription = 'Ripple is a next-generation encrypted communications platform engineered for uncompromising privacy. Featuring quantum-grade End-to-End Encryption, zero-trace peer-to-peer offline mesh networking, real-time voice and video calls, and seamless multi-device web companion sync—with zero tracking and complete data sovereignty.';
   static const String appVersion = '1.0.0';
 
   // ─── Auth ────────────────────────────────────────────

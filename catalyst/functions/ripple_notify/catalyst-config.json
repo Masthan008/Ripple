@@ -1,0 +1,10 @@
+{
+  "execution": {
+    "main": "index.js"
+  },
+  "deployment": {
+    "name": "ripple_notify",
+    "stack": "node18",
+    "type": "advancedio"
+  }
+}

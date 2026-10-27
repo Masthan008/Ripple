@@ -141,4 +141,36 @@ class SubscriptionService {
       return UserModel.fromFirestore(doc);
     });
   }
+
+  // ── TELEGRAM PREMIUM PARITY & GATING ──────────────────
+
+  /// Maximum file upload limit in bytes: 4GB for Premium subscribers, 2GB for Standard
+  int getMaxUploadLimitBytes(UserModel? user) {
+    return isSubscriptionActive(user) ? 4 * 1024 * 1024 * 1024 : 2 * 1024 * 1024 * 1024;
+  }
+
+  /// Formatted max upload string (e.g. '4 GB' vs '2 GB')
+  String getMaxUploadLimitLabel(UserModel? user) {
+    return isSubscriptionActive(user) ? '4 GB' : '2 GB';
+  }
+
+  /// Voice-to-Text transcription access
+  bool canTranscribeVoice(UserModel? user) {
+    return isSubscriptionActive(user);
+  }
+
+  /// Priority high-speed download bypass
+  bool hasFasterDownloads(UserModel? user) {
+    return isSubscriptionActive(user);
+  }
+
+  /// Max pinned chats limit (10 for Premium, 5 for Free)
+  int getMaxPinnedChats(UserModel? user) {
+    return isSubscriptionActive(user) ? 10 : 5;
+  }
+
+  /// Max joined groups limit (1000 for Premium, 500 for Free)
+  int getMaxJoinedGroups(UserModel? user) {
+    return isSubscriptionActive(user) ? 1000 : 500;
+  }
 }

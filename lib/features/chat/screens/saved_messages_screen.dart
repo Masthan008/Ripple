@@ -21,7 +21,7 @@ class SavedMessagesScreen extends StatelessWidget {
         ),
         title: const Row(
           children: [
-            Text('🔖', style: TextStyle(fontSize: 20)),
+            const Icon(Icons.bookmark_rounded, color: AppColors.aquaCore, size: 22),
             SizedBox(width: 8),
             Text('Saved Messages',
                 style: TextStyle(color: Colors.white, fontSize: 18)),
@@ -43,7 +43,23 @@ class SavedMessagesScreen extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('🔖', style: TextStyle(fontSize: 64)),
+                  Container(
+                    width: 72,
+                    height: 72,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: AppColors.aquaCore.withValues(alpha: 0.12),
+                      border: Border.all(
+                        color: AppColors.aquaCore.withValues(alpha: 0.3),
+                        width: 1.5,
+                      ),
+                    ),
+                    child: const Icon(
+                      Icons.bookmark_outline_rounded,
+                      size: 38,
+                      color: AppColors.aquaCore,
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   const Text('No saved messages',
                       style: TextStyle(

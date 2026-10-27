@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -24,14 +25,16 @@ class _SplashApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.light,
-        systemNavigationBarColor: Color(0xFF060D1A),
-        systemNavigationBarIconBrightness: Brightness.light,
-      ),
-    );
+    if (!kIsWeb) {
+      SystemChrome.setSystemUIOverlayStyle(
+        const SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.light,
+          systemNavigationBarColor: Color(0xFF060D1A),
+          systemNavigationBarIconBrightness: Brightness.light,
+        ),
+      );
+    }
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       theme: ThemeData.dark(),
@@ -71,31 +74,37 @@ void main() async {
     () async {
       WidgetsFlutterBinding.ensureInitialized();
 
-      // Catch Flutter-level errors and forward to Crashlytics
+      // Catch Flutter-level errors and forward to Crashlytics (mobile only)
       FlutterError.onError = (details) {
         FlutterError.presentError(details);
-        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+        if (!kIsWeb) {
+          FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+        }
       };
       PlatformDispatcher.instance.onError = (error, stack) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        if (!kIsWeb) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+        }
         return true;
       };
 
-      // Lock to portrait mode
-      await SystemChrome.setPreferredOrientations([
-        DeviceOrientation.portraitUp,
-        DeviceOrientation.portraitDown,
-      ]);
+      if (!kIsWeb) {
+        // Lock to portrait mode on mobile
+        await SystemChrome.setPreferredOrientations([
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ]);
 
-      // Set system UI overlay style for dark ocean theme
-      SystemChrome.setSystemUIOverlayStyle(
-        const SystemUiOverlayStyle(
-          statusBarColor: Colors.transparent,
-          statusBarIconBrightness: Brightness.light,
-          systemNavigationBarColor: Color(0xFF060D1A),
-          systemNavigationBarIconBrightness: Brightness.light,
-        ),
-      );
+        // Set system UI overlay style for dark ocean theme
+        SystemChrome.setSystemUIOverlayStyle(
+          const SystemUiOverlayStyle(
+            statusBarColor: Colors.transparent,
+            statusBarIconBrightness: Brightness.light,
+            systemNavigationBarColor: Color(0xFF060D1A),
+            systemNavigationBarIconBrightness: Brightness.light,
+          ),
+        );
+      }
 
       // Show splash immediately, then proceed with init — prevents black screen
       runApp(const _SplashApp());
@@ -114,28 +123,34 @@ void main() async {
           await SupabaseService.initialize();
         }
 
-        // ── OneSignal ──
-        final oneSignalId = Env.oneSignalAppId;
-        if (oneSignalId.isNotEmpty) {
-          assert(() {
-            OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
-            return true;
-          }());
-          OneSignal.initialize(oneSignalId);
-          OneSignal.consentRequired(false);
-          OneSignal.consentGiven(true);
-          OneSignal.Notifications.requestPermission(true).catchError((_) => false);
+        // ── OneSignal (mobile only) ──
+        if (!kIsWeb) {
+          final oneSignalId = Env.oneSignalAppId;
+          if (oneSignalId.isNotEmpty) {
+            assert(() {
+              OneSignal.Debug.setLogLevel(OSLogLevel.verbose);
+              return true;
+            }());
+            OneSignal.initialize(oneSignalId);
+            OneSignal.consentRequired(false);
+            OneSignal.consentGiven(true);
+            OneSignal.Notifications.requestPermission(true).catchError((_) => false);
+          }
         }
 
         // Initialize local notification channels
-        await NotificationService.initialize();
+        if (!kIsWeb) {
+          await NotificationService.initialize();
+        }
 
-        // Restore screenshot block setting
-        final prefs = await SharedPreferences.getInstance();
-        if (prefs.getBool('screenshot_block') ?? false) {
-          await FlutterWindowManagerPlus.addFlags(
-            FlutterWindowManagerPlus.FLAG_SECURE,
-          );
+        // Restore screenshot block setting (Android only)
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+          final prefs = await SharedPreferences.getInstance();
+          if (prefs.getBool('screenshot_block') ?? false) {
+            await FlutterWindowManagerPlus.addFlags(
+              FlutterWindowManagerPlus.FLAG_SECURE,
+            );
+          }
         }
       } catch (e, stack) {
         debugPrint('⚠️ Initialization error: $e');
@@ -169,7 +184,11 @@ void main() async {
       GiftService.initializeGiftCards().catchError((_) {});
     },
     (error, stack) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: false);
+      if (!kIsWeb) {
+        FirebaseCrashlytics.instance.recordError(error, stack, fatal: false);
+      } else {
+        debugPrint('Uncaught Web Error: $error\n$stack');
+      }
     },
   );
 }

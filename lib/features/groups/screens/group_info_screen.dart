@@ -595,6 +595,25 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                                                         fontSize: 13)),
                                           ),
                                           PopupMenuItem(
+                                            value: 'mute',
+                                            child: Text('Mute / Restrict',
+                                                style: AppTextStyles.body.copyWith(fontSize: 13)),
+                                          ),
+                                          if (isMemberAdmin)
+                                            PopupMenuItem(
+                                              value: 'admin_permissions',
+                                              child: Text('Admin Permissions',
+                                                  style: AppTextStyles.body.copyWith(fontSize: 13)),
+                                            ),
+                                          PopupMenuItem(
+                                            value: 'ban',
+                                            child: Text('Ban from Group',
+                                                style: AppTextStyles.body.copyWith(
+                                                  fontSize: 13,
+                                                  color: AppColors.errorRed,
+                                                )),
+                                          ),
+                                          PopupMenuItem(
                                             value: 'remove',
                                             child: Text(
                                                 'Remove from Group',
@@ -800,6 +819,15 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
                     ? '$name can no longer add members'
                     : '$name can now add members')),
           );
+          break;
+        case 'mute':
+          _showMuteDialog(uid, name);
+          break;
+        case 'admin_permissions':
+          _showAdminPermissionsDialog(uid, name);
+          break;
+        case 'ban':
+          _confirmBan(uid, name);
           break;
         case 'remove':
           final confirm = await showDialog<bool>(
@@ -1288,6 +1316,95 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
               }
             },
           ),
+          const Divider(color: Colors.white12, height: 16),
+          // Slow Mode Setting
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: const [
+                      Text('Slow Mode',
+                          style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                      Text('Limit how frequently members can send messages',
+                          style: TextStyle(color: Colors.white54, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                DropdownButton<int>(
+                  value: (groupDoc?.data()?['slowModeSeconds'] as num?)?.toInt() ?? 0,
+                  dropdownColor: const Color(0xFF0E1928),
+                  style: const TextStyle(color: AppColors.aquaCore, fontSize: 12, fontWeight: FontWeight.bold),
+                  underline: const SizedBox(),
+                  items: const [
+                    DropdownMenuItem(value: 0, child: Text('Off')),
+                    DropdownMenuItem(value: 10, child: Text('10s')),
+                    DropdownMenuItem(value: 30, child: Text('30s')),
+                    DropdownMenuItem(value: 60, child: Text('1 min')),
+                    DropdownMenuItem(value: 300, child: Text('5 min')),
+                  ],
+                  onChanged: (val) {
+                    if (val != null) {
+                      ref.read(groupServiceProvider).setSlowMode(widget.groupId, val);
+                    }
+                  },
+                ),
+              ],
+            ),
+          ),
+          const Divider(color: Colors.white12, height: 16),
+          // Require Admin Approval
+          SwitchListTile(
+            title: const Text('Require Admin Approval',
+                style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+            subtitle: const Text('New members joining via invite link must be approved by an admin',
+                style: TextStyle(color: Colors.white54, fontSize: 11)),
+            value: groupDoc?.data()?['requiresApproval'] == true,
+            activeColor: AppColors.aquaCore,
+            inactiveTrackColor: Colors.white10,
+            contentPadding: EdgeInsets.zero,
+            onChanged: (val) {
+              ref.read(groupServiceProvider).setRequiresApproval(widget.groupId, val);
+            },
+          ),
+          const Divider(color: Colors.white12, height: 16),
+          // Pending Join Requests
+          StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseService.firestore
+                .collection('groups')
+                .doc(widget.groupId)
+                .collection('join_requests')
+                .snapshots(),
+            builder: (ctx, reqSnap) {
+              final count = reqSnap.data?.docs.length ?? 0;
+              return ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.person_add_outlined, color: AppColors.aquaCore),
+                title: const Text('Join Requests',
+                    style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                subtitle: Text('$count pending applicant${count == 1 ? "" : "s"}',
+                    style: const TextStyle(color: Colors.white54, fontSize: 11)),
+                trailing: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: count > 0 ? AppColors.aquaCore : Colors.white10,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    count > 0 ? '$count New' : 'View',
+                    style: TextStyle(
+                      color: count > 0 ? Colors.white : Colors.white70,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                onTap: () => _showJoinRequestsSheet(reqSnap.data?.docs ?? []),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -1346,5 +1463,267 @@ class _GroupInfoScreenState extends ConsumerState<GroupInfoScreen> {
       }
     }
   }
-}
 
+  // ── SUPERGROUP GOVERNANCE HELPERS ──────────────────────
+
+  void _showMuteDialog(String uid, String name) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0E1928),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Mute / Restrict $name', style: AppTextStyles.headingSmall),
+              const SizedBox(height: 8),
+              const Text(
+                'Select duration for muting this member:',
+                style: TextStyle(color: Colors.white70, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const Icon(Icons.access_time_rounded, color: AppColors.aquaCore),
+                title: const Text('1 Hour', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  ref.read(groupServiceProvider).muteMember(
+                        widget.groupId,
+                        uid,
+                        duration: const Duration(hours: 1),
+                      );
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.access_time_rounded, color: AppColors.aquaCore),
+                title: const Text('8 Hours', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  ref.read(groupServiceProvider).muteMember(
+                        widget.groupId,
+                        uid,
+                        duration: const Duration(hours: 8),
+                      );
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.access_time_rounded, color: AppColors.aquaCore),
+                title: const Text('24 Hours', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  ref.read(groupServiceProvider).muteMember(
+                        widget.groupId,
+                        uid,
+                        duration: const Duration(days: 1),
+                      );
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.lock_clock_rounded, color: Colors.orangeAccent),
+                title: const Text('Forever / Indefinitely', style: TextStyle(color: Colors.white)),
+                onTap: () {
+                  ref.read(groupServiceProvider).muteMember(
+                        widget.groupId,
+                        uid,
+                        forever: true,
+                      );
+                  Navigator.pop(ctx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.volume_up_rounded, color: Colors.greenAccent),
+                title: const Text('Unmute', style: TextStyle(color: Colors.greenAccent)),
+                onTap: () {
+                  ref.read(groupServiceProvider).unmuteMember(widget.groupId, uid);
+                  Navigator.pop(ctx);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showAdminPermissionsDialog(String uid, String name) async {
+    final groupDoc = await FirebaseService.firestore.collection('groups').doc(widget.groupId).get();
+    final adminPerms = Map<String, dynamic>.from(groupDoc.data()?['adminPermissions'] ?? {});
+    final current = Map<String, bool>.from((adminPerms[uid] as Map?)?.map((k, v) => MapEntry(k.toString(), v == true)) ?? {
+      'canDeleteMessages': true,
+      'canBanUsers': true,
+      'canInviteUsers': true,
+      'canPinMessages': true,
+      'canChangeInfo': true,
+    });
+
+    if (!mounted) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF0E1928),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: Text('Admin Rights: $name', style: const TextStyle(color: Colors.white, fontSize: 16)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              CheckboxListTile(
+                dense: true,
+                title: const Text('Delete Messages', style: TextStyle(color: Colors.white, fontSize: 13)),
+                value: current['canDeleteMessages'] ?? true,
+                activeColor: AppColors.aquaCore,
+                onChanged: (v) => setDialogState(() => current['canDeleteMessages'] = v ?? false),
+              ),
+              CheckboxListTile(
+                dense: true,
+                title: const Text('Ban & Mute Users', style: TextStyle(color: Colors.white, fontSize: 13)),
+                value: current['canBanUsers'] ?? true,
+                activeColor: AppColors.aquaCore,
+                onChanged: (v) => setDialogState(() => current['canBanUsers'] = v ?? false),
+              ),
+              CheckboxListTile(
+                dense: true,
+                title: const Text('Pin Messages', style: TextStyle(color: Colors.white, fontSize: 13)),
+                value: current['canPinMessages'] ?? true,
+                activeColor: AppColors.aquaCore,
+                onChanged: (v) => setDialogState(() => current['canPinMessages'] = v ?? false),
+              ),
+              CheckboxListTile(
+                dense: true,
+                title: const Text('Invite Users', style: TextStyle(color: Colors.white, fontSize: 13)),
+                value: current['canInviteUsers'] ?? true,
+                activeColor: AppColors.aquaCore,
+                onChanged: (v) => setDialogState(() => current['canInviteUsers'] = v ?? false),
+              ),
+              CheckboxListTile(
+                dense: true,
+                title: const Text('Change Group Info', style: TextStyle(color: Colors.white, fontSize: 13)),
+                value: current['canChangeInfo'] ?? true,
+                activeColor: AppColors.aquaCore,
+                onChanged: (v) => setDialogState(() => current['canChangeInfo'] = v ?? false),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore),
+              onPressed: () async {
+                await ref.read(groupServiceProvider).updateAdminPermissions(widget.groupId, uid, current);
+                if (ctx.mounted) Navigator.pop(ctx);
+              },
+              child: const Text('Save', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _confirmBan(String uid, String name) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0E1928),
+        title: Text('Ban $name?', style: const TextStyle(color: Colors.white)),
+        content: Text(
+          '$name will be removed from the group and banned from rejoining via invite links.',
+          style: const TextStyle(color: Colors.white70),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ban Member', style: TextStyle(color: AppColors.errorRed)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await ref.read(groupServiceProvider).banMember(widget.groupId, uid);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('$name was banned from the group')),
+        );
+      }
+    }
+  }
+
+  void _showJoinRequestsSheet(List<QueryDocumentSnapshot<Map<String, dynamic>>> requests) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF0E1928),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Pending Join Requests (${requests.length})', style: AppTextStyles.headingSmall),
+              const SizedBox(height: 12),
+              if (requests.isEmpty)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Text('No pending requests', style: TextStyle(color: Colors.white54)),
+                  ),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: requests.length,
+                    itemBuilder: (ctx, i) {
+                      final req = requests[i].data();
+                      final applicantUid = req['applicantUid'] as String? ?? requests[i].id;
+                      return ListTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Colors.white12,
+                          child: Icon(Icons.person, color: Colors.white70),
+                        ),
+                        title: Text('User $applicantUid', style: const TextStyle(color: Colors.white, fontSize: 13)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.check_circle, color: Colors.greenAccent),
+                              onPressed: () async {
+                                await ref.read(groupServiceProvider).approveJoinRequest(widget.groupId, applicantUid);
+                              },
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.cancel, color: AppColors.errorRed),
+                              onPressed: () async {
+                                await ref.read(groupServiceProvider).rejectJoinRequest(widget.groupId, applicantUid);
+                              },
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

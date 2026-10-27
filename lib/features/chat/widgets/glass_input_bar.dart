@@ -123,7 +123,7 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
     return ClipRRect(
       borderRadius: BorderRadius.circular(26),
       child: BackdropFilter(
-        filter: kIsWeb ? ImageFilter.blur() : ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        filter: kIsWeb ? ImageFilter.blur() : ImageFilter.blur(sigmaX: 16, sigmaY: 16),
         child: Container(
       padding: const EdgeInsets.only(
         left: 8,
@@ -147,39 +147,24 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
         ],
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          // Emoji button
-          _IconBtn(icon: Icons.emoji_emotions_outlined, onTap: widget.onEmoji),
-
-          // Attach button
-          _IconBtn(icon: Icons.attach_file_rounded, onTap: widget.onAttach),
-
-          // GIF button
-          if (widget.onGif != null)
-            _IconBtn(icon: Icons.gif_box_rounded, onTap: widget.onGif),
-
-          // Sticker button
-          if (widget.onSticker != null)
-            _IconBtn(icon: Icons.sentiment_very_satisfied_rounded, onTap: widget.onSticker),
-
-          // Quantum Vault lock toggle
-          if (widget.onQuantumToggle != null)
-            _IconBtn(
-              icon: widget.isQuantumLocked
-                  ? Icons.lock_rounded
-                  : Icons.lock_open_rounded,
-              color: widget.isQuantumLocked
-                  ? const Color(0xFF6366F1)
-                  : AppColors.textMuted,
-              onTap: widget.onQuantumToggle,
+          // Emoji button on the far left
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: _IconBtn(
+              icon: Icons.sentiment_satisfied_alt_rounded,
+              size: 24,
+              onTap: widget.onEmoji,
             ),
+          ),
 
           const SizedBox(width: 4),
 
-          // Text field
+          // Expansive Text field taking up maximum width
           Expanded(
             child: Container(
-              constraints: const BoxConstraints(maxHeight: 200),
+              constraints: const BoxConstraints(maxHeight: 180),
               decoration: BoxDecoration(
                 color: const Color(0x0FFFFFFF),
                 borderRadius: BorderRadius.circular(20),
@@ -187,8 +172,8 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
               ),
               child: TextField(
                 controller: widget.controller,
-                style: AppTextStyles.body.copyWith(fontSize: 14),
-                maxLines: 8,
+                style: AppTextStyles.body.copyWith(fontSize: 14.5),
+                maxLines: 6,
                 minLines: 1,
                 textCapitalization: TextCapitalization.sentences,
                 keyboardType:
@@ -201,6 +186,7 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
                   hintText: L10n.s(ref, 'typeMessage'),
                   hintStyle: AppTextStyles.caption.copyWith(
                     color: AppColors.textMuted,
+                    fontSize: 14,
                   ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(
@@ -211,42 +197,25 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
                 ),
                 onChanged: (value) {
                   widget.onChanged?.call(value);
-                  setState(() {}); // Rebuild to show/hide mic vs send
+                  setState(() {});
                 },
               ),
             ),
           ),
 
-          const SizedBox(width: 6),
-
-          // AI Compose button
-          if (widget.onAiCompose != null && !hasText)
-            _IconBtn(
-              icon: Icons.smart_toy_rounded,
-              color: AppColors.aquaCore,
-              size: 20,
-              onTap: widget.onAiCompose,
-            ),
-
-          // Tone fixer button (only when typing)
-          if (widget.onToneFix != null && hasText)
-            _IconBtn(
-              icon: Icons.auto_fix_high_rounded,
-              color: AppColors.aquaCore,
-              size: 20,
-              onTap: widget.onToneFix,
-            ),
-
-          // Schedule button (only when typing)
-          if (widget.onSchedule != null && hasText)
-            _IconBtn(
-              icon: Icons.schedule_send_rounded,
-              color: AppColors.aquaCore,
-              size: 20,
-              onTap: widget.onSchedule,
-            ),
-
           const SizedBox(width: 4),
+
+          // Attach button on the right
+          Padding(
+            padding: const EdgeInsets.only(bottom: 2),
+            child: _IconBtn(
+              icon: Icons.attach_file_rounded,
+              size: 22,
+              onTap: widget.onAttach,
+            ),
+          ),
+
+          const SizedBox(width: 2),
 
           // Send button or Mic button
           if (hasText || widget.isSending)

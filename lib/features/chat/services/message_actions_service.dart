@@ -100,7 +100,7 @@ class MessageActionsService {
     });
   }
 
-  // ── DELETE FOR EVERYONE ────────────────────────────────
+  // ── DELETE FOR EVERYONE (TELEGRAM PARITY) ─────────────
   static Future<void> deleteForEveryone({
     required String chatId,
     required String messageId,
@@ -115,9 +115,24 @@ class MessageActionsService {
         .doc(messageId);
 
     final doc = await msgRef.get();
-    if (doc.data()?['senderId'] != uid) {
-      throw Exception(
-          'Can only delete your own messages for everyone');
+    final data = doc.data() ?? {};
+    final senderId = data['senderId'];
+
+    if (senderId != uid) {
+      if (isGroup) {
+        // Group admins or creator can delete for everyone
+        final groupDoc = await _fs.collection('groups').doc(chatId).get();
+        final groupData = groupDoc.data() ?? {};
+        final admins = List<String>.from(groupData['admins'] ?? []);
+        final createdBy = groupData['createdBy'];
+        if (createdBy != uid && !admins.contains(uid)) {
+          throw Exception(
+              'Only the sender or group admins can delete messages for everyone');
+        }
+      } else {
+        throw Exception(
+            'Can only delete your own messages for everyone');
+      }
     }
 
     await msgRef.update({
@@ -125,6 +140,58 @@ class MessageActionsService {
       'text': null,
       'mediaUrl': null,
     });
+
+    // Telegram Last-Message Rewind:
+    await rewindLastMessageAfterDeletion(chatId: chatId, isGroup: isGroup);
+  }
+
+  // ── REWIND LAST MESSAGE POINTER ────────────────────────
+  static Future<void> rewindLastMessageAfterDeletion({
+    required String chatId,
+    required bool isGroup,
+  }) async {
+    try {
+      final collection = isGroup ? 'groups' : 'chats';
+      final recentSnap = await _fs
+          .collection(collection)
+          .doc(chatId)
+          .collection('messages')
+          .orderBy('createdAt', descending: true)
+          .limit(10)
+          .get();
+
+      QueryDocumentSnapshot<Map<String, dynamic>>? validMsgDoc;
+      for (final doc in recentSnap.docs) {
+        final d = doc.data();
+        if (d['isDeleted'] != true) {
+          validMsgDoc = doc;
+          break;
+        }
+      }
+
+      final chatRef = _fs.collection(collection).doc(chatId);
+      if (validMsgDoc != null) {
+        final d = validMsgDoc.data();
+        final text = d['text'] as String? ?? (d['mediaUrl'] != null ? '[Media]' : '');
+        final senderId = d['senderId'] as String? ?? '';
+        final ts = d['createdAt'] ?? d['timestamp'] ?? FieldValue.serverTimestamp();
+        final type = d['type'] as String? ?? 'text';
+
+        await chatRef.set({
+          'lastMessage': {
+            'text': text,
+            'senderId': senderId,
+            'timestamp': ts,
+            'type': type,
+          },
+          'updatedAt': ts,
+        }, SetOptions(merge: true));
+      } else {
+        await chatRef.update({
+          'lastMessage': null,
+        });
+      }
+    } catch (_) {}
   }
 
   // ── DELETE FOR ME ──────────────────────────────────────
@@ -143,6 +210,73 @@ class MessageActionsService {
         .update({
       'deletedFor': FieldValue.arrayUnion([uid]),
     });
+  }
+
+  // ── DUAL-SIDED CLEAR CHAT HISTORY (TELEGRAM PARITY) ────
+  static Future<void> clearChatHistory({
+    required String chatId,
+    required bool isGroup,
+    required bool deleteForBoth,
+  }) async {
+    final uid = _auth.currentUser!.uid;
+    final collection = isGroup ? 'groups' : 'chats';
+    final messagesRef =
+        _fs.collection(collection).doc(chatId).collection('messages');
+    final snap = await messagesRef.get();
+
+    final batch = _fs.batch();
+    for (final doc in snap.docs) {
+      if (deleteForBoth) {
+        batch.delete(doc.reference);
+      } else {
+        batch.update(doc.reference, {
+          'deletedFor': FieldValue.arrayUnion([uid]),
+        });
+      }
+    }
+
+    if (deleteForBoth) {
+      batch.update(_fs.collection(collection).doc(chatId), {
+        'lastMessage': null,
+      });
+    }
+
+    await batch.commit();
+  }
+
+  // ── DUAL-SIDED DELETE CHAT (TELEGRAM PARITY) ───────────
+  static Future<void> deleteChat({
+    required String chatId,
+    required bool isGroup,
+    required bool deleteForBoth,
+  }) async {
+    final uid = _auth.currentUser!.uid;
+    final collection = isGroup ? 'groups' : 'chats';
+    final messagesRef =
+        _fs.collection(collection).doc(chatId).collection('messages');
+    final snap = await messagesRef.get();
+
+    final batch = _fs.batch();
+    for (final doc in snap.docs) {
+      if (deleteForBoth) {
+        batch.delete(doc.reference);
+      } else {
+        batch.update(doc.reference, {
+          'deletedFor': FieldValue.arrayUnion([uid]),
+        });
+      }
+    }
+
+    final chatRef = _fs.collection(collection).doc(chatId);
+    if (deleteForBoth) {
+      batch.delete(chatRef);
+    } else {
+      batch.update(chatRef, {
+        'deletedFor': FieldValue.arrayUnion([uid]),
+      });
+    }
+
+    await batch.commit();
   }
 
   // ── FORWARD MESSAGE ────────────────────────────────────

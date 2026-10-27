@@ -1,12 +1,12 @@
 {
-    "name": "ripple",
-    "short_name": "ripple",
+    "name": "Ripple — Zero-Trace Encrypted Messenger",
+    "short_name": "Ripple",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
-    "orientation": "portrait-primary",
+    "background_color": "#060D1A",
+    "theme_color": "#060D1A",
+    "description": "Fast, ultra-secure encrypted messaging with zero-trace privacy, offline mesh, and sovereign security.",
+    "orientation": "any",
     "prefer_related_applications": false,
     "icons": [
         {

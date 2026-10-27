@@ -3,6 +3,7 @@
 # Keep Flutter + Dart entry points
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
+-keep class com.valli.ripple.** { *; }
 -keepattributes *Annotation*
 -keepattributes Signature
 -dontwarn io.flutter.embedding.**

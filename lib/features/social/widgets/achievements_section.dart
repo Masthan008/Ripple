@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../shared/widgets/glass_card.dart';
@@ -12,90 +14,143 @@ class AchievementsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4),
-          child: Text(
-            'ACHIEVEMENTS',
-            style: AppTextStyles.caption.copyWith(
-              fontSize: 11,
-              fontWeight: FontWeight.w600,
-              letterSpacing: 1.2,
-              color: AppColors.aquaCore.withValues(alpha: 0.7),
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        StreamBuilder<List<AchievementModel>>(
-          stream: SocialService.getAchievements(uid),
-          builder: (context, snapshot) {
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const SizedBox(
-                height: 100,
-                child: Center(child: CircularProgressIndicator()),
-              );
-            }
-            final achievements = snapshot.data ?? [];
-            if (achievements.isEmpty) {
-              return GlassCard(
-                borderRadius: 14,
-                padding: const EdgeInsets.all(16),
-                child: Center(
+    return StreamBuilder<List<AchievementModel>>(
+      stream: SocialService.getAchievements(uid),
+      builder: (context, snapshot) {
+        final achievements = snapshot.data ?? [];
+        final totalXp = AchievementDefinitions.calculateTotalXp(achievements);
+        final currentRank = UserRank.forXp(totalXp);
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
                   child: Text(
-                    'No achievements yet.',
-                    style: AppTextStyles.caption,
+                    'SECURITY ACHIEVEMENTS',
+                    style: AppTextStyles.caption.copyWith(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      letterSpacing: 1.2,
+                      color: AppColors.aquaCore.withValues(alpha: 0.7),
+                    ),
                   ),
                 ),
-              );
-            }
-
-            return SizedBox(
-              height: 100,
-              child: ListView.builder(
-                scrollDirection: Axis.horizontal,
-                itemCount: achievements.length,
-                itemBuilder: (context, index) {
-                  final ach = achievements[index];
-                  return Container(
-                    width: 80,
-                    margin: const EdgeInsets.only(right: 12),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+                GestureDetector(
+                  onTap: () => GoRouter.of(context).push('/achievements'),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: currentRank.color.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: currentRank.color.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Container(
-                          width: 56,
-                          height: 56,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: _getTierColor(ach.tier).withValues(alpha: 0.15),
-                            border: Border.all(
-                              color: _getTierColor(ach.tier).withValues(alpha: 0.5),
-                              width: 2,
-                            ),
-                          ),
-                          child: Center(
-                            child: Icon(ach.icon, size: 24, color: _getTierColor(ach.tier)),
-                          ),
-                        ),
-                        const SizedBox(height: 6),
+                        Icon(currentRank.icon, size: 12, color: currentRank.color),
+                        const SizedBox(width: 4),
                         Text(
-                          ach.title,
-                          style: AppTextStyles.caption.copyWith(fontSize: 10),
-                          textAlign: TextAlign.center,
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                          '${currentRank.title} • $totalXp XP',
+                          style: TextStyle(
+                            color: currentRank.color,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
+                        const SizedBox(width: 4),
+                        Icon(Icons.chevron_right_rounded, size: 14, color: currentRank.color),
                       ],
                     ),
-                  );
-                },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            if (snapshot.connectionState == ConnectionState.waiting)
+              const SizedBox(
+                height: 80,
+                child: Center(child: CircularProgressIndicator(color: AppColors.aquaCore)),
+              )
+            else if (achievements.isEmpty)
+              GestureDetector(
+                onTap: () => GoRouter.of(context).push('/achievements'),
+                child: GlassCard(
+                  borderRadius: 14,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.lock_outline_rounded, color: Colors.white38, size: 22),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          'Unlock encrypted achievements and climb the security ranks.',
+                          style: AppTextStyles.caption.copyWith(color: Colors.white60),
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right_rounded, color: Colors.white38, size: 18),
+                    ],
+                  ),
+                ),
+              )
+            else
+              SizedBox(
+                height: 94,
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: achievements.length,
+                  itemBuilder: (context, index) {
+                    final ach = achievements[index];
+                    final tierColor = _getTierColor(ach.tier);
+
+                    return GestureDetector(
+                      onTap: () => GoRouter.of(context).push('/achievements'),
+                      child: Container(
+                        width: 82,
+                        margin: const EdgeInsets.only(right: 12),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              width: 52,
+                              height: 52,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: tierColor.withValues(alpha: 0.16),
+                                border: Border.all(
+                                  color: tierColor.withValues(alpha: 0.5),
+                                  width: 1.5,
+                                ),
+                              ),
+                              child: Center(
+                                child: Icon(ach.icon, size: 24, color: tierColor),
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              ach.title,
+                              style: AppTextStyles.caption.copyWith(fontSize: 10.5, fontWeight: FontWeight.bold),
+                              textAlign: TextAlign.center,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              '+${ach.xpReward} XP',
+                              style: TextStyle(fontSize: 9, color: tierColor, fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
-            );
-          },
-        ),
-      ],
+          ],
+        );
+      },
     );
   }
 

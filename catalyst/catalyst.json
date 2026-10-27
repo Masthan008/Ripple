@@ -1,0 +1,9 @@
+{
+  "functions": {
+    "source": "functions",
+    "targets": [
+      "ripple_notify"
+    ],
+    "ignore": []
+  }
+}

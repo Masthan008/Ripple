@@ -1740,20 +1740,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             borderRadius: BorderRadius.circular(12),
           ),
           onSelected: (value) {
-            if (value == 'media') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => ChatMediaGalleryScreen(
-                    chatId: _chatId,
-                    isGroup: false,
-                  ),
-                ),
-              );
-            } else if (value == 'summary') {
-              _showChatSummary();
-            } else if (value == 'self_destruct') {
-              _showSelfDestructPicker();
+            if (value == 'mute') {
+              NotificationService.showMuteDialog(context, _chatId);
+            } else if (value == 'unmute') {
+              NotificationService.unmuteChat(_chatId);
+            } else if (value == 'video_call') {
+              _startCall(isVideo: true);
+            } else if (value == 'search') {
+              setState(() {
+                _isSearching = true;
+              });
             } else if (value == 'theme') {
               final currentUser = ref.read(currentUserProvider).value;
               final plan = currentUser?.subscriptionPlan ?? '';
@@ -1776,143 +1772,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   },
                 ),
               );
-            } else if (value == 'export') {
-              _exportChat();
-            } else if (value == 'mute') {
-              NotificationService.showMuteDialog(context, _chatId);
-            } else if (value == 'unmute') {
-              NotificationService.unmuteChat(_chatId);
-            } else if (value == 'custom_sound') {
-              showModalBottomSheet(
-                context: context,
-                backgroundColor: Colors.transparent,
-                isScrollControlled: true,
-                builder: (_) => CustomNotificationsPicker(
-                  chatId: _chatId,
-                  partnerName: widget.partnerName,
-                ),
-              );
-            } else if (value == 'search') {
-              setState(() {
-                _isSearching = true;
-              });
+            } else if (value == 'clear_history') {
+              _clearChatHistory();
+            } else if (value == 'delete_chat') {
+              _deleteChat();
             }
           },
           itemBuilder: (_) => [
-            const PopupMenuItem(
-              value: 'media',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.photo_library_rounded,
-                    color: AppColors.aquaCore,
-                    size: 20,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Media & Files',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            PopupMenuItem(
-              value: 'summary',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.summarize_rounded,
-                    color: AppColors.aquaCore,
-                    size: 20,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Summarise Chat',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'self_destruct',
-              child: Row(
-                children: [
-                  Text('💣', style: TextStyle(fontSize: 18)),
-                  SizedBox(width: 12),
-                  Text(
-                    'Self-Destruct Timer',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'theme',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.palette_rounded,
-                    color: AppColors.aquaCore,
-                    size: 20,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Chat Theme',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
-            const PopupMenuItem(
-              value: 'export',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.import_export_rounded,
-                    color: AppColors.aquaCore,
-                    size: 20,
-                  ),
-                  SizedBox(width: 12),
-                  Text(
-                    'Export Chat',
-                    style: TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
-            ),
             PopupMenuItem(
               value: _isMuted ? 'unmute' : 'mute',
               child: Row(
                 children: [
                   Icon(
-                    _isMuted
-                        ? Icons.volume_up_rounded
-                        : Icons.volume_off_rounded,
+                    _isMuted ? Icons.volume_up_rounded : Icons.volume_off_rounded,
                     color: AppColors.aquaCore,
                     size: 20,
                   ),
                   const SizedBox(width: 12),
                   Text(
-                    _isMuted
-                        ? 'Unmute Notifications'
-                        : 'Mute Notifications',
+                    _isMuted ? 'Unmute' : 'Mute',
                     style: const TextStyle(color: Colors.white),
                   ),
                 ],
               ),
             ),
             const PopupMenuItem(
-              value: 'custom_sound',
+              value: 'video_call',
               child: Row(
                 children: [
                   Icon(
-                    Icons.music_note_rounded,
+                    Icons.videocam_rounded,
                     color: AppColors.aquaCore,
                     size: 20,
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Text(
-                    'Custom Notifications',
+                    'Video Call',
                     style: TextStyle(color: Colors.white),
                   ),
                 ],
@@ -1929,8 +1824,59 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   SizedBox(width: 12),
                   Text(
-                    'Search Messages',
+                    'Search',
                     style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'theme',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.wallpaper_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Change Wallpaper',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'clear_history',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.cleaning_services_rounded,
+                    color: AppColors.aquaCore,
+                    size: 20,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Clear History',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
+            const PopupMenuItem(
+              value: 'delete_chat',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.delete_outline_rounded,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                  SizedBox(width: 12),
+                  Text(
+                    'Delete chat',
+                    style: TextStyle(color: Colors.red),
                   ),
                 ],
               ),
@@ -2507,6 +2453,152 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     } finally {
       if (mounted) setState(() => _isSending = false);
+    }
+  }
+
+  Future<void> _clearChatHistory() async {
+    bool deleteForBoth = false;
+    final partnerLabel = widget.partnerName.isNotEmpty ? widget.partnerName : 'Partner';
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF0A1628),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Clear Chat History', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Are you sure you want to clear all messages in this chat?',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Theme(
+                data: ThemeData(unselectedWidgetColor: Colors.white54),
+                child: CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(
+                    'Also clear for $partnerLabel',
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                  value: deleteForBoth,
+                  activeColor: AppColors.aquaCore,
+                  checkColor: Colors.white,
+                  onChanged: (val) {
+                    setDialogState(() => deleteForBoth = val ?? false);
+                  },
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.aquaCore)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Clear', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await MessageActionsService.clearChatHistory(
+        chatId: _chatId,
+        isGroup: false,
+        deleteForBoth: deleteForBoth,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(deleteForBoth
+                ? 'Chat history cleared for everyone.'
+                : 'Chat history cleared for you.'),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error clearing chat history: ');
+    }
+  }
+
+  Future<void> _deleteChat() async {
+    bool deleteForBoth = false;
+    final partnerLabel = widget.partnerName.isNotEmpty ? widget.partnerName : 'Partner';
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF0A1628),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Delete Chat', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Are you sure you want to delete this chat and its messages? This action cannot be undone.',
+                style: TextStyle(color: Colors.white70, fontSize: 14),
+              ),
+              const SizedBox(height: 16),
+              Theme(
+                data: ThemeData(unselectedWidgetColor: Colors.white54),
+                child: CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                  title: Text(
+                    'Also delete for $partnerLabel',
+                    style: const TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                  value: deleteForBoth,
+                  activeColor: AppColors.aquaCore,
+                  checkColor: Colors.white,
+                  onChanged: (val) {
+                    setDialogState(() => deleteForBoth = val ?? false);
+                  },
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.aquaCore)),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      await MessageActionsService.deleteChat(
+        chatId: _chatId,
+        isGroup: false,
+        deleteForBoth: deleteForBoth,
+      );
+
+      if (mounted) {
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      debugPrint('Error deleting chat: ');
     }
   }
 

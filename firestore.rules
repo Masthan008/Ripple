@@ -87,6 +87,11 @@ service cloud.firestore {
       match /purchased_gift_cards/{cardId} {
         allow read, write: if isOwner(userId);
       }
+
+      // Active sessions subcollection for multi-account, devices & remote session termination
+      match /sessions/{sessionId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // ═══════════════════════════════════════════════════════
@@ -138,10 +143,42 @@ service cloud.firestore {
         && request.auth.uid == resource.data.createdBy;
 
       match /messages/{messageId} {
-        allow read, write: if isSignedIn()
+        // Read: must be a member of the group
+        allow read: if isSignedIn()
           && request.auth.uid in
              get(/databases/$(database)/documents/groups/$(groupId))
              .data.members;
+
+        // Create: member, not banned, not muted, and respects onlyAdminsCanMessage
+        allow create: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members
+          && request.auth.uid == request.resource.data.senderId
+          && !(request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.get('bannedMembers', []))
+          && !(request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.get('mutedMembers', []))
+          && (
+            !get(/databases/$(database)/documents/groups/$(groupId)).data.get('onlyAdminsCanMessage', false)
+            || request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.get('admins', [])
+            || request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy
+          );
+
+        // Update: reactions, pins, seenBy, or sender editing/deleting text
+        allow update: if isSignedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.members
+          && (
+            request.auth.uid == resource.data.senderId
+            || request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.get('admins', [])
+            || request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy
+            || request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['reactions', 'readBy', 'seenBy', 'deletedFor', 'isPinned', 'pinnedAt', 'pinnedBy', 'isDeleted', 'text', 'mediaUrl'])
+          );
+
+        // Delete: sender OR group admin OR creator
+        allow delete: if isSignedIn()
+          && (
+            request.auth.uid == resource.data.senderId
+            || request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy
+            || request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.get('admins', [])
+          );
 
         // Holographic Word-Threads™ sub-collection
         match /wordThreads/{threadId} {
@@ -150,6 +187,21 @@ service cloud.firestore {
                get(/databases/$(database)/documents/groups/$(groupId))
                .data.members;
         }
+      }
+
+      // Group Join Requests subcollection (for private invite approval)
+      match /join_requests/{userId} {
+        allow read: if isSignedIn() && (
+          request.auth.uid == userId
+          || request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.get('admins', [])
+          || request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy
+        );
+        allow create: if isSignedIn() && request.auth.uid == userId;
+        allow update, delete: if isSignedIn() && (
+          request.auth.uid == userId
+          || request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.get('admins', [])
+          || request.auth.uid == get(/databases/$(database)/documents/groups/$(groupId)).data.createdBy
+        );
       }
     }
 
@@ -174,9 +226,12 @@ service cloud.firestore {
             || (resource.data.get('memberIds', [])
                 .hasAny([request.auth.uid])));
 
-      // Only caller can delete
+      // Participants can delete call from history
       allow delete: if isSignedIn()
-        && request.auth.uid == resource.data.callerId;
+        && (request.auth.uid == resource.data.callerId
+            || request.auth.uid == resource.data.get('calleeId', '')
+            || (resource.data.get('memberIds', [])
+                .hasAny([request.auth.uid])));
     }
 
     // ═══════════════════════════════════════════════════════
@@ -431,6 +486,35 @@ service cloud.firestore {
       allow create: if isSignedIn() && request.resource.data.uid == request.auth.uid;
       allow read: if isSignedIn() && (resource.data.uid == request.auth.uid || isOwner(resource.data.uid));
       allow update, delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // STICKER PACKS COLLECTION
+    // ═══════════════════════════════════════════════════════
+    match /sticker_packs/{packId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if isSignedIn() && (
+        request.auth.uid == resource.data.createdBy
+        || request.auth.uid == resource.data.authorId
+      );
+    }
+
+    // ═══════════════════════════════════════════════════════
+    // PAIRING SESSIONS COLLECTION (WhatsWeb QR Pairing Handshake)
+    // ═══════════════════════════════════════════════════════
+    match /pairing_sessions/{sessionId} {
+      // Anyone (including unauthenticated web companion) can read by sessionId
+      allow read: if true;
+      // Web companion generates waiting session
+      allow create: if request.resource.data.status == 'waiting';
+      // Authenticated mobile user signs & approves the pairing handshake
+      allow update: if isSignedIn() && (
+        request.resource.data.status == 'approved' &&
+        request.resource.data.uid == request.auth.uid
+      );
+      // Either web or phone can clean up session after linking
+      allow delete: if true;
     }
   }
 }

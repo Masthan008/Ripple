@@ -1,780 +1,2086 @@
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'package:dio/dio.dart';
+
+import 'package:firebase_messaging/firebase_messaging.dart';
+
 import 'package:flutter/material.dart';
+
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+
 import 'package:go_router/go_router.dart';
+
 import 'package:onesignal_flutter/onesignal_flutter.dart';
+
 import 'package:just_audio/just_audio.dart';
+
 import '../../features/profile/services/custom_sound_service.dart';
 
+
+
 import '../../features/calls/screens/incoming_call_screen.dart';
+
 import '../utils/env.dart';
+
 import 'firebase_service.dart';
 
+
+
+@pragma('vm:entry-point')
+
+Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+
+  debugPrint('[Catalyst FCM] Background message: ${message.messageId}');
+
+  final data = message.data;
+
+  final type = data['type'] as String?;
+
+
+
+  final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
+
+
+
+  if (type == 'call') {
+
+    final callId = data['callId'] as String? ?? '';
+
+    final callerName = data['callerName'] as String? ?? 'Incoming Call';
+
+    final callType = data['callType'] as String? ?? 'audio';
+
+
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+
+      'ripple_calls',
+
+      'Incoming Calls',
+
+      channelDescription: 'High-priority voice and video calls',
+
+      importance: Importance.max,
+
+      priority: Priority.max,
+
+      fullScreenIntent: true,
+
+      category: AndroidNotificationCategory.call,
+
+      visibility: NotificationVisibility.public,
+
+    );
+
+    const NotificationDetails details = NotificationDetails(android: androidDetails);
+
+
+
+    await localNotif.show(
+
+      callId.hashCode,
+
+      'Incoming Call',
+
+      '$callerName is calling you (${callType == 'video' ? 'Video' : 'Voice'})...',
+
+      details,
+
+      payload: jsonEncode(data),
+
+    );
+
+  } else {
+
+    final title = message.notification?.title ?? data['title'] ?? 'Ripple';
+
+    final body = message.notification?.body ?? data['body'] ?? 'New encrypted message';
+
+
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+
+      'ripple_messages',
+
+      'Encrypted Messages',
+
+      channelDescription: 'Chat and group message notifications',
+
+      importance: Importance.high,
+
+      priority: Priority.high,
+
+      category: AndroidNotificationCategory.message,
+
+    );
+
+    const NotificationDetails details = NotificationDetails(android: androidDetails);
+
+
+
+    await localNotif.show(
+
+      message.hashCode,
+
+      title,
+
+      body,
+
+      details,
+
+      payload: jsonEncode(data),
+
+    );
+
+  }
+
+}
+
+
+
 /// Global navigator key — used to push screens from notification handlers
+
 final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
 
+
+
 /// Notification service — OneSignal push notifications
+
 class NotificationService {
+
   NotificationService._();
 
+
+
   static const _oneSignalBaseUrl =
+
       'https://onesignal.com/api/v1/notifications';
+
   static final Dio _dio = Dio();
+
   static final AudioPlayer _inAppPlayer = AudioPlayer();
 
+  static final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
+
+
+
   /// Track which chat the user is currently viewing.
+
   /// Set by ChatScreen/GroupChatScreen to suppress foreground notifications.
+
   static String? currentActiveChatId;
+
+  static final Set<String> _cachedMutedChatIds = {};
+
+
 
   // ─── Initialization ─────────────────────────────────────
 
+
+
   /// Initialize notification service.
+
   /// OneSignal is already initialized in main.dart before runApp().
+
   static Future<void> initialize() async {
-    debugPrint('🔔 NotificationService initialized globally (OneSignal mode)');
+
+    debugPrint('🔔 NotificationService initialized globally (Catalyst FCM & OneSignal)');
+
+
+
+    // ─── Catalyst FCM v1 Initialization ───
+
+    try {
+
+      // Register background handler
+
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+
+
+      // Local notifications initialization
+
+      const AndroidInitializationSettings initAndroid =
+
+          AndroidInitializationSettings('@mipmap/ic_launcher');
+
+      const InitializationSettings initSettings =
+
+          InitializationSettings(android: initAndroid);
+
+
+
+      await _localNotifications.initialize(
+
+        initSettings,
+
+        onDidReceiveNotificationResponse: (NotificationResponse response) {
+
+          final payload = response.payload;
+
+          if (payload != null && payload.isNotEmpty) {
+
+            try {
+
+              final data = jsonDecode(payload) as Map<String, dynamic>;
+
+              _handleGlobalNavigation(data);
+
+            } catch (_) {}
+
+          }
+
+        },
+
+      );
+
+
+
+      // Configure Android channels
+
+      final androidPlugin = _localNotifications
+
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>();
+
+      if (androidPlugin != null) {
+
+        await androidPlugin.createNotificationChannel(
+
+          const AndroidNotificationChannel(
+
+            'ripple_messages',
+
+            'Encrypted Messages',
+
+            description: 'High-priority alerts for incoming encrypted messages',
+
+            importance: Importance.high,
+
+            playSound: true,
+
+            enableVibration: true,
+
+          ),
+
+        );
+
+        await androidPlugin.createNotificationChannel(
+
+          const AndroidNotificationChannel(
+
+            'ripple_calls',
+
+            'Incoming Calls',
+
+            description: 'Max-priority alerts for encrypted voice and video calls',
+
+            importance: Importance.max,
+
+            playSound: true,
+
+            enableVibration: true,
+
+          ),
+
+        );
+
+      }
+
+
+
+      // Request runtime notification permission
+
+      await FirebaseMessaging.instance.requestPermission(
+
+        alert: true,
+
+        badge: true,
+
+        sound: true,
+
+        provisional: false,
+
+      );
+
+
+
+      // Foreground message listener
+
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) async {
+
+        final data = message.data;
+
+        final type = data['type'] as String?;
+
+        final incomingChatId = data['chatId'] as String? ?? data['groupId'] as String?;
+
+
+
+        if (type == 'call') {
+
+          final callId = data['callId'] as String? ?? '';
+
+          final channelName = data['channelName'] as String? ?? '';
+
+          final callerName = data['callerName'] as String? ?? 'Incoming Call';
+
+          final callerUserId = data['callerUserId'] as String? ?? '';
+
+          final callType = data['callType'] as String? ?? 'audio';
+
+
+
+          if (callId.isNotEmpty && channelName.isNotEmpty) {
+
+            navigatorKey.currentState?.push(MaterialPageRoute(
+
+              builder: (_) => IncomingCallScreen(
+
+                callId: callId,
+
+                channelName: channelName,
+
+                callerName: callerName,
+
+                callerUserId: callerUserId,
+
+                isVideo: callType == 'video',
+
+              ),
+
+            ));
+
+          }
+
+          return;
+
+        }
+
+
+
+        // Active chat suppression
+
+        if (incomingChatId != null && incomingChatId == currentActiveChatId) {
+
+          debugPrint('🔕 FCM suppressed for active chat: $incomingChatId');
+
+          return;
+
+        }
+
+
+
+        // Show foreground heads-up banner
+
+        final title = message.notification?.title ?? data['title'] ?? 'Ripple';
+
+        final body = message.notification?.body ?? data['body'] ?? 'New encrypted message';
+
+        const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+
+          'ripple_messages',
+
+          'Encrypted Messages',
+
+          importance: Importance.high,
+
+          priority: Priority.high,
+
+        );
+
+        await _localNotifications.show(
+
+          message.hashCode,
+
+          title,
+
+          body,
+
+          const NotificationDetails(android: androidDetails),
+
+          payload: jsonEncode(data),
+
+        );
+
+
+
+        final uid = FirebaseService.auth.currentUser?.uid;
+
+        if (uid != null) {
+
+          _playInAppNotificationSound(uid, type, incomingChatId);
+
+        }
+
+      });
+
+
+
+      // App opened from background/terminated via FCM
+
+      FirebaseMessaging.onMessageOpenedApp.listen((RemoteMessage message) {
+
+        debugPrint('[Catalyst FCM] App opened from notification: ${message.data}');
+
+        _handleGlobalNavigation(message.data);
+
+      });
+
+
+
+      FirebaseMessaging.instance.getInitialMessage().then((initial) {
+
+        if (initial != null) {
+
+          debugPrint('[Catalyst FCM] Initial message: ${initial.data}');
+
+          _handleGlobalNavigation(initial.data);
+
+        }
+
+      });
+
+    } catch (e) {
+
+      debugPrint('⚠️ Catalyst FCM initialization note: $e');
+
+    }
+
+
 
     // 1. OneSignal notification opened handler (runs globally at launch)
+
     OneSignal.Notifications.addClickListener((event) async {
+
       final actionId = event.result.actionId;
+
       final data = event.notification.additionalData ?? {};
+
       debugPrint('🔔 Notification clicked. ActionId: $actionId, Data: $data');
 
+
+
       if (actionId == 'read') {
+
         final chatId = data['chatId'] as String? ?? data['groupId'] as String?;
+
         if (chatId != null) {
+
           await _markChatAsRead(chatId);
+
         }
+
         return;
+
       }
+
+
 
       if (actionId == 'accept_friend') {
+
         final senderUid = data['senderUid'] as String?;
+
         if (senderUid != null && senderUid.isNotEmpty) {
+
           await _acceptFriendRequestFromNotif(senderUid);
+
         }
+
         return;
+
       }
+
+
 
       if (actionId == 'decline_friend') {
+
         final senderUid = data['senderUid'] as String?;
+
         if (senderUid != null && senderUid.isNotEmpty) {
+
           await _declineFriendRequestFromNotif(senderUid);
+
         }
+
         return;
+
       }
+
+
 
       _handleGlobalNavigation(data);
+
     });
+
+
 
     // 2. Foreground will display listener (suppression logic & banner presentation)
+
     OneSignal.Notifications.addForegroundWillDisplayListener((event) async {
+
       final data = event.notification.additionalData ?? {};
+
       final type = data['type'] as String?;
+
       final incomingChatId =
+
           data['chatId'] as String? ?? data['groupId'] as String?;
 
+
+
       if (type == 'call') {
+
         event.preventDefault(); // Suppress standard push card for incoming call UI
+
         final callId = data['callId'] as String? ?? '';
+
         final channelName = data['channelName'] as String? ?? '';
+
         final callerName = data['callerName'] as String? ?? 'Unknown';
+
         final callerUserId = data['callerUserId'] as String? ?? '';
+
         final callType = data['callType'] as String? ?? 'audio';
+
         
+
         if (callId.isNotEmpty && channelName.isNotEmpty) {
+
           navigatorKey.currentState?.push(MaterialPageRoute(
+
             builder: (_) => IncomingCallScreen(
+
               callId: callId,
+
               channelName: channelName,
+
               callerName: callerName,
+
               callerUserId: callerUserId,
+
               isVideo: callType == 'video',
+
             ),
+
           ));
+
         }
+
         return;
+
       }
 
-      bool isMuted = false;
-      if (incomingChatId != null && await _isChatMuted(incomingChatId)) {
-        isMuted = true;
-      }
+
+
+      final isMuted = incomingChatId != null && _cachedMutedChatIds.contains(incomingChatId);
+
+
 
       if ((type == 'chat' || type == 'group') &&
+
           currentActiveChatId != null &&
+
           incomingChatId == currentActiveChatId) {
+
         event.preventDefault();
+
         debugPrint(
+
             '🔕 Suppressed foreground notification for active chat: $incomingChatId');
+
         return;
+
       }
+
+
 
       if (isMuted) {
+
         event.preventDefault();
+
         debugPrint(
+
             '🔕 Suppressed foreground notification for muted chat: $incomingChatId');
+
       } else {
+
         // DO NOT call event.preventDefault()!
+
         // Allow OneSignal to display the foreground notification banner
+
         final uid = FirebaseService.auth.currentUser?.uid;
+
         if (uid != null) {
+
           _playInAppNotificationSound(uid, type, incomingChatId);
+
         }
+
       }
+
     });
+
   }
+
+
 
   /// Setup notification click navigation handler with BuildContext bridge
+
   static void setupNotificationHandlers(BuildContext context) {
+
     debugPrint('🔔 setupNotificationHandlers context bridge bound.');
+
   }
 
+
+
   /// Show Mute Notification dialog (8 hours, 1 week, Always)
+
   static Future<void> showMuteDialog(BuildContext context, String chatId) async {
+
     final uid = FirebaseService.auth.currentUser?.uid;
+
     if (uid == null) return;
 
+
+
     final selected = await showDialog<String>(
+
       context: context,
+
       builder: (ctx) => AlertDialog(
+
         backgroundColor: const Color(0xFF1E293B),
+
         title: const Text('Mute Notifications', style: TextStyle(color: Colors.white)),
+
         content: Column(
+
           mainAxisSize: MainAxisSize.min,
+
           children: [
+
             ListTile(
+
               title: const Text('8 Hours', style: TextStyle(color: Colors.white70)),
+
               onTap: () => Navigator.pop(ctx, '8_hours'),
+
             ),
+
             ListTile(
+
               title: const Text('1 Week', style: TextStyle(color: Colors.white70)),
+
               onTap: () => Navigator.pop(ctx, '1_week'),
+
             ),
+
             ListTile(
+
               title: const Text('Always', style: TextStyle(color: Colors.white70)),
+
               onTap: () => Navigator.pop(ctx, 'always'),
+
             ),
+
           ],
+
         ),
+
       ),
+
     );
 
+
+
     if (selected != null) {
+
       DateTime? expiry;
+
       if (selected == '8_hours') {
+
         expiry = DateTime.now().add(const Duration(hours: 8));
+
       } else if (selected == '1_week') {
+
         expiry = DateTime.now().add(const Duration(days: 7));
+
       }
+
+
 
       final expiryValue = expiry != null ? expiry.toIso8601String() : 'always';
 
+
+
       await FirebaseService.firestore.collection('users').doc(uid).set({
+
         'mutedChats': {chatId: expiryValue}
+
       }, SetOptions(merge: true));
+
     }
+
   }
+
+
 
   /// Unmute chat notifications
+
   static Future<void> unmuteChat(String chatId) async {
+
     final uid = FirebaseService.auth.currentUser?.uid;
+
     if (uid == null) return;
 
+
+
     await FirebaseService.firestore.collection('users').doc(uid).set({
+
       'mutedChats': {chatId: FieldValue.delete()}
+
     }, SetOptions(merge: true));
+
   }
 
+
+
   static void _handleGlobalNavigation(Map<String, dynamic> data) {
+
     final context = navigatorKey.currentState?.context;
+
     if (context == null) {
+
       debugPrint('⚠️ Navigator context is null. Retrying notification navigation in 500ms...');
+
       Future.delayed(const Duration(milliseconds: 500), () => _handleGlobalNavigation(data));
+
       return;
+
     }
+
     
+
     try {
+
       final router = GoRouter.of(context);
+
       _handleNotificationNavigation(router, data);
+
     } catch (e) {
+
       debugPrint('⚠️ Failed to resolve GoRouter from context: $e. Retrying in 500ms...');
+
       Future.delayed(const Duration(milliseconds: 500), () => _handleGlobalNavigation(data));
+
     }
+
   }
+
+
 
   // ─── OneSignal Player ID & External User ID Sync ────────
 
+
+
   /// Save OneSignal player ID & bind external user ID to Firestore.
+
   /// Call this after user signs in.
+
   static Future<void> syncPlayerId(String uid) async {
+
     try {
-      debugPrint('🔔 Starting OneSignal identity sync for uid: $uid');
 
-      // 1. Log in user to OneSignal SDK to bind external_id = uid
-      await OneSignal.login(uid);
-      await OneSignal.User.addTags({'user_id': uid});
+      debugPrint('🔔 Starting Catalyst FCM & identity sync for uid: $uid');
 
-      // 2. Request notification permission if not granted
-      final isOptedIn = OneSignal.User.pushSubscription.optedIn ?? false;
-      debugPrint('🔔 OneSignal optedIn: $isOptedIn');
 
-      if (!isOptedIn) {
-        await OneSignal.Notifications.requestPermission(true);
-        await Future.delayed(const Duration(seconds: 2));
+
+      // 1. Fetch native FCM token
+
+      String? fcmToken;
+
+      try {
+
+        fcmToken = await FirebaseMessaging.instance.getToken();
+
+        debugPrint('🔑 FCM Device Token: $fcmToken');
+
+      } catch (e) {
+
+        debugPrint('⚠️ FCM getToken error: $e');
+
       }
 
-      // 3. Retry fetching pushSubscription ID
-      String? playerId = OneSignal.User.pushSubscription.id;
-      int attempts = 0;
-      while ((playerId == null || playerId.isEmpty) && attempts < 10) {
-        await Future.delayed(const Duration(seconds: 2));
-        playerId = OneSignal.User.pushSubscription.id;
-        attempts++;
-        debugPrint('🔔 Attempt $attempts: $playerId');
-      }
+
 
       final Map<String, dynamic> updateData = {
-        'oneSignalExternalId': uid,
+
+        'lastTokenSync': FieldValue.serverTimestamp(),
+
       };
-      if (playerId != null && playerId.isNotEmpty) {
-        updateData['oneSignalPlayerId'] = playerId;
+
+
+
+      if (fcmToken != null && fcmToken.isNotEmpty) {
+
+        updateData['fcmToken'] = fcmToken;
+
+        updateData['fcmTokens'] = FieldValue.arrayUnion([fcmToken]);
+
+
+
+        // Register token with Zoho Catalyst Serverless Function if URL configured
+
+        if (Env.catalystFunctionUrl.isNotEmpty) {
+
+          try {
+
+            await _dio.post(
+
+              '${Env.catalystFunctionUrl}/registerDevice',
+
+              data: {
+
+                'uid': uid,
+
+                'fcmToken': fcmToken,
+
+                'projectId': Env.catalystProjectId,
+
+                'appId': Env.catalystAppId,
+
+              },
+
+            ).timeout(const Duration(seconds: 4));
+
+            debugPrint('✅ Token registered with Zoho Catalyst backend.');
+
+          } catch (e) {
+
+            debugPrint('Note: Catalyst token registration note: $e');
+
+          }
+
+        }
+
+
+
+        // Listen for token refresh
+
+        FirebaseMessaging.instance.onTokenRefresh.listen((newToken) async {
+
+          debugPrint('🔄 FCM Token refreshed: $newToken');
+
+          await FirebaseService.firestore.collection('users').doc(uid).set({
+
+            'fcmToken': newToken,
+
+            'fcmTokens': FieldValue.arrayUnion([newToken]),
+
+          }, SetOptions(merge: true));
+
+        });
+
       }
+
+
+
+      // 2. Also maintain OneSignal passive sync if initialized
+
+      try {
+
+        if (Env.oneSignalAppId.isNotEmpty) {
+
+          await OneSignal.login(uid);
+
+          await OneSignal.User.addTags({'user_id': uid});
+
+          final pid = OneSignal.User.pushSubscription.id;
+
+          if (pid != null && pid.isNotEmpty) {
+
+            updateData['oneSignalPlayerId'] = pid;
+
+            updateData['oneSignalExternalId'] = uid;
+
+          }
+
+        }
+
+      } catch (_) {}
+
+
 
       await FirebaseService.firestore.collection('users').doc(uid).set(
+
         updateData,
+
         SetOptions(merge: true),
+
       );
-      debugPrint('✅ OneSignal sync complete for $uid. Player ID: $playerId');
+
+      debugPrint('✅ Identity sync complete for $uid');
+
+
 
       _setupSubscriptionObserver(uid);
+
     } catch (e) {
+
       debugPrint('⚠️ syncPlayerId error: $e');
+
     }
+
   }
+
+
 
   static void _setupSubscriptionObserver(String uid) {
+
     OneSignal.User.pushSubscription.addObserver((state) async {
+
       final newId = state.current.id;
+
       final optedIn = state.current.optedIn;
+
       debugPrint('📱 OneSignal subscription changed: id=$newId, optedIn=$optedIn');
 
+
+
       if (newId != null && newId.isNotEmpty) {
+
         await FirebaseService.firestore.collection('users').doc(uid).set({
+
           'oneSignalPlayerId': newId,
+
           'oneSignalExternalId': uid,
+
         }, SetOptions(merge: true));
+
         debugPrint('✅ Saved OneSignal player ID from observer: $newId');
+
       }
+
     });
+
   }
+
+
 
   // ─── Notification Tap Handlers ──────────────────────────
 
+
+
   static void _handleNotificationNavigation(
+
       GoRouter router, Map<String, dynamic> data) {
+
     final type = data['type'];
+
     switch (type) {
+
       case 'chat':
+
         final chatId = data['chatId'] as String?;
+
         var partnerUid = data['partnerUid'] as String? ?? '';
+
         final partnerName = data['partnerName'] as String? ?? 'Chat';
 
+
+
         if (partnerUid.isEmpty && chatId != null && chatId.contains('_')) {
+
           final currentUid = FirebaseService.auth.currentUser?.uid ?? '';
+
           final parts = chatId.split('_');
+
           partnerUid = parts[0] == currentUid
+
               ? (parts.length > 1 ? parts[1] : '')
+
               : parts[0];
+
         }
 
+
+
         if (chatId != null && chatId.isNotEmpty && partnerUid.isNotEmpty) {
+
           router.push(
+
             '/chat?chatId=$chatId'
+
             '&partnerUid=$partnerUid'
+
             '&partnerName=${Uri.encodeComponent(partnerName)}',
+
           );
+
         } else {
+
           router.go('/home');
+
         }
+
         break;
+
       case 'group':
+
         final groupId = data['groupId'] as String?;
+
         final groupName = data['groupName'] as String? ?? 'Group';
+
         if (groupId != null && groupId.isNotEmpty) {
+
           router.push(
+
             '/group-chat?groupId=$groupId'
+
             '&groupName=${Uri.encodeComponent(groupName)}',
+
           );
+
         } else {
+
           router.go('/home');
+
         }
+
         break;
+
       case 'friend_request':
+
         router.push('/requests');
+
         break;
+
       case 'status_reaction':
+
         router.go('/home');
+
         break;
+
       case 'missed_call':
+
         router.go('/home');
+
         break;
+
       case 'call':
+
         final callId = data['callId'] as String? ?? '';
+
         final channelName = data['channelName'] as String? ?? '';
+
         final callerName = data['callerName'] as String? ?? 'Unknown';
+
         final callerUserId = data['callerUserId'] as String? ?? '';
+
         final callType = data['callType'] as String? ?? 'audio';
+
         if (callId.isNotEmpty && channelName.isNotEmpty) {
+
           navigatorKey.currentState?.push(MaterialPageRoute(
+
             builder: (_) => IncomingCallScreen(
+
               callId: callId,
+
               channelName: channelName,
+
               callerName: callerName,
+
               callerUserId: callerUserId,
+
               isVideo: callType == 'video',
+
             ),
+
           ));
+
         } else {
+
           router.go('/home');
+
         }
+
         break;
+
       default:
+
         router.go('/home');
+
         break;
+
     }
+
   }
+
+
 
   // ─── Send Notifications via OneSignal REST API ──────────
 
+
+
   /// Send a 1-to-1 chat message notification
+
   static Future<void> sendMessageNotification({
+
     String recipientPlayerId = '',
+
     String recipientUid = '',
+
     required String senderName,
+
     required String messageText,
+
     required String chatId,
+
     String senderUid = '',
+
     String senderPhotoUrl = '',
+
     bool sound = true,
+
     bool vibration = true,
+
     String? soundFile,
+
     int? badgeCount,
+
   }) async {
-    await _sendOneSignalNotification(
-      playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
+
+    await _dispatchPushNotification(
+
+      recipientPlayerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
+
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
+
       title: senderName,
+
       body: messageText,
+
       largeIcon: senderPhotoUrl,
+
       androidChannelId: 'ripple_messages',
+
       sound: sound,
+
       vibration: vibration,
+
       soundFile: soundFile,
+
       badgeCount: badgeCount,
+
       data: {
+
         'type': 'chat',
+
         'chatId': chatId,
+
         'partnerUid': senderUid,
+
         'partnerName': senderName,
+
       },
+
     );
+
   }
+
+
 
   /// Send a group chat message notification to all members
+
   static Future<void> sendGroupMessageNotification({
+
     List<String>? recipientPlayerIds,
+
     List<String>? recipientUids,
+
     required String senderName,
+
     required String groupName,
+
     required String messageText,
+
     required String groupId,
+
     String groupPhotoUrl = '',
+
     bool sound = true,
+
     bool vibration = true,
+
     String? soundFile,
+
     int? badgeCount,
+
   }) async {
+
     await _sendOneSignalNotification(
+
       playerIds: recipientPlayerIds,
+
       recipientUids: recipientUids,
+
       title: groupName,
+
       body: '$senderName: $messageText',
+
       largeIcon: groupPhotoUrl,
+
       androidChannelId: 'ripple_groups',
+
       sound: sound,
+
       vibration: vibration,
+
       soundFile: soundFile,
+
       badgeCount: badgeCount,
+
       data: {'type': 'group', 'groupId': groupId},
+
     );
+
   }
+
+
 
   /// Send a friend request notification
+
   static Future<void> sendFriendRequestNotification({
+
     String recipientPlayerId = '',
+
     String recipientUid = '',
+
     required String senderName,
+
     String senderPhotoUrl = '',
+
     bool sound = true,
+
     bool vibration = true,
+
   }) async {
+
     final currentUid = FirebaseService.auth.currentUser?.uid ?? '';
+
     await _sendOneSignalNotification(
+
       playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
+
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
+
       title: 'New Friend Request 👋',
+
       body: '$senderName wants to connect with you',
+
       largeIcon: senderPhotoUrl,
+
       androidChannelId: 'ripple_social',
+
       sound: sound,
+
       vibration: vibration,
+
       data: {
+
         'type': 'friend_request',
+
         'senderUid': currentUid,
+
         'senderName': senderName,
+
       },
+
     );
+
   }
+
+
 
   /// Send a status reaction notification
+
   static Future<void> sendStatusReactionNotification({
+
     String recipientPlayerId = '',
+
     String recipientUid = '',
+
     required String reactorName,
+
     required String emoji,
+
     String reactorPhotoUrl = '',
+
     bool sound = true,
+
     bool vibration = true,
+
     String? soundFile,
+
   }) async {
+
     await _sendOneSignalNotification(
+
       playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
+
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
+
       title: 'Status Reaction',
+
       body: '$reactorName reacted $emoji to your status',
+
       largeIcon: reactorPhotoUrl,
+
       androidChannelId: 'ripple_social',
+
       sound: sound,
+
       vibration: vibration,
+
       soundFile: soundFile,
+
       data: {'type': 'status_reaction'},
+
     );
+
   }
+
+
 
   /// Send a status comment notification
+
   static Future<void> sendStatusCommentNotification({
+
     String recipientPlayerId = '',
+
     String recipientUid = '',
+
     required String commenterName,
+
     required String commentText,
+
     String commenterPhotoUrl = '',
+
     bool sound = true,
+
     bool vibration = true,
+
     String? soundFile,
+
   }) async {
+
     await _sendOneSignalNotification(
+
       playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
+
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
+
       title: 'Status Reply',
+
       body: '$commenterName: $commentText',
+
       largeIcon: commenterPhotoUrl,
+
       androidChannelId: 'ripple_social',
+
       sound: sound,
+
       vibration: vibration,
+
       soundFile: soundFile,
+
       data: {'type': 'status_comment'},
+
     );
+
   }
+
+
 
   /// Send a call notification with high-priority Android channel
+
   static Future<void> sendCallNotification({
+
     String recipientPlayerId = '',
+
     String recipientUid = '',
+
     required String callerName,
+
     required String callerUserId,
+
     required String callId,
+
     required String channelName,
+
     required String callType,
+
     required bool isGroup,
+
     String callerPhotoUrl = '',
+
     bool sound = true,
+
     bool vibration = true,
+
     String? soundFile,
+
   }) async {
+
     final title = callType == 'video'
-        ? '📹 Incoming Video Call'
-        : '📞 Incoming Voice Call';
-    await _sendOneSignalNotification(
+
+        ? 'Incoming Video Call'
+
+        : 'Incoming Voice Call';
+
+    await _dispatchPushNotification(
+
       playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
+
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
+
       title: title,
+
       body: '$callerName is calling you',
+
       largeIcon: callerPhotoUrl,
+
       androidChannelId: 'ripple_calls',
+
       sound: sound,
+
       vibration: vibration,
+
       soundFile: soundFile,
+
       data: {
+
         'type': 'call',
+
         'callId': callId,
+
         'channelName': channelName,
+
         'callerName': callerName,
+
         'callerUserId': callerUserId,
+
         'callType': callType,
+
         'isGroup': isGroup.toString(),
+
       },
+
       ttl: 60,
+
     );
+
   }
 
+
+
   /// Send a missed call notification
+
   static Future<void> sendMissedCallNotification({
+
     String recipientPlayerId = '',
+
     String recipientUid = '',
+
     required String callerName,
+
     required String callType,
+
     String callerPhotoUrl = '',
+
     bool sound = true,
+
     bool vibration = true,
+
   }) async {
+
     final title = 'Missed Call 📞';
+
     final body = 'You missed a $callType call from $callerName';
+
     await _sendOneSignalNotification(
+
       playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
+
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
+
       title: title,
+
       body: body,
+
       largeIcon: callerPhotoUrl,
+
       androidChannelId: 'ripple_calls',
+
       sound: sound,
+
       vibration: vibration,
+
       data: {
+
         'type': 'missed_call',
+
       },
+
     );
+
   }
+
+
+
+  // ─── Zoho Catalyst FCM Dispatcher ──────────────────────────────
+
+
+
+  static Future<void> _dispatchPushNotification({
+
+    List<String>? recipientPlayerIds,
+
+    List<String>? playerIds,
+
+    List<String>? recipientUids,
+
+    required String title,
+
+    required String body,
+
+    Map<String, dynamic>? data,
+
+    String priority = 'high',
+
+    String? androidChannelId,
+
+    String? largeIcon,
+
+    bool sound = true,
+
+    bool vibration = true,
+
+    String? soundFile,
+
+    int? badgeCount,
+
+    int? ttl,
+
+  }) async {
+
+    final validUids = (recipientUids ?? []).where((u) => u.isNotEmpty).toList();
+
+
+
+    // 1. Attempt Zoho Catalyst Push Service (FCM v1 Engine)
+
+    if (Env.catalystFunctionUrl.isNotEmpty && validUids.isNotEmpty) {
+
+      try {
+
+        debugPrint('🚀 [Catalyst FCM] Dispatching to $validUids: $title');
+
+        await _dio.post(
+
+          '${Env.catalystFunctionUrl}/sendNotification',
+
+          data: {
+
+            'recipientUids': validUids,
+
+            'title': title,
+
+            'body': body,
+
+            'data': data ?? {},
+
+            'priority': priority,
+
+            'projectId': Env.catalystProjectId,
+
+            'appId': Env.catalystAppId,
+
+          },
+
+          options: Options(headers: {
+
+            if (Env.catalystClientSecret.isNotEmpty)
+
+              'X-Catalyst-Secret': Env.catalystClientSecret,
+
+          }),
+
+        ).timeout(const Duration(seconds: 4));
+
+        return; // Successfully delivered via Zoho Catalyst!
+
+      } catch (e) {
+
+        debugPrint('⚠️ Catalyst dispatch note: $e. Using fallback channels.');
+
+      }
+
+    }
+
+
+
+    // 2. Direct OneSignal Fallback
+
+    await _sendOneSignalNotification(
+
+      playerIds: playerIds ?? recipientPlayerIds,
+
+      recipientUids: recipientUids,
+
+      title: title,
+
+      body: body,
+
+      data: data,
+
+      ttl: ttl,
+
+      androidChannelId: androidChannelId,
+
+      largeIcon: largeIcon,
+
+      sound: sound,
+
+      vibration: vibration,
+
+      soundFile: soundFile,
+
+      badgeCount: badgeCount,
+
+    );
+
+  }
+
+
 
   // ─── Internal OneSignal REST API Core ───────────────────
 
+
+
   static Future<void> _sendOneSignalNotification({
+
     List<String>? playerIds,
+
     List<String>? recipientUids,
+
     required String title,
+
     required String body,
+
     Map<String, dynamic>? data,
+
     int? ttl,
+
     String? androidChannelId,
+
     String? largeIcon,
+
     bool sound = true,
+
     bool vibration = true,
+
     String? soundFile,
+
     int? badgeCount,
+
   }) async {
+
     final appId = Env.oneSignalAppId;
+
     final restKey = Env.oneSignalRestApiKey;
 
+
+
     if (appId.isEmpty || restKey.isEmpty || restKey.contains('your_')) {
+
       debugPrint('❌ Configure ONESIGNAL_REST_API_KEY in .env file!');
+
       return;
+
     }
+
+
 
     final validPids = (playerIds ?? []).where((id) => id.isNotEmpty).toList();
+
     final validUids = (recipientUids ?? []).where((id) => id.isNotEmpty).toList();
 
+
+
     if (validPids.isEmpty && validUids.isEmpty) {
+
       debugPrint('⚠️ ONESIGNAL: No recipient player IDs or UIDs provided');
+
       return;
+
     }
 
+
+
     try {
+
       debugPrint('📤 Sending OneSignal notification to ${validPids.length} player(s) & ${validUids.length} uid(s): $title');
 
+
+
       final Map<String, dynamic> payload = {
+
         'app_id': appId,
+
         'headings': {'en': title},
+
         'contents': {'en': body},
+
         'small_icon': 'ic_stat_notification',
+
         'priority': 10,
+
       };
 
-      // Dual targeting: subscription IDs & external_id aliases
-      if (validPids.isNotEmpty) {
-        payload['include_player_ids'] = validPids;
-        payload['include_subscription_ids'] = validPids;
-      }
+
+
+      // Targeting: Do NOT mix player_ids and aliases or include_subscription_ids with include_player_ids!
+
       if (validUids.isNotEmpty) {
+
         payload['include_aliases'] = {
+
           'external_id': validUids,
+
         };
+
         payload['target_channel'] = 'push';
+
+      } else if (validPids.isNotEmpty) {
+
+        final isSubscriptionId = validPids.every((id) => id.length == 36 && id.contains('-'));
+
+        if (isSubscriptionId) {
+
+          payload['include_subscription_ids'] = validPids;
+
+        } else {
+
+          payload['include_player_ids'] = validPids;
+
+        }
+
       }
+
+
 
       // Notification Badge Count management
+
       if (badgeCount != null) {
+
         payload['ios_badgeType'] = 'SetTo';
+
         payload['ios_badgeCount'] = badgeCount;
+
         payload['android_badge_type'] = 'SetTo';
+
         payload['android_badge_count'] = badgeCount;
+
       } else {
+
         payload['ios_badgeType'] = 'Increase';
+
         payload['ios_badgeCount'] = 1;
+
         payload['badge_inc'] = 1;
+
       }
+
+
 
       // Add quick actions for messaging and social requests
+
       if (data != null && (data['type'] == 'chat' || data['type'] == 'group')) {
+
         payload['buttons'] = [
+
           {'id': 'reply', 'text': 'Reply'},
+
           {'id': 'read', 'text': 'Mark as Read'},
+
         ];
+
         final threadId = data['chatId'] ?? data['groupId'] ?? 'default_thread';
+
         payload['thread_id'] = threadId;
+
         payload['android_group'] = threadId;
+
       } else if (data != null && data['type'] == 'friend_request') {
+
         payload['buttons'] = [
+
           {'id': 'accept_friend', 'text': 'Accept'},
+
           {'id': 'decline_friend', 'text': 'Decline'},
+
         ];
+
       }
+
+
 
       if (largeIcon != null && largeIcon.isNotEmpty) payload['large_icon'] = largeIcon;
+
       if (data != null) payload['data'] = data;
+
       if (ttl != null) payload['ttl'] = ttl;
-      if (androidChannelId != null) payload['android_channel_id'] = androidChannelId;
-      if (!sound) {
-        payload['ios_sound'] = 'nil';
-        payload['android_sound'] = 'nil';
-      } else if (soundFile != null && soundFile.isNotEmpty) {
-        payload['ios_sound'] = soundFile;
-        payload['android_sound'] = soundFile;
+
+      if (androidChannelId != null) {
+
+        payload['existing_android_channel_id'] = androidChannelId;
+
+        payload['android_channel_id'] = androidChannelId;
+
       }
+
+      if (!sound) {
+
+        payload['ios_sound'] = 'nil';
+
+        payload['android_sound'] = 'nil';
+
+      } else if (soundFile != null && soundFile.isNotEmpty) {
+
+        payload['ios_sound'] = soundFile;
+
+        payload['android_sound'] = soundFile;
+
+      }
+
       if (!vibration) payload['ios_badgeType'] = 'None';
 
+
+
       final response = await _dio.post(
+
         _oneSignalBaseUrl,
+
         options: Options(headers: {
+
           'Authorization': 'Basic $restKey',
+
           'Content-Type': 'application/json',
+
         }),
+
         data: payload,
+
       );
+
       debugPrint('✅ OneSignal response: ${response.statusCode} ${response.data}');
+
     } catch (e) {
+
       debugPrint('❌ OneSignal notification FAILED: $e');
+
     }
+
   }
 
-  static Future<bool> _isChatMuted(String? chatId) async {
-    if (chatId == null || chatId.isEmpty) return false;
-    try {
-      final uid = FirebaseService.auth.currentUser?.uid;
-      if (uid == null) return false;
 
-      final doc = await FirebaseService.firestore.collection('users').doc(uid).get();
-      final muted = Map<String, dynamic>.from(doc.data()?['mutedChats'] as Map? ?? {});
-      if (!muted.containsKey(chatId)) return false;
 
-      final expiryStr = muted[chatId] as String?;
-      if (expiryStr == 'always') return true;
-      if (expiryStr != null) {
-        final expiry = DateTime.tryParse(expiryStr);
-        if (expiry != null && expiry.isAfter(DateTime.now())) {
-          return true;
-        }
-      }
-      return false;
-    } catch (_) {
-      return false;
-    }
-  }
+
+
+
 
   static Future<void> _playInAppNotificationSound(
+
       String uid, String? type, String? incomingChatId) async {
+
     try {
+
       String soundName = 'Aqua Chime';
+
       if (incomingChatId != null) {
+
         final customNotifDoc = await FirebaseService.firestore
+
             .collection('users')
+
             .doc(uid)
+
             .collection('custom_notifications')
+
             .doc(incomingChatId)
+
             .get();
+
         if (customNotifDoc.exists && (customNotifDoc.data()?['enabled'] ?? false)) {
+
           soundName = customNotifDoc.data()?['soundName'] as String? ?? 'Aqua Chime';
+
         } else {
+
           final doc = await FirebaseService.firestore.collection('users').doc(uid).get();
+
           final globalSounds = Map<String, dynamic>.from(doc.data()?['notificationSounds'] as Map? ?? {});
+
           final categoryKey = type == 'group' ? 'groups' : 'messages';
+
           final info = Map<String, dynamic>.from(globalSounds[categoryKey] as Map? ?? {});
+
           soundName = info['name']?.toString() ?? 'Aqua Chime';
+
         }
+
       }
+
+
 
       final assetPath = CustomSoundService.getSoundAssetPath(soundName);
+
       if (assetPath.isNotEmpty) {
+
         await _inAppPlayer.stop();
+
         await _inAppPlayer.setAsset(assetPath);
+
         await _inAppPlayer.play();
+
       }
+
     } catch (e) {
+
       debugPrint('⚠️ Error playing in-app sound: $e');
+
     }
+
   }
+
+
 
   static Future<void> _markChatAsRead(String chatId) async {
+
     try {
+
       final uid = FirebaseService.auth.currentUser?.uid;
+
       if (uid == null) return;
+
       await FirebaseService.firestore.collection('chats').doc(chatId).set({
+
         'unreadCount.$uid': 0,
+
       }, SetOptions(merge: true));
+
     } catch (e) {
+
       debugPrint('⚠️ Error marking chat read from notification action: $e');
+
     }
+
   }
+
+
 
   static Future<void> _acceptFriendRequestFromNotif(String fromUid) async {
+
     try {
+
       final myUid = FirebaseService.auth.currentUser?.uid;
+
       if (myUid == null) return;
+
       final batch = FirebaseService.firestore.batch();
+
       final myRef = FirebaseService.firestore.collection('users').doc(myUid);
+
       final foreignRef = FirebaseService.firestore.collection('users').doc(fromUid);
 
+
+
       batch.update(myRef, {
+
         'friends': FieldValue.arrayUnion([fromUid]),
+
         'friendRequests.received': FieldValue.arrayRemove([fromUid]),
+
       });
+
       batch.update(foreignRef, {
+
         'friends': FieldValue.arrayUnion([myUid]),
+
         'friendRequests.sent': FieldValue.arrayRemove([myUid]),
+
       });
+
       await batch.commit();
+
       debugPrint('✅ Accepted friend request from notification: $fromUid');
+
     } catch (e) {
+
       debugPrint('⚠️ Error accepting friend request from notification: $e');
+
     }
+
   }
+
+
 
   static Future<void> _declineFriendRequestFromNotif(String fromUid) async {
+
     try {
+
       final myUid = FirebaseService.auth.currentUser?.uid;
+
       if (myUid == null) return;
+
       final batch = FirebaseService.firestore.batch();
+
       final myRef = FirebaseService.firestore.collection('users').doc(myUid);
+
       final foreignRef = FirebaseService.firestore.collection('users').doc(fromUid);
 
+
+
       batch.update(myRef, {
+
         'friendRequests.received': FieldValue.arrayRemove([fromUid]),
+
       });
+
       batch.update(foreignRef, {
+
         'friendRequests.sent': FieldValue.arrayRemove([myUid]),
+
       });
+
       await batch.commit();
+
       debugPrint('✅ Declined friend request from notification: $fromUid');
+
     } catch (e) {
+
       debugPrint('⚠️ Error declining friend request from notification: $e');
+
     }
+
   }
+
 }
+
+
 

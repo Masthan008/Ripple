@@ -7,6 +7,7 @@ import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/theme_glass_card.dart';
+import 'software_update_screen.dart';
 
 /// Upgraded & Interactive About Ripple Screen
 class AboutScreen extends StatefulWidget {
@@ -19,7 +20,6 @@ class AboutScreen extends StatefulWidget {
 class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStateMixin {
   String _version = '1.0.0';
   String _buildNumber = '42';
-  bool _isCheckingUpdate = false;
   late AnimationController _pulseController;
 
   @override
@@ -51,33 +51,10 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
   }
 
   void _checkForUpdates() {
-    setState(() => _isCheckingUpdate = true);
-    Future.delayed(const Duration(milliseconds: 1500), () {
-      if (!mounted) return;
-      setState(() => _isCheckingUpdate = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Row(
-            children: [
-              const Icon(Icons.check_circle_rounded, color: AppColors.onlineGreen, size: 20),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Ripple is up to date! (v$_version Build $_buildNumber)',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-              ),
-            ],
-          ),
-          backgroundColor: const Color(0xFF0F172A),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: const BorderSide(color: AppColors.aquaCore),
-          ),
-          duration: const Duration(seconds: 3),
-        ),
-      );
-    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const SoftwareUpdateScreen()),
+    );
   }
 
   void _openSupportDialog() {
@@ -181,7 +158,7 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
                           ],
                         ),
                         child: const Center(
-                          child: Icon(Icons.water_drop_rounded, color: Colors.white, size: 52),
+                          child: Icon(Icons.shield_rounded, color: Colors.white, size: 52),
                         ),
                       ),
                     );
@@ -205,7 +182,7 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Liquid Glass × Groq Neural AI × Encrypted Security',
+                  'Zero-Trace Encrypted Messenger × Sovereign Privacy',
                   style: AppTextStyles.caption.copyWith(color: Colors.white70, fontSize: 13),
                 ),
 
@@ -216,13 +193,11 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
                   width: double.infinity,
                   height: 46,
                   child: OutlinedButton.icon(
-                    onPressed: _isCheckingUpdate ? null : _checkForUpdates,
-                    icon: _isCheckingUpdate
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(AppColors.aquaCore)))
-                        : const Icon(Icons.system_update_rounded, color: AppColors.aquaCore, size: 18),
-                    label: Text(
-                      _isCheckingUpdate ? 'Checking for updates...' : 'Check for Updates',
-                      style: const TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.bold),
+                    onPressed: _checkForUpdates,
+                    icon: const Icon(Icons.system_update_rounded, color: AppColors.aquaCore, size: 18),
+                    label: const Text(
+                      'Check for Updates',
+                      style: TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.bold),
                     ),
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: AppColors.aquaCore, width: 1.2),
@@ -241,16 +216,16 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
                 const SizedBox(height: 10),
 
                 _buildHighlightTile(
-                  icon: Icons.invert_colors_rounded,
+                  icon: Icons.hub_rounded,
                   iconColor: const Color(0xFF0EA5E9),
-                  title: 'Liquid Glass Physics',
-                  description: 'Dynamic frosted glass interfaces with real-time backdrop blur, glowing gradients, and fluid micro-animations.',
+                  title: 'Zero-Trace Offline Mesh',
+                  description: 'Peer-to-peer encrypted mesh chat operating with volatile RAM-only memory, auto-evaporation countdowns, and instant panic shredding.',
                 ),
                 _buildHighlightTile(
-                  icon: Icons.psychology_rounded,
+                  icon: Icons.lock_rounded,
                   iconColor: const Color(0xFF8B5CF6),
-                  title: 'Groq Neural Engine',
-                  description: 'Powered by Llama 3.3 & Whisper AI for instant smart replies, tone reformatting, translation, and voice transcription.',
+                  title: 'Quantum-Grade Cryptography',
+                  description: 'End-to-End Encryption with perfect forward secrecy, steganographic media cloaking, biometric app lock, and decoy vaults.',
                 ),
                 _buildHighlightTile(
                   icon: Icons.shield_rounded,
@@ -259,10 +234,10 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
                   description: 'Steganography, Decoy Passcodes, Gaze Lock, and Instant Real-Time Account Purge for maximum data sovereignty.',
                 ),
                 _buildHighlightTile(
-                  icon: Icons.cloud_sync_rounded,
+                  icon: Icons.devices_rounded,
                   iconColor: const Color(0xFFF59E0B),
-                  title: 'Supabase Cloud Core',
-                  description: 'Real-time database synchronisation, Drive chat backups, and Email OTP Two-Factor Authentication.',
+                  title: 'Multi-Node Web Companion',
+                  description: 'Instant cryptographic pairing with desktop workstation browsers with zero persistent storage.',
                 ),
 
                 const SizedBox(height: 24),
@@ -298,7 +273,7 @@ class _AboutScreenState extends State<AboutScreen> with SingleTickerProviderStat
                 const SizedBox(height: 36),
                 Text('© 2026 Ripple Inc. All rights reserved.', style: AppTextStyles.caption.copyWith(fontSize: 11, color: Colors.white38)),
                 const SizedBox(height: 4),
-                Text('Crafted with 🩵 & Agentic Intelligence', style: AppTextStyles.caption.copyWith(fontSize: 11, color: AppColors.aquaCore.withValues(alpha: 0.6))),
+                Text('Crafted for Absolute Privacy & Data Sovereignty', style: AppTextStyles.caption.copyWith(fontSize: 11, color: AppColors.aquaCore.withValues(alpha: 0.6))),
                 const SizedBox(height: 16),
               ],
             ),

@@ -31,29 +31,34 @@ class MainActivity : FlutterFragmentActivity() {
     private fun changeAppIcon(iconName: String) {
         val pm = packageManager
         val packageName = packageName
-        
-        // Toggle all aliases including Default. MainActivity remains enabled so target is valid.
         val aliases = listOf("Default", "Abyss", "Gold", "Glitch", "Forest", "Sunset")
-        
+        val targetAlias = aliases.firstOrNull { it.equals(iconName, ignoreCase = true) } ?: "Default"
+
+        // Step 1: Enable the target alias FIRST so there is never a moment without an active launcher
+        val targetComponent = ComponentName(packageName, "$packageName.MainActivity$targetAlias")
+        pm.setComponentEnabledSetting(
+            targetComponent,
+            PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
+            PackageManager.DONT_KILL_APP
+        )
+
+        // Step 2: Disable all other aliases safely
         for (alias in aliases) {
-            val componentName = ComponentName(packageName, "$packageName.MainActivity$alias")
-            val state = if (alias.equals(iconName, ignoreCase = true)) {
-                PackageManager.COMPONENT_ENABLED_STATE_ENABLED
-            } else {
-                PackageManager.COMPONENT_ENABLED_STATE_DISABLED
+            if (!alias.equals(targetAlias, ignoreCase = true)) {
+                val componentName = ComponentName(packageName, "$packageName.MainActivity$alias")
+                pm.setComponentEnabledSetting(
+                    componentName,
+                    PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
+                    PackageManager.DONT_KILL_APP
+                )
             }
-            pm.setComponentEnabledSetting(
-                componentName,
-                state,
-                0 // 0 flag restarts the app immediately to apply the icon refresh on the launcher
-            )
         }
     }
- 
+
     private fun getCurrentActiveIcon(): String {
         val pm = packageManager
         val packageName = packageName
-        
+
         val icons = listOf("Abyss", "Gold", "Glitch", "Forest", "Sunset")
         for (icon in icons) {
             val componentName = ComponentName(packageName, "$packageName.MainActivity$icon")

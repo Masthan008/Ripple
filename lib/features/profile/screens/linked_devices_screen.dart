@@ -1,71 +1,256 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/utils/haptic_feedback.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../../auth/providers/auth_provider.dart';
+import '../../web_companion/services/web_companion_service.dart';
 
-class LinkedDevicesScreen extends StatefulWidget {
+class LinkedDevicesScreen extends ConsumerStatefulWidget {
   const LinkedDevicesScreen({super.key});
 
   @override
-  State<LinkedDevicesScreen> createState() => _LinkedDevicesScreenState();
+  ConsumerState<LinkedDevicesScreen> createState() => _LinkedDevicesScreenState();
 }
 
-class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
-  void _showPairingQrDialog() {
-    final uid = FirebaseAuth.instance.currentUser?.uid;
-    if (uid == null) return;
+class _LinkedDevicesScreenState extends ConsumerState<LinkedDevicesScreen> {
+  bool _isProcessingScan = false;
 
-    // Construct a pairing session token containing uid and a temporary challenge
-    final pairingToken = 'ripple_pair:$uid:${DateTime.now().millisecondsSinceEpoch}';
+  void _openDeviceLinkingScanner() {
+    AppHaptics.mediumTap();
+    final user = ref.read(currentUserProvider).valueOrNull;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please wait until profile data is loaded.')),
+      );
+      return;
+    }
+
+    _isProcessingScan = false;
+    final controller = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      facing: CameraFacing.back,
+    );
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: const Color(0xFF060D1A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setSheetState) {
+            return SizedBox(
+              height: MediaQuery.of(context).size.height * 0.78,
+              child: Stack(
+                children: [
+                  // Camera Scanner Viewfinder
+                  ClipRRect(
+                    borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
+                    child: MobileScanner(
+                      controller: controller,
+                      onDetect: (capture) async {
+                        if (_isProcessingScan) return;
+                        final barcodes = capture.barcodes;
+                        for (final barcode in barcodes) {
+                          final code = barcode.rawValue;
+                          if (code != null && code.startsWith('ripple_pair:')) {
+                            _isProcessingScan = true;
+                            AppHaptics.success();
+
+                            final sessionId = code.replaceFirst('ripple_pair:', '').split(':').first;
+
+                            try {
+                              await ref.read(webCompanionServiceProvider).approvePairingSession(
+                                    sessionId: sessionId,
+                                    user: user,
+                                    browserInfo: 'Ripple Web Companion',
+                                  );
+
+                              if (mounted && ctx.mounted) {
+                                Navigator.pop(ctx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Companion Web device linked successfully! 🎉'),
+                                    backgroundColor: AppColors.onlineGreen,
+                                  ),
+                                );
+                              }
+                            } catch (e) {
+                              _isProcessingScan = false;
+                              if (mounted && ctx.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Pairing failed: $e'),
+                                    backgroundColor: AppColors.errorRed,
+                                  ),
+                                );
+                              }
+                            }
+                            break;
+                          }
+                        }
+                      },
+                    ),
+                  ),
+
+                  // Scanning Frame Overlay
+                  Center(
+                    child: Container(
+                      width: 240,
+                      height: 240,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.aquaCyan, width: 2.5),
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.aquaCore.withValues(alpha: 0.25),
+                            blurRadius: 20,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Header Bar & Controls
+                  Positioned(
+                    top: 16,
+                    left: 20,
+                    right: 20,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                        const Text(
+                          'Scan Web QR Code',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.flash_on_rounded, color: Colors.white, size: 24),
+                          onPressed: () => controller.toggleTorch(),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  // Bottom Instruction
+                  Positioned(
+                    bottom: 30,
+                    left: 20,
+                    right: 20,
+                    child: Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(color: Colors.white12),
+                          ),
+                          child: const Text(
+                            'Point your camera at the QR code shown on Ripple Web (your browser screen) to link sessions.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pop(ctx);
+                            _showManualPairingDialog();
+                          },
+                          child: const Text(
+                            'Enter pairing code manually',
+                            style: TextStyle(color: AppColors.aquaCyan, fontSize: 13),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    ).then((_) => controller.dispose());
+  }
+
+  void _showManualPairingDialog() {
+    final textController = TextEditingController();
+    final user = ref.read(currentUserProvider).valueOrNull;
+    if (user == null) return;
 
     showDialog(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          backgroundColor: const Color(0xFF0A1628),
-          title: const Text('Link a Device', style: TextStyle(color: Colors.white)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'Scan this QR code from your companion device (Desktop client or Web browser) to link sessions.',
-                style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: QrImageView(
-                  data: pairingToken,
-                  version: QrVersions.auto,
-                  size: 200.0,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'Token: ${uid.hashCode}',
-                style: const TextStyle(color: Colors.white30, fontSize: 11),
-              ),
-            ],
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Text('Enter Session Code', style: TextStyle(color: Colors.white, fontSize: 16)),
+        content: TextField(
+          controller: textController,
+          style: const TextStyle(color: Colors.white),
+          decoration: const InputDecoration(
+            hintText: 'Paste Session UUID or code',
+            hintStyle: TextStyle(color: Colors.white38),
+            enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppColors.aquaCore)),
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Done'),
-            ),
-          ],
-        );
-      },
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white60)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.aquaCore),
+            onPressed: () async {
+              final code = textController.text.trim();
+              if (code.isEmpty) return;
+              Navigator.pop(ctx);
+              try {
+                final sessionId = code.replaceFirst('ripple_pair:', '');
+                await ref.read(webCompanionServiceProvider).approvePairingSession(
+                      sessionId: sessionId,
+                      user: user,
+                      browserInfo: 'Manual Web Session',
+                    );
+                AppHaptics.success();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Device linked successfully!'),
+                      backgroundColor: AppColors.onlineGreen,
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Failed: $e'), backgroundColor: AppColors.errorRed),
+                  );
+                }
+              }
+            },
+            child: const Text('Link', style: TextStyle(color: Colors.black)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -92,6 +277,66 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Failed to unlink device: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _terminateAllOtherSessions() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0A1628),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Terminate All Other Sessions?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+        content: const Text(
+          'Are you sure you want to log out from all other companion apps, desktop clients, and web browsers?',
+          style: TextStyle(color: Colors.white70, fontSize: 13),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.aquaCore)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorRed),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Terminate All', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    AppHaptics.heavyTap();
+
+    try {
+      final snap = await FirebaseService.firestore
+          .collection('users')
+          .doc(uid)
+          .collection('devices')
+          .get();
+
+      final batch = FirebaseService.firestore.batch();
+      for (final doc in snap.docs) {
+        batch.delete(doc.reference);
+      }
+      await batch.commit();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('All other sessions terminated successfully.')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed: $e')),
         );
       }
     }
@@ -127,7 +372,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    'Use Ripple across your desktop, tablets, or web browsers by pairing them securely with your primary account.',
+                    'Use Ripple on your computer browser (WhatsWeb style) by scanning the QR code with your phone camera.',
                     textAlign: TextAlign.center,
                     style: TextStyle(color: Colors.white60, fontSize: 12, height: 1.4),
                   ),
@@ -136,7 +381,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton.icon(
-                      onPressed: _showPairingQrDialog,
+                      onPressed: _openDeviceLinkingScanner,
                       icon: const Icon(Icons.qr_code_scanner_rounded),
                       label: const Text('Link a Device', style: TextStyle(fontWeight: FontWeight.bold)),
                       style: ElevatedButton.styleFrom(
@@ -151,11 +396,24 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
             ),
             const SizedBox(height: 28),
 
-            const Text(
-              'Active Linked Sessions',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Active Linked Sessions',
+                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                TextButton.icon(
+                  onPressed: _terminateAllOtherSessions,
+                  icon: const Icon(Icons.delete_sweep_rounded, size: 16, color: AppColors.errorRed),
+                  label: const Text(
+                    'Terminate All',
+                    style: TextStyle(color: AppColors.errorRed, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
 
             if (uid != null)
               StreamBuilder<QuerySnapshot>(
@@ -196,10 +454,12 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
                       final doc = docs[index];
                       final data = doc.data() as Map<String, dynamic>;
                       final deviceId = doc.id;
-                      final deviceName = data['deviceName'] as String? ?? 'Client';
-                      final platform = data['platform'] as String? ?? 'unknown';
+                      final deviceName = data['deviceName'] as String? ?? 'Web Client';
+                      final platform = data['platform'] as String? ?? 'Web';
                       final lastActiveTs = data['lastActive'] as Timestamp?;
-                      final lastActive = lastActiveTs != null ? lastActiveTs.toDate().toString().split('.').first : 'N/A';
+                      final lastActive = lastActiveTs != null
+                          ? lastActiveTs.toDate().toString().split('.').first
+                          : 'Just now';
 
                       return GlassCard(
                         borderRadius: 14,
@@ -209,13 +469,15 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
                             Container(
                               padding: const EdgeInsets.all(10),
                               decoration: BoxDecoration(
-                                color: AppColors.aquaCore.withOpacity(0.08),
+                                color: AppColors.aquaCore.withValues(alpha: 0.12),
                                 shape: BoxShape.circle,
                               ),
                               child: Icon(
-                                platform.toLowerCase() == 'android' || platform.toLowerCase() == 'ios'
+                                platform.toLowerCase().contains('phone') ||
+                                        platform.toLowerCase().contains('android') ||
+                                        platform.toLowerCase().contains('ios')
                                     ? Icons.phone_android_rounded
-                                    : Icons.computer_rounded,
+                                    : Icons.laptop_chromebook_rounded,
                                 color: AppColors.aquaCore,
                               ),
                             ),
@@ -226,7 +488,11 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
                                 children: [
                                   Text(
                                     deviceName,
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
+                                    ),
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -237,6 +503,7 @@ class _LinkedDevicesScreenState extends State<LinkedDevicesScreen> {
                               ),
                             ),
                             IconButton(
+                              tooltip: 'Disconnect device',
                               icon: const Icon(Icons.link_off_rounded, color: Colors.redAccent),
                               onPressed: () => _unlinkDevice(deviceId),
                             ),

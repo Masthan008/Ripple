@@ -26,6 +26,16 @@ final myGroupsProvider = StreamProvider<List<GroupModel>>((ref) {
           snapshot.docs.map((d) => GroupModel.fromFirestore(d)).toList());
 });
 
+// ─── Group Details Provider ──────────────────────────────
+final groupDetailsProvider =
+    StreamProvider.family<GroupModel?, String>((ref, groupId) {
+  return FirebaseService.firestore
+      .collection('groups')
+      .doc(groupId)
+      .snapshots()
+      .map((doc) => doc.exists ? GroupModel.fromFirestore(doc) : null);
+});
+
 // ─── Group Messages Provider ─────────────────────────────
 final groupMessagesProvider =
     StreamProvider.family<List<MessageModel>, String>((ref, groupId) {
@@ -415,6 +425,110 @@ class GroupService {
     perms[uid] = userPerms;
     await _firestore.collection('groups').doc(groupId).update({
       'memberPermissions': perms,
+    });
+  }
+
+  // ── TELEGRAM SUPERGROUP GOVERNANCE ─────────────────────
+
+  /// Restrict / Mute a group member with an optional duration or indefinitely
+  Future<void> muteMember(String groupId, String uid, {Duration? duration, bool forever = false}) async {
+    final val = forever || duration == null
+        ? 'always'
+        : DateTime.now().add(duration).toIso8601String();
+
+    await _firestore.collection('groups').doc(groupId).update({
+      'mutedMembers.$uid': val,
+    });
+  }
+
+  /// Unmute a restricted group member
+  Future<void> unmuteMember(String groupId, String uid) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'mutedMembers.$uid': FieldValue.delete(),
+    });
+  }
+
+  /// Ban a member: evict from group and add to bannedMembers list
+  Future<void> banMember(String groupId, String uid) async {
+    final batch = _firestore.batch();
+    final groupRef = _firestore.collection('groups').doc(groupId);
+    batch.update(groupRef, {
+      'members': FieldValue.arrayRemove([uid]),
+      'memberIds': FieldValue.arrayRemove([uid]),
+      'admins': FieldValue.arrayRemove([uid]),
+      'bannedMembers': FieldValue.arrayUnion([uid]),
+    });
+    await batch.commit();
+  }
+
+  /// Unban a member
+  Future<void> unbanMember(String groupId, String uid) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'bannedMembers': FieldValue.arrayRemove([uid]),
+    });
+  }
+
+  /// Configure Slow Mode cooldown delay (0 to disable, 10, 30, 60, 300)
+  Future<void> setSlowMode(String groupId, int seconds) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'slowModeSeconds': seconds,
+    });
+  }
+
+  /// Configure whether joining requires admin approval
+  Future<void> setRequiresApproval(String groupId, bool requiresApproval) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'requiresApproval': requiresApproval,
+    });
+  }
+
+  /// Set granular admin rights for a promoted admin
+  Future<void> updateAdminPermissions(
+    String groupId,
+    String adminUid,
+    Map<String, bool> permissions,
+  ) async {
+    await _firestore.collection('groups').doc(groupId).update({
+      'adminPermissions.$adminUid': permissions,
+    });
+  }
+
+  /// Approve a pending join request
+  Future<void> approveJoinRequest(String groupId, String applicantUid) async {
+    final batch = _firestore.batch();
+    final groupRef = _firestore.collection('groups').doc(groupId);
+    final reqRef = groupRef.collection('join_requests').doc(applicantUid);
+
+    batch.update(groupRef, {
+      'members': FieldValue.arrayUnion([applicantUid]),
+      'memberIds': FieldValue.arrayUnion([applicantUid]),
+    });
+    batch.delete(reqRef);
+
+    await batch.commit();
+  }
+
+  /// Reject/dismiss a pending join request
+  Future<void> rejectJoinRequest(String groupId, String applicantUid) async {
+    await _firestore
+        .collection('groups')
+        .doc(groupId)
+        .collection('join_requests')
+        .doc(applicantUid)
+        .delete();
+  }
+
+  /// Submit a join request for a private/gated group
+  Future<void> requestToJoinGroup(String groupId) async {
+    await _firestore
+        .collection('groups')
+        .doc(groupId)
+        .collection('join_requests')
+        .doc(myUid)
+        .set({
+      'applicantUid': myUid,
+      'requestedAt': FieldValue.serverTimestamp(),
+      'status': 'pending',
     });
   }
 }

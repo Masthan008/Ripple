@@ -121,7 +121,24 @@ class Env {
       ? const String.fromEnvironment('GROQ_API_KEY')
       : dotenv.env['GROQ_API_KEY'] ?? '';
 
-  // ─── App Config ──────────────────────────────────────
+    // ─── Zoho Catalyst FCM ──────────────────────────────────────────
+  static String get catalystProjectId => const String.fromEnvironment('CATALYST_PROJECT_ID') != ''
+      ? const String.fromEnvironment('CATALYST_PROJECT_ID')
+      : dotenv.env['CATALYST_PROJECT_ID'] ?? '';
+
+  static String get catalystAppId => const String.fromEnvironment('CATALYST_APP_ID') != ''
+      ? const String.fromEnvironment('CATALYST_APP_ID')
+      : dotenv.env['CATALYST_APP_ID'] ?? '';
+
+  static String get catalystFunctionUrl => const String.fromEnvironment('CATALYST_FUNCTION_URL') != ''
+      ? const String.fromEnvironment('CATALYST_FUNCTION_URL')
+      : dotenv.env['CATALYST_FUNCTION_URL'] ?? '';
+
+  static String get catalystClientSecret => const String.fromEnvironment('CATALYST_CLIENT_SECRET') != ''
+      ? const String.fromEnvironment('CATALYST_CLIENT_SECRET')
+      : dotenv.env['CATALYST_CLIENT_SECRET'] ?? '';
+
+// ─── App Config ──────────────────────────────────────
   static String get appName => const String.fromEnvironment('APP_NAME') != ''
       ? const String.fromEnvironment('APP_NAME')
       : dotenv.env['APP_NAME'] ?? 'Ripple';

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:razorpay_flutter/razorpay_flutter.dart';
@@ -6,7 +7,9 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/env.dart';
+import '../../../core/utils/haptic_feedback.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../auth/models/user_model.dart';
 import '../services/subscription_service.dart';
@@ -60,6 +63,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           signature: response.signature ?? '',
         );
 
+        AppHaptics.success();
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -67,11 +71,11 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
               backgroundColor: AppColors.onlineGreen,
             ),
           );
-          // Navigate to waiting screen
           context.pushReplacement(VerificationWaitingScreen.routePath);
         }
       }
     } catch (e) {
+      AppHaptics.heavyTap();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -90,6 +94,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 
   void _handlePaymentError(PaymentFailureResponse response) {
+    AppHaptics.heavyTap();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('Payment Failed: ${response.message} (Code: ${response.code})'),
@@ -108,6 +113,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 
   void _initiateRazorpayPayment(String planName, double price) {
+    AppHaptics.mediumTap();
     _selectedPlan = planName;
     _selectedPrice = price;
 
@@ -149,6 +155,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
   Future<void> _activateFreeTrial() async {
     if (_currentUser == null) return;
+    AppHaptics.mediumTap();
     
     setState(() {
       _isLoading = true;
@@ -158,6 +165,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
       final subService = ref.read(subscriptionServiceProvider);
       await subService.startTrial(_currentUser!.uid);
 
+      AppHaptics.success();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -168,6 +176,7 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         context.pushReplacement(VerificationWaitingScreen.routePath);
       }
     } catch (e) {
+      AppHaptics.heavyTap();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -186,13 +195,18 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
   }
 
   void _showDemoSimulatorDialog(String planName, double price) {
+    final theme = ref.read(rippleThemeProvider);
+    final isDark = theme.isDark;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF0F172A),
+        backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20),
-          side: const BorderSide(color: AppColors.glassBorder),
+          side: BorderSide(
+            color: isDark ? AppColors.glassBorder : Colors.black12,
+          ),
         ),
         title: Row(
           children: [
@@ -200,7 +214,9 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
             const SizedBox(width: 10),
             Text(
               'Razorpay Simulator',
-              style: AppTextStyles.heading.copyWith(color: Colors.white),
+              style: AppTextStyles.heading.copyWith(
+                color: isDark ? Colors.white : const Color(0xFF0D1117),
+              ),
             ),
           ],
         ),
@@ -215,22 +231,32 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
             const SizedBox(height: 12),
             Text(
               'Configure RAZORPAY_KEY_ID inside your local `.env` file to process actual live or test checkout transactions on mobile devices.',
-              style: AppTextStyles.body.copyWith(color: AppColors.textSecondary),
+              style: AppTextStyles.body.copyWith(
+                color: isDark ? AppColors.textSecondary : const Color(0xFF6B7280),
+              ),
             ),
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.black26,
+                color: isDark ? Colors.black26 : const Color(0xFFF1F5F9),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: AppColors.glassBorderLight),
+                border: Border.all(
+                  color: isDark ? AppColors.glassBorderLight : Colors.black12,
+                ),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text('Plan: $planName', style: AppTextStyles.label.copyWith(color: AppColors.aquaCyan)),
                   const SizedBox(height: 4),
-                  Text('Amount: ₹${price.toStringAsFixed(2)}', style: AppTextStyles.body.copyWith(color: Colors.white)),
+                  Text(
+                    'Amount: ₹${price.toStringAsFixed(2)}',
+                    style: AppTextStyles.body.copyWith(
+                      color: isDark ? Colors.white : const Color(0xFF0D1117),
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -239,7 +265,12 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel', style: TextStyle(color: Colors.white.withOpacity(0.6))),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: isDark ? Colors.white.withValues(alpha: 0.6) : Colors.black54,
+              ),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(
@@ -266,21 +297,43 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(rippleThemeProvider);
+    final isDark = theme.isDark;
     final userAsync = ref.watch(currentUserProvider);
+
+    final bgGrad = isDark
+        ? const LinearGradient(
+            colors: [Color(0xFF060D1A), Color(0xFF0A192F), Color(0xFF040914)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          )
+        : const LinearGradient(
+            colors: [Color(0xFFF8FAFC), Color(0xFFEEF2F6), Color(0xFFE2E8F0)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+          );
+
+    final textColor = isDark ? Colors.white : const Color(0xFF0D1117);
+    final textMuted = isDark ? AppColors.textSecondary : const Color(0xFF64748B);
 
     return userAsync.when(
       data: (user) {
         if (user == null) {
-          return const Scaffold(
-            backgroundColor: AppColors.abyssBackground,
-            body: Center(child: Text('User details not found.', style: TextStyle(color: Colors.white))),
+          return Scaffold(
+            backgroundColor: theme.colors.background,
+            body: Center(
+              child: Text(
+                'User details not found.',
+                style: TextStyle(color: textColor),
+              ),
+            ),
           );
         }
         _currentUser = user;
 
         // Redirect to waiting screen if user already paid and verification is pending
         if (user.verificationStatus == 'pending') {
-          Future.microtask(() {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
             if (mounted) {
               context.pushReplacement(VerificationWaitingScreen.routePath);
             }
@@ -288,25 +341,40 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
         }
 
         return Scaffold(
-          backgroundColor: AppColors.abyssBackground,
+          backgroundColor: theme.colors.background,
           appBar: AppBar(
-            title: Text('Ripple Verified', style: AppTextStyles.heading),
+            title: Text(
+              'Ripple Premium & Verified',
+              style: AppTextStyles.heading.copyWith(
+                color: textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             backgroundColor: Colors.transparent,
             elevation: 0,
-            iconTheme: const IconThemeData(color: AppColors.aquaCore),
+            iconTheme: IconThemeData(
+              color: isDark ? AppColors.aquaCore : const Color(0xFF0D1117),
+            ),
           ),
           body: Stack(
             children: [
-              // Aquatic glow elements
+              // Dynamic Background Gradient
+              Positioned.fill(
+                child: Container(decoration: BoxDecoration(gradient: bgGrad)),
+              ),
+
+              // Ambient Liquid Glows
               Positioned(
-                top: -100,
-                right: -100,
+                top: -80,
+                right: -80,
                 child: Container(
-                  width: 300,
-                  height: 300,
-                  decoration: const BoxDecoration(
+                  width: 260,
+                  height: 260,
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Color(0x0C0EA5E9),
+                    color: (isDark ? const Color(0xFF0EA5E9) : const Color(0xFF38BDF8))
+                        .withValues(alpha: isDark ? 0.09 : 0.14),
                   ),
                 ),
               ),
@@ -314,16 +382,17 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                 bottom: -80,
                 left: -80,
                 child: Container(
-                  width: 250,
-                  height: 250,
-                  decoration: const BoxDecoration(
+                  width: 240,
+                  height: 240,
+                  decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Color(0x0C22D3EE),
+                    color: (isDark ? const Color(0xFF22D3EE) : const Color(0xFF0284C7))
+                        .withValues(alpha: isDark ? 0.08 : 0.12),
                   ),
                 ),
               ),
-              
-              // Content
+
+              // Main Content Scroll
               _isLoading
                   ? const Center(
                       child: CircularProgressIndicator(
@@ -331,80 +400,111 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
                       ),
                     )
                   : SingleChildScrollView(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                       child: AnimationLimiter(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: AnimationConfiguration.toStaggeredList(
-                            duration: const Duration(milliseconds: 500),
+                            duration: const Duration(milliseconds: 400),
                             childAnimationBuilder: (widget) => SlideAnimation(
-                              verticalOffset: 50.0,
+                              verticalOffset: 40.0,
                               child: FadeInAnimation(child: widget),
                             ),
                             children: [
-                              // Screen Header Icon + Title
-                              const SizedBox(height: 10),
+                              // Hero Verified Badge Animation
                               Center(
-                                child: Image.asset(
-                                  'assets/images/icons8-verified-badge-96.gif',
-                                  width: 80,
-                                  height: 80,
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: (isDark ? const Color(0xFF0EA5E9) : const Color(0xFF1A8CFF))
+                                        .withValues(alpha: 0.12),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: const Color(0xFF0EA5E9).withValues(alpha: 0.25),
+                                        blurRadius: 24,
+                                        spreadRadius: 2,
+                                      ),
+                                    ],
+                                  ),
+                                  child: Image.asset(
+                                    'assets/images/icons8-verified-badge-96.gif',
+                                    width: 72,
+                                    height: 72,
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: 16),
                               Text(
-                                'Get Verified on Ripple',
+                                'Unlock Ripple Premium',
                                 textAlign: TextAlign.center,
                                 style: AppTextStyles.display.copyWith(
-                                  fontSize: 28,
-                                  color: Colors.white,
+                                  fontSize: 26,
+                                  fontWeight: FontWeight.w800,
+                                  color: textColor,
+                                  letterSpacing: -0.5,
                                 ),
                               ),
                               const SizedBox(height: 8),
-                              Text(
-                                'Build trust, unlock premium styling, and show off your verified status across chats.',
-                                textAlign: TextAlign.center,
-                                style: AppTextStyles.body.copyWith(
-                                  color: AppColors.textSecondary,
+                              Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 16),
+                                child: Text(
+                                  'Elevate your presence with verified trust, up to 10 GB cloud storage, custom dynamic launcher icons, multi-device web pairing, and VIP speed.',
+                                  textAlign: TextAlign.center,
+                                  style: AppTextStyles.body.copyWith(
+                                    color: textMuted,
+                                    fontSize: 13,
+                                    height: 1.4,
+                                  ),
                                 ),
                               ),
-                              const SizedBox(height: 30),
+                              const SizedBox(height: 28),
 
-                              // Plan 1: Free Trial Card
-                              _buildTrialCard(user),
-                              const SizedBox(height: 20),
+                              // Plan 1: 1-Month Free Trial Card
+                              _buildTrialCard(user, isDark),
+                              const SizedBox(height: 18),
 
-                              // Plan 2: Gold Monthly
+                              // Plan 2: Gold Monthly Card
                               _buildPremiumCard(
                                 title: 'Gold Monthly',
-                                price: 299.00,
+                                price: 199.00,
                                 billingCycle: '/month',
-                                icon: Icons.star_border_rounded,
-                                color: const Color(0xFFFBBF24),
+                                icon: Icons.star_rounded,
+                                badgeText: 'POPULAR',
+                                color: const Color(0xFFF59E0B),
+                                isDark: isDark,
                                 features: [
-                                  'Verified Badge across all chats & screens',
-                                  'Premium Liquid Glass theme selection',
-                                  'Custom chat bubbles and colors',
-                                  'Ad-free clean AI Sentience Currents',
+                                  'Official Verified Gold Badge (✓) across all chats & search',
+                                  '4 GB High-Speed Cloud File & Media Uploads (8x Free)',
+                                  'Up to 20 Pinned Conversations & 500 Group memberships',
+                                  '6 Custom Dynamic App Launcher Icons',
+                                  'Ripple Web Multi-Device Companion Linking',
+                                  'Exclusive Liquid Glass UI themes & accent styling',
                                 ],
                               ),
-                              const SizedBox(height: 20),
+                              const SizedBox(height: 18),
 
-                              // Plan 3: Abyss Platinum
+                              // Plan 3: Abyss Platinum Card
                               _buildPremiumCard(
                                 title: 'Abyss Platinum',
-                                price: 999.00,
+                                price: 499.00,
                                 billingCycle: '/month',
                                 icon: Icons.workspace_premium_rounded,
-                                color: AppColors.aquaCyan,
+                                badgeText: 'ULTIMATE',
+                                color: const Color(0xFF0EA5E9),
+                                isDark: isDark,
                                 features: [
-                                  'VIP High-Priority Verification (under 2 hours)',
-                                  'Exclusive Abyss Telepathy glow animation effects',
-                                  'Direct premium support channels',
-                                  'Early access to revolutionary AI features',
+                                  'All Gold Monthly features included',
+                                  'Exclusive Abyss Platinum Crown Badge (👑) on profile & chats',
+                                  '10 GB Maximum File & Video Upload limit',
+                                  'High-Speed Media Download priority CDN acceleration',
+                                  'Unlimited Pinned Conversations & Unlimited Groups',
+                                  'Custom Notification Sounds & Granular Stealth Privacy Locks',
+                                  'Instant VIP Verification Review Queue',
+                                  'Direct 24/7 Priority Ripple Concierge Support',
                                 ],
                               ),
-                              const SizedBox(height: 40),
+                              const SizedBox(height: 36),
                             ],
                           ),
                         ),
@@ -414,134 +514,189 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
           ),
         );
       },
-      loading: () => const Scaffold(
-        backgroundColor: AppColors.abyssBackground,
-        body: Center(
+      loading: () => Scaffold(
+        backgroundColor: theme.colors.background,
+        body: const Center(
           child: CircularProgressIndicator(
             valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
           ),
         ),
       ),
       error: (err, stack) => Scaffold(
-        backgroundColor: AppColors.abyssBackground,
+        backgroundColor: theme.colors.background,
         body: Center(
-          child: Text('Error loading user profile: $err', style: const TextStyle(color: Colors.white)),
+          child: Text(
+            'Error loading user profile: $err',
+            style: TextStyle(color: textColor),
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildTrialCard(UserModel user) {
+  Widget _buildTrialCard(UserModel user, bool isDark) {
     final bool hasUsed = user.hasUsedTrial;
 
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.glassPanel,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: hasUsed ? AppColors.glassBorderLight : AppColors.aquaCore.withOpacity(0.5),
-          width: 1.5,
-        ),
-        boxShadow: [
-          if (!hasUsed)
-            BoxShadow(
-              color: AppColors.aquaCore.withOpacity(0.1),
-              blurRadius: 15,
-              offset: const Offset(0, 5),
-            ),
-        ],
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final cardBg = isDark
+        ? const Color(0xFF0E1928).withValues(alpha: 0.72)
+        : Colors.white.withValues(alpha: 0.85);
+    final borderColor = hasUsed
+        ? (isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black12)
+        : (isDark
+            ? AppColors.aquaCore.withValues(alpha: 0.5)
+            : const Color(0xFF1A8CFF).withValues(alpha: 0.4));
+    final textColor = isDark ? Colors.white : const Color(0xFF0D1117);
+    final textMuted = isDark ? AppColors.textSecondary : const Color(0xFF64748B);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor, width: 1.4),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+              if (!hasUsed)
+                BoxShadow(
+                  color: AppColors.aquaCore.withValues(alpha: isDark ? 0.12 : 0.08),
+                  blurRadius: 20,
+                  offset: const Offset(0, 4),
+                ),
+            ],
+          ),
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: (hasUsed ? Colors.grey : AppColors.aquaCore)
+                              .withValues(alpha: 0.15),
+                        ),
+                        child: Icon(
+                          Icons.card_giftcard_rounded,
+                          color: hasUsed ? Colors.grey : AppColors.aquaCore,
+                          size: 18,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '1-Month Free Trial',
+                        style: AppTextStyles.headingSmall.copyWith(
+                          color: hasUsed ? textMuted : textColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 17,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: hasUsed
+                          ? (isDark ? Colors.white10 : Colors.black12)
+                          : AppColors.aquaCore.withValues(alpha: 0.18),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      hasUsed ? 'Redeemed' : '30 Days Free',
+                      style: AppTextStyles.caption.copyWith(
+                        color: hasUsed ? textMuted : AppColors.aquaCore,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
               Text(
-                '1-Month Free Trial',
-                style: AppTextStyles.headingSmall.copyWith(
-                  color: hasUsed ? AppColors.textMuted : Colors.white,
-                  fontWeight: FontWeight.bold,
+                'Experience full verified status and premium cloud features with zero upfront commitment. Valid for 30 full days.',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: textMuted,
+                  height: 1.35,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: hasUsed ? Colors.white10 : AppColors.aquaCore.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  hasUsed ? 'Used' : 'Available',
-                  style: AppTextStyles.caption.copyWith(
-                    color: hasUsed ? AppColors.textMuted : AppColors.biolume,
-                    fontWeight: FontWeight.bold,
+              const SizedBox(height: 14),
+              Divider(
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black12,
+                height: 1,
+              ),
+              const SizedBox(height: 12),
+              ...[
+                '30-Day Full Access to Gold Verified Badge (✓)',
+                '4 GB High-Speed Cloud File & Media Uploads',
+                '6 Custom Dynamic App Launcher Icons',
+                'Up to 20 Pinned Chats & 500 Group memberships',
+                'Full access to all Liquid Glass themes & Web pairing',
+              ].map((feature) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.check_circle_rounded,
+                          color: hasUsed ? textMuted : AppColors.onlineGreen,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: hasUsed ? textMuted : textColor,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: hasUsed
+                        ? (isDark ? Colors.white12 : Colors.black12)
+                        : AppColors.aquaCore,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: hasUsed ? 0 : 2,
+                  ),
+                  onPressed: hasUsed ? null : _activateFreeTrial,
+                  child: Text(
+                    hasUsed ? 'Trial Already Redeemed' : 'Claim Free 30-Day Trial',
+                    style: AppTextStyles.label.copyWith(
+                      color: hasUsed ? textMuted : Colors.white,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Text(
-            'Try the verified badge completely free for 30 days. Perfect for experimenting with Ripple\'s verified identity systems.',
-            style: AppTextStyles.bodySmall.copyWith(
-              color: hasUsed ? AppColors.textMuted : AppColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: AppColors.glassBorderLight),
-          const SizedBox(height: 10),
-          ...[
-            'Verified Badge across all chats & screens',
-            'Full trial of custom themes & backgrounds',
-            'Access to eye-tracking security controls',
-          ].map((feature) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      Icons.check_rounded,
-                      color: hasUsed ? AppColors.textMuted : AppColors.onlineGreen,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        feature,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: hasUsed ? AppColors.textMuted : AppColors.textSecondary,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )),
-          const SizedBox(height: 15),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: hasUsed ? Colors.white10 : AppColors.aquaCore,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                elevation: 0,
-              ),
-              onPressed: hasUsed ? null : _activateFreeTrial,
-              child: Text(
-                hasUsed ? 'Trial Already Redeemed' : 'Claim Free Trial',
-                style: AppTextStyles.label.copyWith(
-                  color: hasUsed ? AppColors.textMuted : Colors.white,
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -551,115 +706,188 @@ class _PlansScreenState extends ConsumerState<PlansScreen> {
     required double price,
     required String billingCycle,
     required IconData icon,
+    required String badgeText,
     required Color color,
+    required bool isDark,
     required List<String> features,
   }) {
-    return Container(
-      decoration: BoxDecoration(
-        color: AppColors.glassPanel,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: AppColors.glassBorder,
-          width: 1.0,
-        ),
-      ),
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, color: color, size: 24),
-              const SizedBox(width: 10),
-              Text(
-                title,
-                style: AppTextStyles.headingSmall.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+    final cardBg = isDark
+        ? const Color(0xFF0E1928).withValues(alpha: 0.76)
+        : Colors.white.withValues(alpha: 0.88);
+    final borderColor = isDark
+        ? color.withValues(alpha: 0.35)
+        : color.withValues(alpha: 0.4);
+    final textColor = isDark ? Colors.white : const Color(0xFF0D1117);
+    final textMuted = isDark ? AppColors.textSecondary : const Color(0xFF64748B);
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+        child: Container(
+          decoration: BoxDecoration(
+            color: cardBg,
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: borderColor, width: 1.4),
+            boxShadow: [
+              BoxShadow(
+                color: isDark
+                    ? Colors.black.withValues(alpha: 0.35)
+                    : Colors.black.withValues(alpha: 0.08),
+                blurRadius: 20,
+                offset: const Offset(0, 6),
+              ),
+              BoxShadow(
+                color: color.withValues(alpha: isDark ? 0.1 : 0.06),
+                blurRadius: 18,
+                offset: const Offset(0, 2),
               ),
             ],
           ),
-          const SizedBox(height: 12),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.baseline,
-            textBaseline: TextBaseline.alphabetic,
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                '₹${price.toStringAsFixed(0)}',
-                style: AppTextStyles.display.copyWith(
-                  fontSize: 32,
-                  color: Colors.white,
-                ),
-              ),
-              const SizedBox(width: 4),
-              Text(
-                billingCycle,
-                style: AppTextStyles.bodySmall.copyWith(
-                  color: AppColors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          const Divider(color: AppColors.glassBorderLight),
-          const SizedBox(height: 10),
-          ...features.map((feature) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Icon(
-                      Icons.check_rounded,
-                      color: AppColors.onlineGreen,
-                      size: 16,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        feature,
-                        style: AppTextStyles.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: color.withValues(alpha: 0.18),
+                        ),
+                        child: Icon(icon, color: color, size: 20),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        title,
+                        style: AppTextStyles.headingSmall.copyWith(
+                          color: textColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
                         ),
                       ),
+                    ],
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [color.withValues(alpha: 0.9), color],
+                      ),
+                      borderRadius: BorderRadius.circular(10),
                     ),
-                  ],
-                ),
-              )),
-          const SizedBox(height: 15),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(12),
-                gradient: LinearGradient(
-                  colors: [color.withOpacity(0.8), color],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
+                    child: Text(
+                      badgeText,
+                      style: AppTextStyles.caption.copyWith(
+                        color: Colors.black,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 10,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.transparent,
-                  shadowColor: Colors.transparent,
-                  shape: RoundedRectangleBorder(
+              const SizedBox(height: 12),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    '₹${price.toStringAsFixed(0)}',
+                    style: AppTextStyles.display.copyWith(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    billingCycle,
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: textMuted,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Divider(
+                color: isDark ? Colors.white.withValues(alpha: 0.08) : Colors.black12,
+                height: 1,
+              ),
+              const SizedBox(height: 12),
+              ...features.map((feature) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(
+                          Icons.check_circle_rounded,
+                          color: AppColors.onlineGreen,
+                          size: 16,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: textColor,
+                              fontSize: 13,
+                              height: 1.3,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  )),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                height: 46,
+                child: Container(
+                  decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
+                    gradient: LinearGradient(
+                      colors: [color.withValues(alpha: 0.85), color],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: color.withValues(alpha: 0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 3),
+                      ),
+                    ],
                   ),
-                ),
-                onPressed: () => _initiateRazorpayPayment(title, price),
-                child: Text(
-                  'Subscribe Now',
-                  style: AppTextStyles.label.copyWith(
-                    color: Colors.black,
-                    fontSize: 15,
-                    fontWeight: FontWeight.bold,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.transparent,
+                      shadowColor: Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                    onPressed: () => _initiateRazorpayPayment(title, price),
+                    child: Text(
+                      'Upgrade to $title',
+                      style: AppTextStyles.label.copyWith(
+                        color: Colors.black,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

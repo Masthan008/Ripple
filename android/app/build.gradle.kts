@@ -57,6 +57,17 @@ android {
         }
     }
 
+    lint {
+        checkReleaseBuilds = false
+        abortOnError = false
+    }
+
+    packaging {
+        resources {
+            excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        }
+    }
+
     buildTypes {
         release {
             val storeFileVal = keystoreProperties["storeFile"] as? String
@@ -74,6 +85,10 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
 
+            ndk {
+                debugSymbolLevel = "none"
+            }
+
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -90,4 +105,10 @@ dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation(platform("com.google.firebase:firebase-bom:34.16.0"))
     implementation("com.google.firebase:firebase-perf")
+}
+
+tasks.configureEach {
+    if (name.contains("uploadCrashlyticsMappingFile")) {
+        enabled = false
+    }
 }

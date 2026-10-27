@@ -99,6 +99,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
 
   // Spatial Threads™ state
   bool _isSpatialMode = false;
+  DateTime? _lastMessageSentAt;
 
   @override
   void initState() {
@@ -146,6 +147,54 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
 
+    final myUid = ref.read(groupServiceProvider).myUid;
+    final group = ref.read(groupDetailsProvider(widget.groupId)).valueOrNull;
+
+    if (group != null) {
+      if (group.isBanned(myUid)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You have been banned from posting in this group.'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+        return;
+      }
+      if (group.isMuted(myUid)) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('You are currently muted in this group.'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+        return;
+      }
+      if (group.onlyAdminsCanMessage && !group.isAdmin(myUid) && group.createdBy != myUid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Only administrators can send messages in this group.'),
+            backgroundColor: AppColors.errorRed,
+          ),
+        );
+        return;
+      }
+      if (group.slowModeSeconds > 0 && !group.isAdmin(myUid) && group.createdBy != myUid) {
+        if (_lastMessageSentAt != null) {
+          final elapsed = DateTime.now().difference(_lastMessageSentAt!).inSeconds;
+          if (elapsed < group.slowModeSeconds) {
+            final waitSec = group.slowModeSeconds - elapsed;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Slow mode is active. Please wait ${waitSec}s.'),
+                backgroundColor: AppColors.aquaCore,
+              ),
+            );
+            return;
+          }
+        }
+      }
+    }
+
     setState(() => _isSending = true);
     _messageController.clear();
 
@@ -160,6 +209,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             text: text,
             replyTo: replyData,
           );
+      _lastMessageSentAt = DateTime.now();
       _scrollToBottom();
     } catch (e) {
       if (mounted) {

@@ -1,3 +1,8 @@
+import 'package:flutter/foundation.dart';
+import 'features/web_companion/screens/web_pairing_screen.dart';
+import 'features/web_companion/screens/web_main_screen.dart';
+import 'features/offline_mesh/screens/offline_radar_screen.dart';
+import 'features/profile/screens/software_update_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +23,6 @@ import 'features/chat/widgets/ripple_doc_scanner.dart';
 import 'features/chat/screens/video_player_screen.dart';
 import 'features/chat/screens/chat_media_gallery_screen.dart';
 import 'features/groups/screens/join_group_screen.dart';
-import 'features/ai/screens/ai_chat_screen.dart';
 import 'features/chat/screens/chat_list_screen.dart';
 import 'features/chat/screens/chat_screen.dart';
 import 'features/chat/providers/chat_provider.dart';
@@ -35,13 +39,27 @@ import 'features/calls/screens/incoming_call_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
 import 'features/profile/screens/settings_screen.dart';
 import 'features/profile/screens/linked_devices_screen.dart';
+import 'features/profile/screens/about_screen.dart';
+import 'features/profile/screens/accessibility_screen.dart';
+import 'features/profile/screens/account_security_screen.dart';
+import 'features/profile/screens/appearance_screen.dart';
+import 'features/profile/screens/app_icon_screen.dart';
+import 'features/profile/screens/chat_backup_screen.dart';
+import 'features/profile/screens/contact_support_screen.dart';
+import 'features/profile/screens/data_usage_screen.dart';
+import 'features/profile/screens/edit_profile_screen.dart';
+import 'features/profile/screens/help_screen.dart';
+import 'features/profile/screens/language_screen.dart';
+import 'features/profile/screens/notifications_settings_screen.dart';
+import 'features/profile/screens/qr_code_screen.dart';
+import 'features/profile/screens/storage_usage_screen.dart';
+import 'features/profile/screens/system_status_screen.dart';
 import 'features/premium/screens/plans_screen.dart';
 import 'features/premium/screens/verification_waiting_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'features/search/screens/global_search_screen.dart';
 import 'features/chat/screens/saved_messages_screen.dart';
 import 'features/chat/screens/archived_chats_screen.dart';
-import 'features/ai/screens/ai_settings_screen.dart';
 import 'features/privacy/screens/privacy_settings_screen.dart';
 import 'features/privacy/screens/privacy_dashboard_screen.dart';
 import 'features/privacy/screens/chat_lock_settings_screen.dart';
@@ -59,7 +77,6 @@ import 'features/challenges/screens/challenges_screen.dart';
 import 'features/gifts/screens/gift_cards_screen.dart';
 import 'features/status/screens/status_list_screen.dart';
 import 'features/status/screens/create_status_screen.dart';
-import 'features/status/screens/status_viewer_screen.dart';
 import 'features/profile/providers/settings_provider.dart';
 import 'shared/widgets/holographic_glitch_transition.dart';
 import 'shared/widgets/app_lock_gate.dart';
@@ -73,9 +90,27 @@ final routerProvider = Provider<GoRouter>((ref) {
 
   return GoRouter(
     navigatorKey: navigatorKey,
-    initialLocation: '/splash',
+    initialLocation: kIsWeb ? '/web-pairing' : '/splash',
     refreshListenable: _GoRouterRefreshStream(ref),
     routes: [
+      GoRoute(
+        path: WebPairingScreen.routePath,
+        pageBuilder: (context, state) => const MaterialPage(child: WebPairingScreen()),
+      ),
+      GoRoute(
+        path: WebMainScreen.routePath,
+        pageBuilder: (context, state) => const MaterialPage(child: WebMainScreen()),
+      ),
+      GoRoute(
+        path: OfflineRadarScreen.routePath,
+        pageBuilder: (context, state) => CustomTransitionPage(
+          key: state.pageKey,
+          child: const OfflineRadarScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) {
+            return FadeTransition(opacity: animation, child: child);
+          },
+        ),
+      ),
       GoRoute(
         path: '/splash',
         pageBuilder:
@@ -460,30 +495,6 @@ final routerProvider = Provider<GoRouter>((ref) {
                   position: animation.drive(
                     Tween(
                       begin: const Offset(1.0, 0.0),
-                      end: Offset.zero,
-                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
-                  ),
-                  child: child,
-                );
-              },
-            ),
-      ),
-      GoRoute(
-        path: '/ai-settings',
-        pageBuilder:
-            (context, state) => CustomTransitionPage(
-              key: state.pageKey,
-              child: const AiSettingsScreen(),
-              transitionsBuilder: (
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              ) {
-                return SlideTransition(
-                  position: animation.drive(
-                    Tween(
-                      begin: const Offset(0.0, 1.0),
                       end: Offset.zero,
                     ).chain(CurveTween(curve: Curves.easeOutQuart)),
                   ),
@@ -924,27 +935,6 @@ final routerProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
-        path: '/ai-chat',
-        pageBuilder: (context, state) {
-          final botId = state.uri.queryParameters['botId'] ?? 'ripple';
-          return CustomTransitionPage(
-            key: state.pageKey,
-            child: AiChatScreen(botId: botId),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return SlideTransition(
-                position: animation.drive(
-                  Tween(
-                    begin: const Offset(0.0, 1.0),
-                    end: Offset.zero,
-                  ).chain(CurveTween(curve: Curves.easeOutQuart)),
-                ),
-                child: child,
-              );
-            },
-          );
-        },
-      ),
-      GoRoute(
         path: '/chat-media-gallery',
         pageBuilder: (context, state) {
           final chatId = state.uri.queryParameters['chatId'] ?? '';
@@ -1167,10 +1157,83 @@ final routerProvider = Provider<GoRouter>((ref) {
               },
             ),
       ),
+      GoRoute(
+        path: '/software-update',
+        builder: (context, state) => const SoftwareUpdateScreen(),
+      ),
+      GoRoute(
+        path: '/offline-radar',
+        builder: (context, state) => const OfflineRadarScreen(),
+      ),
+      GoRoute(
+        path: '/storage-usage',
+        builder: (context, state) => const StorageUsageScreen(),
+      ),
+      GoRoute(
+        path: '/app-icon',
+        builder: (context, state) => const AppIconScreen(),
+      ),
+      GoRoute(
+        path: '/appearance',
+        builder: (context, state) => const AppearanceScreen(),
+      ),
+      GoRoute(
+        path: '/accessibility',
+        builder: (context, state) => const AccessibilityScreen(),
+      ),
+      GoRoute(
+        path: '/language',
+        builder: (context, state) => const LanguageScreen(),
+      ),
+      GoRoute(
+        path: '/chat-backup',
+        builder: (context, state) => const ChatBackupScreen(),
+      ),
+      GoRoute(
+        path: '/data-usage',
+        builder: (context, state) => const DataUsageScreen(),
+      ),
+      GoRoute(
+        path: '/notifications-settings',
+        builder: (context, state) => const NotificationsSettingsScreen(),
+      ),
+      GoRoute(
+        path: '/help',
+        builder: (context, state) => const HelpScreen(),
+      ),
+      GoRoute(
+        path: '/about',
+        builder: (context, state) => const AboutScreen(),
+      ),
+      GoRoute(
+        path: '/contact-support',
+        builder: (context, state) => const ContactSupportScreen(),
+      ),
+      GoRoute(
+        path: '/system-status',
+        builder: (context, state) => const SystemStatusScreen(),
+      ),
+      GoRoute(
+        path: '/account-security',
+        builder: (context, state) => const AccountSecurityScreen(),
+      ),
+      GoRoute(
+        path: '/edit-profile',
+        builder: (context, state) => const EditProfileScreen(),
+      ),
+      GoRoute(
+        path: '/qr-code',
+        builder: (context, state) => const QrCodeScreen(),
+      ),
       // Note: StatusViewerScreen requires a list of statuses and viewerName
       // Use MaterialPageRoute navigation from chat list instead
     ],
     redirect: (context, state) {
+      final loc = state.matchedLocation;
+      if (kIsWeb) {
+        if (loc == '/web-pairing' || loc == '/web-main') return null;
+        return '/web-pairing';
+      }
       // Read current state on each redirect evaluation (NOT watch)
       final authState = ref.read(authStateProvider);
       final currentUser = ref.read(currentUserProvider);
@@ -1179,7 +1242,6 @@ final routerProvider = Provider<GoRouter>((ref) {
       final isFullyRegistered = currentUser.valueOrNull != null;
       final isAuthLoading = authState.isLoading;
       final isUserLoading = currentUser.isLoading;
-      final loc = state.matchedLocation;
 
       // ── Rule 1: Root redirects to home ────────────────────
       if (loc == '/') return '/home';
@@ -1220,7 +1282,6 @@ class _GoRouterRefreshStream extends ChangeNotifier {
   _GoRouterRefreshStream(Ref ref) {
     // Watch auth changes — invalidate providers when UID changes
     ref.listen(authStateProvider, (previous, next) {
-      final prevUid = previous?.valueOrNull?.uid;
       final nextUid = next.valueOrNull?.uid;
 
       // When user changes (sign out or switch account),

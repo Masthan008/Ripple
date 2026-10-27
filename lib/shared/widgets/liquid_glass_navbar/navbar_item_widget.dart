@@ -127,8 +127,36 @@ class LiquidNavbarItemWidget extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            iconWidget,
-            const SizedBox(height: 4),
+            AnimatedContainer(
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutCubic,
+              width: 52,
+              height: 32,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                color: isSelected
+                    ? selectedColor.withValues(alpha: 0.18)
+                    : Colors.transparent,
+                border: Border.all(
+                  color: isSelected
+                      ? selectedColor.withValues(alpha: 0.35)
+                      : Colors.transparent,
+                  width: 1.2,
+                ),
+                boxShadow: isSelected
+                    ? [
+                        BoxShadow(
+                          color: selectedColor.withValues(alpha: 0.25),
+                          blurRadius: 12,
+                          spreadRadius: 1,
+                        ),
+                      ]
+                    : null,
+              ),
+              child: iconWidget,
+            ),
+            const SizedBox(height: 3),
             FittedBox(
               fit: BoxFit.contain,
               alignment: Alignment.center,
@@ -139,7 +167,7 @@ class LiquidNavbarItemWidget extends StatelessWidget {
                   fontSize: isSelected
                       ? selectedFontSize
                       : unselectedFontSize,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                 ),
               ),
             ),
