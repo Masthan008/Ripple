@@ -1,7 +1,6 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'dart:math' as math;
-
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 import '../../core/constants/app_colors.dart';
 
 /// Dynamic glassmorphism card that responds to touch and background
@@ -85,26 +84,12 @@ class _DynamicGlassCardState extends State<DynamicGlassCard>
                   ),
               ],
             ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(16),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: dynamicBlur,
-                  sigmaY: dynamicBlur,
-                ),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(_isPressed ? 0.15 : 0.1),
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: AppColors.aquaCyan.withOpacity(
-                          _isPressed ? 0.4 : 0.2 + (glowPhase * 0.1)),
-                      width: 1,
-                    ),
-                  ),
-                  child: widget.child,
-                ),
-              ),
+            child: GlassContainer(
+              useOwnLayer: true,
+              settings: LiquidGlassSettings.ios27Dark,
+              shape: const LiquidRoundedSuperellipse(borderRadius: 16),
+              color: Colors.white.withValues(alpha: _isPressed ? 0.15 : 0.1),
+              child: widget.child,
             ),
           );
         },

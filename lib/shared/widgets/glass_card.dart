@@ -1,12 +1,11 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 import '../../core/theme/theme_provider.dart';
 import '../../core/theme/glass_theme.dart';
 
-/// Reusable frosted glass card with BackdropFilter blur
-/// Core visual element of the Liquid Glass design system
-/// Supports animated blur via [animateBlur] for dynamic glassmorphism
+/// Reusable frosted glass card with official Liquid Glass shader rendering
+/// Powered by package:liquid_glass_widgets 1.16.0
 class GlassCard extends ConsumerWidget {
   final Widget child;
   final double borderRadius;
@@ -44,61 +43,31 @@ class GlassCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(rippleThemeProvider);
+    final isDark = theme.isDark;
 
-    Widget card;
+    final glassSettings = isDark
+        ? LiquidGlassSettings.ios27Dark
+        : LiquidGlassSettings.ios27Light;
 
-    if (animateBlur) {
-      card = TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: blur),
-        duration: animateDuration,
-        curve: Curves.easeOutCubic,
-        builder: (_, blurValue, child) => _buildCard(blurValue, child!, theme),
-        child: _buildInner(theme),
-      );
-    } else {
-      card = _buildCard(blur, _buildInner(theme), theme);
-    }
-
-    if (margin != null) {
-      card = Padding(padding: margin!, child: card);
-    }
+    Widget card = GlassContainer(
+      useOwnLayer: true,
+      settings: glassSettings,
+      shape: LiquidRoundedSuperellipse(borderRadius: borderRadius),
+      padding: padding ?? const EdgeInsets.all(20),
+      margin: margin,
+      color: backgroundColor ?? theme.colors.glassSurface,
+      child: _buildInner(theme),
+    );
 
     if (onTap != null) {
-      return GestureDetector(onTap: onTap, child: card);
+      return GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: card,
+      );
     }
 
     return card;
-  }
-
-  Widget _buildCard(double blurValue, Widget inner, dynamic theme) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurValue, sigmaY: blurValue),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: backgroundColor ?? theme.colors.glassSurface,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: borderColor ?? theme.colors.glassBorder,
-              width: 1,
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                (theme.isDark ? Colors.white : Colors.black).withOpacity(0.05),
-                Colors.transparent,
-                theme.colors.primary.withOpacity(0.03),
-              ],
-            ),
-            boxShadow: shadows ?? theme.shadows.soft,
-          ),
-          child: inner,
-        ),
-      ),
-    );
   }
 
   Widget _buildInner(dynamic theme) {
@@ -117,7 +86,7 @@ class GlassCard extends ConsumerWidget {
                     gradient: LinearGradient(
                       colors: [
                         Colors.transparent,
-                        theme.colors.primary.withOpacity(0.3),
+                        theme.colors.primary.withValues(alpha: 0.3),
                         Colors.transparent,
                       ],
                     ),

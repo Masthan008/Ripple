@@ -1,8 +1,8 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 
 import '../../../core/utils/l10n.dart';
 import '../../../core/theme/theme_provider.dart';
@@ -51,31 +51,20 @@ class LiquidNavbarRailWidget extends ConsumerWidget {
       L10n.s(ref, 'profile'),
     ];
 
-    return Container(
+    final glassSettings = theme.isDark
+        ? LiquidGlassSettings.ios27Dark
+        : LiquidGlassSettings.ios27Light;
+
+    return GlassContainer(
+      useOwnLayer: true,
       width: width,
       height: double.infinity,
-      decoration: BoxDecoration(
-        color: theme.colors.glassSurface,
-        border: Border(
-          right: BorderSide(
-            color: theme.colors.glassBorder,
-            width: 1.2,
-          ),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(theme.isDark ? 0.25 : 0.05),
-            blurRadius: 16,
-            offset: const Offset(4, 0),
-          ),
-        ],
-      ),
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-          child: SafeArea(
-            right: false,
-            child: Column(
+      settings: glassSettings,
+      shape: const LiquidRoundedRectangle(borderRadius: 0),
+      color: theme.colors.glassSurface,
+      child: SafeArea(
+        right: false,
+        child: Column(
               children: [
                 const SizedBox(height: 16),
                 // Logo Icon
@@ -130,8 +119,6 @@ class LiquidNavbarRailWidget extends ConsumerWidget {
                   ),
                 ),
               ],
-            ),
-          ),
         ),
       ),
     );

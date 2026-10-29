@@ -1,11 +1,11 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 import '../../core/theme/theme_provider.dart';
 import '../../core/theme/glass_theme.dart';
 
 /// Theme-aware glass card that automatically uses current theme colors
-/// Use this instead of GlassCard for dynamic theming
+/// Powered by package:liquid_glass_widgets 1.16.0
 class ThemeGlassCard extends ConsumerWidget {
   final Widget child;
   final double borderRadius;
@@ -33,70 +33,31 @@ class ThemeGlassCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(rippleThemeProvider);
+    final isDark = theme.isDark;
 
-    Widget card;
+    final glassSettings = isDark
+        ? LiquidGlassSettings.ios27Dark
+        : LiquidGlassSettings.ios27Light;
 
-    if (animateBlur) {
-      card = TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0, end: blur),
-        duration: animateDuration,
-        curve: Curves.easeOutCubic,
-        builder: (_, blurValue, child) => _buildCard(blurValue, child!, theme),
-        child: _buildInner(),
-      );
-    } else {
-      card = _buildCard(blur, _buildInner(), theme);
-    }
-
-    if (margin != null) {
-      card = Padding(padding: margin!, child: card);
-    }
+    Widget card = GlassContainer(
+      useOwnLayer: true,
+      settings: glassSettings,
+      shape: LiquidRoundedSuperellipse(borderRadius: borderRadius),
+      padding: padding ?? const EdgeInsets.all(20),
+      margin: margin,
+      color: theme.colors.glassSurface,
+      child: _buildInner(),
+    );
 
     if (onTap != null) {
       return GestureDetector(
         onTap: onTap,
+        behavior: HitTestBehavior.opaque,
         child: card,
       );
     }
 
     return card;
-  }
-
-  Widget _buildCard(double blurValue, Widget inner, dynamic theme) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(borderRadius),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: blurValue, sigmaY: blurValue),
-        child: Container(
-          padding: padding ?? const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: theme.colors.glassSurface,
-            borderRadius: BorderRadius.circular(borderRadius),
-            border: Border.all(
-              color: theme.colors.glassBorder,
-              width: 1,
-            ),
-            gradient: LinearGradient(
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-              colors: [
-                Colors.white.withOpacity(0.05),
-                Colors.transparent,
-                theme.colors.primary.withOpacity(0.03),
-              ],
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.15),
-                blurRadius: 15,
-                offset: const Offset(0, 5),
-              ),
-            ],
-          ),
-          child: inner,
-        ),
-      ),
-    );
   }
 
   Widget _buildInner() {

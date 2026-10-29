@@ -1,8 +1,7 @@
 import '../../../core/utils/haptic_feedback.dart';
-import 'dart:ui' show ImageFilter;
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart'; // Add this
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
@@ -120,31 +119,16 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
   Widget _buildInputBar() {
     final hasText = widget.controller.text.trim().isNotEmpty;
 
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(26),
-      child: BackdropFilter(
-        filter: kIsWeb ? ImageFilter.blur() : ImageFilter.blur(sigmaX: 16, sigmaY: 16),
-        child: Container(
+    return GlassContainer(
+      useOwnLayer: true,
+      settings: LiquidGlassSettings.ios27Dark,
+      shape: const LiquidRoundedSuperellipse(borderRadius: 26),
+      color: const Color(0xCC060D1A),
       padding: const EdgeInsets.only(
         left: 8,
         right: 8,
         top: 6,
         bottom: 6,
-      ),
-      decoration: BoxDecoration(
-        color: const Color(0xCC060D1A),
-        borderRadius: BorderRadius.circular(26),
-        border: Border.all(
-          color: const Color(0x18FFFFFF),
-          width: 0.5,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.25),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -308,8 +292,6 @@ class _GlassInputBarState extends ConsumerState<GlassInputBar> {
             ),
         ],
       ),
-    ),
-    ),
     );
   }
 
