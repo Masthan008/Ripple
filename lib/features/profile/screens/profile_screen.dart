@@ -299,7 +299,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                     children: [
                       _buildPillAction(
                         icon: Icons.edit_note_rounded,
-                        label: 'Edit Profile',
+                        label: L10n.s(ref, 'editProfile'),
                         textColor: textColor,
                         cardBg: cardBg,
                         borderColor: borderColor,
@@ -313,7 +313,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                       const SizedBox(width: 16),
                       _buildPillAction(
                         icon: Icons.bookmark_rounded,
-                        label: 'Saved Messages',
+                        label: L10n.s(ref, 'savedMessages'),
                         textColor: textColor,
                         cardBg: cardBg,
                         borderColor: borderColor,
@@ -430,7 +430,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   const SizedBox(height: 20),
 
                   // 6. User Bio & Account Details Card
-                  _SectionHeader(title: 'Account Information', color: textColor),
+                  _SectionHeader(title: L10n.s(ref, 'account'), color: textColor),
                   const SizedBox(height: 8),
                   Container(
                     decoration: BoxDecoration(
@@ -477,7 +477,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   const SizedBox(height: 20),
 
                   // 7. Media & Storage Overview Card
-                  _SectionHeader(title: 'Media & Storage', color: textColor),
+                  _SectionHeader(title: L10n.s(ref, 'storageAndData'), color: textColor),
                   const SizedBox(height: 8),
                   Container(
                     decoration: BoxDecoration(

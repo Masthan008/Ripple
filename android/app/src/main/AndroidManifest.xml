@@ -60,7 +60,7 @@
             android:name=".MainActivityAbyss"
             android:enabled="false"
             android:exported="true"
-            android:icon="@drawable/ic_launcher_abyss"
+            android:icon="@mipmap/ic_launcher"
             android:roundIcon="@drawable/ic_launcher_abyss"
             android:label="Ripple"
             android:targetActivity=".MainActivity">
@@ -74,7 +74,7 @@
             android:name=".MainActivityGold"
             android:enabled="false"
             android:exported="true"
-            android:icon="@drawable/ic_launcher_gold"
+            android:icon="@mipmap/ic_launcher"
             android:roundIcon="@drawable/ic_launcher_gold"
             android:label="Ripple"
             android:targetActivity=".MainActivity">
@@ -88,7 +88,7 @@
             android:name=".MainActivityGlitch"
             android:enabled="false"
             android:exported="true"
-            android:icon="@drawable/ic_launcher_glitch"
+            android:icon="@mipmap/ic_launcher"
             android:roundIcon="@drawable/ic_launcher_glitch"
             android:label="Ripple"
             android:targetActivity=".MainActivity">
@@ -102,7 +102,7 @@
             android:name=".MainActivityForest"
             android:enabled="false"
             android:exported="true"
-            android:icon="@drawable/ic_launcher_forest"
+            android:icon="@mipmap/ic_launcher"
             android:roundIcon="@drawable/ic_launcher_forest"
             android:label="Ripple"
             android:targetActivity=".MainActivity">
@@ -116,7 +116,7 @@
             android:name=".MainActivitySunset"
             android:enabled="false"
             android:exported="true"
-            android:icon="@drawable/ic_launcher_sunset"
+            android:icon="@mipmap/ic_launcher"
             android:roundIcon="@drawable/ic_launcher_sunset"
             android:label="Ripple"
             android:targetActivity=".MainActivity">

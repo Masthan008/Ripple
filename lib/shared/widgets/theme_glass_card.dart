@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 import '../../core/theme/theme_provider.dart';
 import '../../core/theme/glass_theme.dart';
+import '../../features/profile/providers/accessibility_provider.dart';
 
 /// Theme-aware glass card that automatically uses current theme colors
 /// Powered by package:liquid_glass_widgets 1.16.0
@@ -33,20 +34,35 @@ class ThemeGlassCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = ref.watch(rippleThemeProvider);
+    final accessibility = ref.watch(accessibilityProvider);
     final isDark = theme.isDark;
+    final isHighContrast = accessibility.highContrast;
 
     final glassSettings = isDark
         ? LiquidGlassSettings.ios27Dark
         : LiquidGlassSettings.ios27Light;
 
-    Widget card = GlassContainer(
-      useOwnLayer: true,
-      settings: glassSettings,
-      shape: LiquidRoundedSuperellipse(borderRadius: borderRadius),
-      padding: padding ?? const EdgeInsets.all(20),
-      margin: margin,
-      color: theme.colors.glassSurface,
-      child: _buildInner(),
+    Widget card = Container(
+      decoration: isHighContrast
+          ? BoxDecoration(
+              borderRadius: BorderRadius.circular(borderRadius),
+              border: Border.all(
+                color: isDark ? Colors.white70 : const Color(0xFF0F172A),
+                width: 1.5,
+              ),
+            )
+          : null,
+      child: GlassContainer(
+        useOwnLayer: true,
+        settings: glassSettings,
+        shape: LiquidRoundedSuperellipse(borderRadius: borderRadius),
+        padding: padding ?? const EdgeInsets.all(20),
+        margin: margin,
+        color: isHighContrast
+            ? (isDark ? const Color(0xFF0F172A) : const Color(0xFFFFFFFF))
+            : theme.colors.glassSurface,
+        child: _buildInner(),
+      ),
     );
 
     if (onTap != null) {

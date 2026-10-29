@@ -557,7 +557,7 @@ class ThemePresets {
       primary: Color(0xFF0EA5E9),
       secondary: Color(0xFF38BDF8),
       accent: Color(0xFF7DD3FC),
-      background: Color(0xFFF8FAFC),
+      background: Color(0xFFF1F5F9),
       surface: Color(0xFFFFFFFF),
       surfaceHighlight: Color(0xFFF1F5F9),
       textPrimary: Color(0xFF0F172A),
@@ -567,8 +567,8 @@ class ThemePresets {
       error: Color(0xFFEF4444),
       warning: Color(0xFFF59E0B),
       online: Color(0xFF22C55E),
-      glassBorder: Color(0x330EA5E9), // Light blue tint
-      glassSurface: Color(0x80FFFFFF), // More opaque white for light theme
+      glassBorder: Color(0x290F172A), // Crisp visible contrast border
+      glassSurface: Color(0xF0FFFFFF), // High opacity white for perfect text contrast
       bubbleIncoming: Color(0xE6FFFFFF),
       bubbleOutgoing: Color(0xE6E0F2FE), // Very light blue
     ),
@@ -649,7 +649,7 @@ class ThemePresets {
       background: Color(0xFFEBEFF5), // Soft pastel lavender-blue base instead of pure white
       surface: Color(0xFFF2F5FA), // iOS System Light Grey
       surfaceHighlight: Color(0xFFE5E5EA),
-      textPrimary: Color(0xFF1C1C1E), // Light-mode deep grey
+      textPrimary: Color(0xFF0F172A), // Crisp high-contrast dark text
       textSecondary: Color(0xFF3A3A3C),
       textMuted: Color(0xFF8E8E93),
       success: Color(0xFF34C759),
@@ -657,7 +657,7 @@ class ThemePresets {
       warning: Color(0xFFFF9500),
       online: Color(0xFF34C759),
       glassBorder: Color(0x3D8E8E93), // Slightly more distinct border
-      glassSurface: Color(0xA0FFFFFF), // Glossy semi-transparent white glass
+      glassSurface: Color(0xF0FFFFFF), // High opacity crisp white glass
       bubbleIncoming: Color(0xFFE5E5EA),
       bubbleOutgoing: Color(0xFF007AFF),
     ),

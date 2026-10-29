@@ -5,7 +5,6 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/theme/theme_models.dart';
 import '../../../core/theme/theme_provider.dart';
-import '../../../core/theme/smart_theme_switcher.dart';
 import '../../../core/utils/l10n.dart';
 import '../../../shared/widgets/glass_card.dart';
 import '../providers/settings_provider.dart';
@@ -15,7 +14,6 @@ class AppearanceScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final currentTheme = ref.watch(themeProvider);
     final currentBubble = ref.watch(bubbleStyleProvider);
     final currentFontSize = ref.watch(fontSizeProvider);
     final rippleTheme = ref.watch(rippleThemeProvider);
@@ -164,7 +162,7 @@ class AppearanceScreen extends ConsumerWidget {
                 const SizedBox(height: 24),
 
                 // ORIGINAL 3 Themes (now mapped to Ripple Themes)
-                _sectionHeaderWithIcon(Icons.auto_awesome_outlined, 'Classic Themes', rippleTheme.colors.primary.withOpacity(0.7)),
+                _sectionHeaderWithIcon(Icons.palette_outlined, 'Classic Themes', rippleTheme.colors.primary.withOpacity(0.7)),
                 const SizedBox(height: 8),
                 Row(
                   children: [
@@ -274,80 +272,7 @@ class AppearanceScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 24),
 
-                // Smart Theme Switcher section
-                _sectionHeaderWithIcon(Icons.auto_mode_outlined, 'Smart Theme Switcher', rippleTheme.colors.primary.withOpacity(0.7)),
-                const SizedBox(height: 8),
-                GestureDetector(
-                  onTap: () {
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: Colors.transparent,
-                      isScrollControlled: true,
-                      builder: (_) => const SmartThemeSettingsSheet(),
-                    );
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          rippleTheme.colors.glassSurface,
-                          rippleTheme.colors.surface.withOpacity(0.5),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(
-                        color: rippleTheme.colors.glassBorder,
-                        width: 1,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Container(
-                          padding: const EdgeInsets.all(10),
-                          decoration: BoxDecoration(
-                            gradient: rippleTheme.gradients.primary,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.schedule,
-                            color: Colors.white,
-                            size: 20,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Auto Theme Switching',
-                                style: TextStyle(
-                                  color: rippleTheme.colors.textPrimary,
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                'Themes change based on time of day',
-                                style: TextStyle(
-                                  color: rippleTheme.colors.textMuted,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Icon(
-                          Icons.chevron_right,
-                          color: rippleTheme.colors.textMuted,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 32),
+
 
                 // Bubble style section
                 _sectionHeaderWithIcon(Icons.chat_bubble_outline_rounded, L10n.s(ref, 'chatBubbleStyle'), rippleTheme.colors.primary.withOpacity(0.7)),

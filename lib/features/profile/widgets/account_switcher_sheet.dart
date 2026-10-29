@@ -161,18 +161,43 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
                           ),
                     onTap: () async {
                       if (!isActive) {
-                        final success = await AccountVaultService.switchAccount(acc);
+                        bool success = false;
+                        if (acc.password != null && acc.password!.isNotEmpty) {
+                          success = await AccountVaultService.switchAccount(acc);
+                        } else {
+                          final pwd = await _promptPasswordDialog(context, acc);
+                          if (pwd != null && pwd.isNotEmpty) {
+                            final updatedAcc = SavedAccount(
+                              uid: acc.uid,
+                              email: acc.email,
+                              displayName: acc.displayName,
+                              password: pwd,
+                              photoUrl: acc.photoUrl,
+                              phoneNumber: acc.phoneNumber,
+                              lastActive: DateTime.now(),
+                            );
+                            await AccountVaultService.saveAccount(updatedAcc);
+                            success = await AccountVaultService.switchAccount(updatedAcc);
+                          }
+                        }
                         if (context.mounted) {
                           Navigator.pop(context);
                           if (success) {
                             ref.invalidate(authStateProvider);
                             ref.invalidate(currentUserProvider);
+                            context.go('/home');
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Switched to ${acc.displayName}')),
+                              SnackBar(
+                                content: Text('Switched to ${acc.displayName}'),
+                                backgroundColor: AppColors.onlineGreen,
+                              ),
                             );
                           } else {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Could not switch to ${acc.displayName}. Please log in again.')),
+                              SnackBar(
+                                content: Text('Could not switch to ${acc.displayName}. Please log in again.'),
+                                backgroundColor: AppColors.errorRed,
+                              ),
                             );
                           }
                         }
@@ -188,7 +213,7 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
               InkWell(
                 onTap: () {
                   Navigator.pop(context);
-                  context.push('/login');
+                  context.push('/login?addAccount=true');
                 },
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
@@ -224,4 +249,67 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
       ),
     );
   }
+
+  Future<String?> _promptPasswordDialog(BuildContext context, SavedAccount acc) async {
+    final pwdCtrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF0F172A),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: AppColors.aquaCore),
+        ),
+        title: Row(
+          children: [
+            const Icon(Icons.lock_outline_rounded, color: AppColors.aquaCore),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Switch to ${acc.displayName}',
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Enter password for ${acc.email}:', style: const TextStyle(color: Colors.white70, fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: pwdCtrl,
+              obscureText: true,
+              style: const TextStyle(color: Colors.white),
+              decoration: InputDecoration(
+                hintText: 'Password',
+                hintStyle: const TextStyle(color: Colors.white30),
+                filled: true,
+                fillColor: Colors.white10,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, null),
+            child: const Text('Cancel', style: TextStyle(color: Colors.white54)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, pwdCtrl.text.trim()),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.aquaCore,
+              foregroundColor: Colors.black,
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+
 }

@@ -129,6 +129,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final user = ref.watch(currentUserProvider);
 
     final theme = ref.watch(rippleThemeProvider);
+    final isDark = theme.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textMuted = isDark ? AppColors.textSecondary : const Color(0xFF64748B);
+    final cardBg = isDark
+        ? Colors.white.withValues(alpha: 0.04)
+        : Colors.black.withValues(alpha: 0.03);
+    final cardBorder = isDark
+        ? Colors.white.withValues(alpha: 0.08)
+        : Colors.black.withValues(alpha: 0.06);
 
 
 
@@ -138,7 +147,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       appBar: AppBar(
 
-        title: const Text('Settings', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: Text(L10n.s(ref, 'settings'), style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
 
         backgroundColor: Colors.transparent,
 
@@ -146,7 +155,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
         leading: IconButton(
 
-          icon: const Icon(Icons.arrow_back_ios_rounded, color: Colors.white),
+          icon: Icon(Icons.arrow_back_ios_rounded, color: textColor),
 
           onPressed: () => Navigator.of(context).pop(),
 
@@ -184,11 +193,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                     decoration: BoxDecoration(
 
-                      color: Colors.white.withOpacity(0.05),
+                      color: cardBg,
 
                       borderRadius: BorderRadius.circular(20),
 
-                      border: Border.all(color: Colors.white.withOpacity(0.08), width: 0.5),
+                      border: Border.all(color: cardBorder, width: 0.8),
 
                     ),
 
@@ -226,7 +235,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                                       u.name,
 
-                                      style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+                                      style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
 
                                       maxLines: 1,
 
@@ -416,9 +425,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                   // Settings Groups
 
-                  _buildGroupHeader('Account'),
+                  _buildGroupHeader(L10n.s(ref, 'account'), textMuted),
 
-                  _buildGroupCard([
+                  _buildGroupCard(cardBg, cardBorder, [
 
                     _SettingsRow(
 
@@ -466,9 +475,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
 
 
-                  _buildGroupHeader('Preferences'),
+                  _buildGroupHeader(L10n.s(ref, 'preferences'), textMuted),
 
-                  _buildGroupCard([
+                  _buildGroupCard(cardBg, cardBorder, [
 
                     _SettingsRow(
 
@@ -572,9 +581,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
 
 
-                  _buildGroupHeader('Storage & Data'),
+                  _buildGroupHeader(L10n.s(ref, 'storageAndData'), textMuted),
 
-                  _buildGroupCard([
+                  _buildGroupCard(cardBg, cardBorder, [
 
                     _SettingsRow(
 
@@ -608,9 +617,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
 
 
-                  _buildGroupHeader('Support & About'),
+                  _buildGroupHeader(L10n.s(ref, 'support'), textMuted),
 
-                  _buildGroupCard([
+                  _buildGroupCard(cardBg, cardBorder, [
 
                     _SettingsRow(
 
@@ -754,90 +763,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
 
 
-  Widget _buildGroupHeader(String title) {
-
+  Widget _buildGroupHeader(String title, Color textMuted) {
     return Align(
-
       alignment: Alignment.centerLeft,
-
       child: Padding(
-
         padding: const EdgeInsets.only(left: 6, bottom: 6, top: 16),
-
         child: Text(
-
           title.toUpperCase(),
-
-          style: const TextStyle(
-
-            color: Colors.white38,
-
+          style: TextStyle(
+            color: textMuted,
             fontSize: 11,
-
             fontWeight: FontWeight.w600,
-
             letterSpacing: 0.8,
-
           ),
-
         ),
-
       ),
-
     );
-
   }
 
 
 
-  Widget _buildGroupCard(List<Widget> children) {
-
+  Widget _buildGroupCard(Color cardBg, Color cardBorder, List<Widget> children) {
     return Container(
-
       decoration: BoxDecoration(
-
-        color: Colors.white.withOpacity(0.03),
-
+        color: cardBg,
         borderRadius: BorderRadius.circular(20),
-
-        border: Border.all(color: Colors.white.withOpacity(0.05), width: 0.5),
-
+        border: Border.all(color: cardBorder, width: 0.8),
       ),
-
       child: Column(
-
         children: List.generate(children.length, (index) {
-
           if (index == children.length - 1) return children[index];
-
           return Column(
-
             children: [
-
               children[index],
-
               Divider(
-
                 height: 0.5,
-
                 thickness: 0.5,
-
-                color: Colors.white.withOpacity(0.04),
-
+                color: cardBorder,
                 indent: 52,
-
               ),
-
             ],
-
           );
-
         }),
-
       ),
-
     );
-
   }
 
 
@@ -1244,121 +1213,69 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
 
 
-class _SettingsRow extends StatelessWidget {
-
+class _SettingsRow extends ConsumerWidget {
   final IconData icon;
-
   final Color iconColor;
-
   final String title;
-
   final String subtitle;
-
   final VoidCallback onTap;
 
-
-
   const _SettingsRow({
-
     required this.icon,
-
     required this.iconColor,
-
     required this.title,
-
     required this.subtitle,
-
     required this.onTap,
-
   });
 
-
-
   @override
-
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final theme = ref.watch(rippleThemeProvider);
+    final isDark = theme.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textMuted = isDark ? Colors.white38 : const Color(0xFF64748B);
+    final chevronColor = isDark ? Colors.white30 : const Color(0xFF94A3B8);
 
     return InkWell(
-
       onTap: onTap,
-
       borderRadius: BorderRadius.circular(16),
-
       child: Padding(
-
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-
         child: Row(
-
           children: [
-
             Container(
-
               width: 32,
-
               height: 32,
-
               decoration: BoxDecoration(
-
                 color: iconColor.withOpacity(0.12),
-
                 shape: BoxShape.circle,
-
               ),
-
               child: Icon(icon, color: iconColor, size: 18),
-
             ),
-
             const SizedBox(width: 14),
-
             Expanded(
-
               child: Column(
-
                 crossAxisAlignment: CrossAxisAlignment.start,
-
                 children: [
-
                   Text(
-
                     title,
-
-                    style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.w600),
-
+                    style: TextStyle(color: textColor, fontSize: 14, fontWeight: FontWeight.w600),
                   ),
-
                   const SizedBox(height: 1),
-
                   Text(
-
                     subtitle,
-
-                    style: const TextStyle(color: Colors.white38, fontSize: 11),
-
+                    style: TextStyle(color: textMuted, fontSize: 11),
                     maxLines: 1,
-
                     overflow: TextOverflow.ellipsis,
-
                   ),
-
                 ],
-
               ),
-
             ),
-
-            const Icon(Icons.chevron_right_rounded, color: Colors.white30, size: 20),
-
+            Icon(Icons.chevron_right_rounded, color: chevronColor, size: 20),
           ],
-
         ),
-
       ),
-
     );
-
   }
-
 }
 

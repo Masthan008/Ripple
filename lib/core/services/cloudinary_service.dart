@@ -1,3 +1,4 @@
+import '../../features/profile/providers/settings_provider.dart';
 import 'dart:io';
 import 'package:dio/dio.dart';
 import '../utils/env.dart';
@@ -26,6 +27,10 @@ class CloudinaryService {
       );
 
       if (response.statusCode == 200) {
+        try {
+          final bytes = file.lengthSync();
+          DataUsageTracker.record(sent: bytes, received: 1024);
+        } catch (_) {}
         return response.data['secure_url'] as String?;
       }
       return null;
@@ -51,6 +56,10 @@ class CloudinaryService {
       );
 
       if (response.statusCode == 200) {
+        try {
+          final bytes = file.lengthSync();
+          DataUsageTracker.record(sent: bytes, received: 1024);
+        } catch (_) {}
         return response.data['secure_url'] as String?;
       }
       return null;

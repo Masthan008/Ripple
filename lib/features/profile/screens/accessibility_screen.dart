@@ -1,10 +1,10 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/theme/theme_provider.dart';
-import '../../../shared/widgets/glass_card.dart';
 import '../../../shared/widgets/theme_glass_card.dart';
 import '../providers/accessibility_provider.dart';
 
@@ -32,9 +32,14 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
 
   void _testTextToSpeech() {
     setState(() => _isSpeakingDemo = true);
+    HapticFeedback.mediumImpact();
+    SemanticsService.announce(
+      'Welcome to Ripple. Screen reader announcement test active.',
+      TextDirection.ltr,
+    );
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('🗣️ Narrator: "Welcome to Ripple. Your accessible AI messaging companion."'),
+        content: Text('🗣️ Screen reader announcement triggered: "Welcome to Ripple."'),
         duration: Duration(seconds: 3),
         backgroundColor: Color(0xFF8B5CF6),
       ),
@@ -49,6 +54,9 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
     final theme = ref.watch(rippleThemeProvider);
     final accessibility = ref.watch(accessibilityProvider);
     final notifier = ref.read(accessibilityProvider.notifier);
+    final isDark = theme.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF0F172A);
+    final textMuted = isDark ? Colors.white54 : const Color(0xFF64748B);
 
     return Scaffold(
       backgroundColor: theme.colors.background,
@@ -100,14 +108,14 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           // Active features status banner
-          _buildStatusBanner(accessibility),
+          _buildStatusBanner(accessibility, textColor, textMuted),
           const SizedBox(height: 16),
 
           // Visual Section
           _sectionHeader('VISUAL ENHANCEMENTS', const Color(0xFF0EA5E9)),
           const SizedBox(height: 8),
 
-          _buildToggleTile(
+          _buildToggleTile(textColor: textColor, textMuted: textMuted, 
             icon: Icons.contrast_rounded,
             iconColor: const Color(0xFF0EA5E9),
             title: 'High Contrast Mode',
@@ -116,7 +124,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
             onChanged: notifier.toggleHighContrast,
           ),
 
-          _buildToggleTile(
+          _buildToggleTile(textColor: textColor, textMuted: textMuted, 
             icon: Icons.format_size_rounded,
             iconColor: const Color(0xFF3B82F6),
             title: 'Larger Text (125%)',
@@ -125,7 +133,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
             onChanged: notifier.toggleLargerText,
           ),
 
-          _buildToggleTile(
+          _buildToggleTile(textColor: textColor, textMuted: textMuted, 
             icon: Icons.color_lens_rounded,
             iconColor: const Color(0xFF10B981),
             title: 'Color Blind Friendly Indicators',
@@ -139,7 +147,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
           _sectionHeader('MOTION & TOUCH HAPTICS', const Color(0xFFF59E0B)),
           const SizedBox(height: 8),
 
-          _buildToggleTile(
+          _buildToggleTile(textColor: textColor, textMuted: textMuted, 
             icon: Icons.animation_rounded,
             iconColor: const Color(0xFFF59E0B),
             title: 'Reduced Motion',
@@ -148,7 +156,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
             onChanged: notifier.toggleReducedMotion,
           ),
 
-          _buildToggleTile(
+          _buildToggleTile(textColor: textColor, textMuted: textMuted, 
             icon: Icons.vibration_rounded,
             iconColor: const Color(0xFFEC4899),
             title: 'Haptic Touch Feedback',
@@ -159,7 +167,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
             testLabel: 'Test Vibration',
           ),
 
-          _buildToggleTile(
+          _buildToggleTile(textColor: textColor, textMuted: textMuted, 
             icon: Icons.ads_click_rounded,
             iconColor: const Color(0xFF8B5CF6),
             title: 'Large Touch Targets',
@@ -173,7 +181,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
           _sectionHeader('SCREEN READER & VOICE NARRATION', const Color(0xFF8B5CF6)),
           const SizedBox(height: 8),
 
-          _buildToggleTile(
+          _buildToggleTile(textColor: textColor, textMuted: textMuted, 
             icon: Icons.record_voice_over_rounded,
             iconColor: const Color(0xFF8B5CF6),
             title: 'Screen Reader Optimizations',
@@ -182,7 +190,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
             onChanged: notifier.toggleScreenReaderOptimized,
           ),
 
-          _buildToggleTile(
+          _buildToggleTile(textColor: textColor, textMuted: textMuted, 
             icon: Icons.volume_up_rounded,
             iconColor: const Color(0xFF06B6D4),
             title: 'Text-to-Speech (TTS) Narrator',
@@ -206,7 +214,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    const Text('Text Scale Factor', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                    Text('Text Scale Factor', style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 14)),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       decoration: BoxDecoration(
@@ -224,7 +232,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    const Text('A', style: TextStyle(color: Colors.white54, fontSize: 12, fontWeight: FontWeight.bold)),
+                    Text('A', style: TextStyle(color: textMuted, fontSize: 12, fontWeight: FontWeight.bold)),
                     Expanded(
                       child: Slider(
                         value: accessibility.effectiveTextScale,
@@ -236,7 +244,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
                         onChanged: (val) => notifier.setTextScale(val),
                       ),
                     ),
-                    const Text('A', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.bold)),
+                    Text('A', style: TextStyle(color: textColor, fontSize: 22, fontWeight: FontWeight.bold)),
                   ],
                 ),
               ],
@@ -247,7 +255,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
           _sectionHeader('LIVE INTERACTIVE PREVIEW', const Color(0xFF3B82F6)),
           const SizedBox(height: 8),
 
-          _buildLivePreviewCard(accessibility),
+          _buildLivePreviewCard(accessibility, textColor, textMuted),
 
           const SizedBox(height: 32),
         ],
@@ -255,7 +263,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
     );
   }
 
-  Widget _buildStatusBanner(AccessibilitySettings accessibility) {
+  Widget _buildStatusBanner(AccessibilitySettings accessibility, Color textColor, Color textMuted) {
     final activeCount = [
       accessibility.highContrast,
       accessibility.reducedMotion,
@@ -293,12 +301,12 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
               children: [
                 Text(
                   activeCount > 0 ? '$activeCount Feature${activeCount > 1 ? 's' : ''} Active' : 'Default Profile',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                  style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 15),
                 ),
                 const SizedBox(height: 2),
                 Text(
                   activeCount > 0 ? 'Customized for inclusive accessibility' : 'Standard visual & motion settings',
-                  style: const TextStyle(color: Colors.white54, fontSize: 12),
+                  style: TextStyle(color: textMuted, fontSize: 12),
                 ),
               ],
             ),
@@ -329,6 +337,8 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
   }
 
   Widget _buildToggleTile({
+    required Color textColor,
+    required Color textMuted,
     required IconData icon,
     required Color iconColor,
     required String title,
@@ -361,9 +371,9 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(title, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 14)),
                       const SizedBox(height: 2),
-                      Text(subtitle, style: const TextStyle(color: Colors.white54, fontSize: 11, height: 1.3)),
+                      Text(subtitle, style: TextStyle(color: textMuted, fontSize: 11, height: 1.3)),
                     ],
                   ),
                 ),
@@ -396,7 +406,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
     );
   }
 
-  Widget _buildLivePreviewCard(AccessibilitySettings accessibility) {
+  Widget _buildLivePreviewCard(AccessibilitySettings accessibility, Color textColor, Color textMuted) {
     return ThemeGlassCard(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -426,7 +436,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
           Text(
             'Live Screen Contrast & Scale',
             style: TextStyle(
-              color: Colors.white,
+              color: textColor,
               fontSize: 16 * accessibility.effectiveTextScale,
               fontWeight: FontWeight.bold,
             ),
@@ -435,7 +445,7 @@ class _AccessibilityScreenState extends ConsumerState<AccessibilityScreen> {
           Text(
             'This box dynamically previews font scale, text weight, contrast ratios, and color adjustments in real time.',
             style: TextStyle(
-              color: Colors.white70,
+              color: textMuted,
               fontSize: 12 * accessibility.effectiveTextScale,
               height: 1.4,
             ),

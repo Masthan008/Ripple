@@ -1241,7 +1241,12 @@ final routerProvider = Provider<GoRouter>((ref) {
       }
 
       // ── Rule 6: Fully registered ──────────────────────────
-      if (loc == '/login' || loc == '/register') return '/home';
+      if (loc == '/login' || loc == '/register') {
+        if (state.uri.queryParameters['addAccount'] == 'true') {
+          return null;
+        }
+        return '/home';
+      }
 
       // Already on correct screen — no redirect
       return null;

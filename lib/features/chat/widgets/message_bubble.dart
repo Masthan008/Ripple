@@ -254,30 +254,32 @@ class _MessageBubbleState extends ConsumerState<MessageBubble>
                           ),
                         ),
 
-                      // Bubble
-                      Container(
-                        padding: _getPadding(),
-                        decoration:
-                            widget.isMe
-                                ? _getOutgoingDecoration(bubbleStyle, sentienceState)
-                                : _getIncomingDecoration(bubbleStyle, sentienceState),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Reply preview inside bubble
-                            if (widget.message.replyTo != null)
-                              _buildReplyPreview(),
+                      // Bubble (Isolated with RepaintBoundary for 60fps scrolling & zero-lag style switches)
+                      RepaintBoundary(
+                        child: Container(
+                          padding: _getPadding(),
+                          decoration:
+                              widget.isMe
+                                  ? _getOutgoingDecoration(bubbleStyle, sentienceState)
+                                  : _getIncomingDecoration(bubbleStyle, sentienceState),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Reply preview inside bubble
+                              if (widget.message.replyTo != null)
+                                _buildReplyPreview(),
 
-                            // Content
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.end,
-                              children: [
-                                _buildContent(ref, fontSize),
-                                const SizedBox(height: 4),
-                                _buildTimestamp(ref),
-                              ],
-                            ),
-                          ],
+                              // Content
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.end,
+                                children: [
+                                  _buildContent(ref, fontSize),
+                                  const SizedBox(height: 4),
+                                  _buildTimestamp(ref),
+                                ],
+                              ),
+                            ],
+                          ),
                         ),
                       ),
 

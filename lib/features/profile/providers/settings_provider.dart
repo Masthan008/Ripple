@@ -119,28 +119,32 @@ class DataUsage {
   }
 }
 
-class DataUsageNotifier extends StateNotifier<DataUsage> {
-  Timer? _simTimer;
+/// Real-Time Data Usage Tracker across all HTTP, Media and WebSocket calls
+class DataUsageTracker {
+  static DataUsageNotifier? _notifier;
 
-  DataUsageNotifier() : super(const DataUsage(wifiSent: 0, wifiReceived: 0, cellularSent: 0, cellularReceived: 0)) {
-    _load();
-    _simTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
-      _incrementSimulatedTelemetry();
-    });
+  static void register(DataUsageNotifier notifier) {
+    _notifier = notifier;
   }
 
-  @override
-  void dispose() {
-    _simTimer?.cancel();
-    super.dispose();
+  static void record({int sent = 0, int received = 0, bool isWifi = true}) {
+    if (sent <= 0 && received <= 0) return;
+    _notifier?.addBytes(sent: sent, received: received, isWifi: isWifi);
+  }
+}
+
+class DataUsageNotifier extends StateNotifier<DataUsage> {
+  DataUsageNotifier() : super(const DataUsage(wifiSent: 0, wifiReceived: 0, cellularSent: 0, cellularReceived: 0)) {
+    DataUsageTracker.register(this);
+    _load();
   }
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final ws = prefs.getInt('wifi_sent') ?? (12 * 1024 * 1024);
-    final wr = prefs.getInt('wifi_received') ?? (145 * 1024 * 1024);
-    final cs = prefs.getInt('cellular_sent') ?? (3 * 1024 * 1024);
-    final cr = prefs.getInt('cellular_received') ?? (32 * 1024 * 1024);
+    final ws = prefs.getInt('wifi_sent') ?? 0;
+    final wr = prefs.getInt('wifi_received') ?? 0;
+    final cs = prefs.getInt('cellular_sent') ?? 0;
+    final cr = prefs.getInt('cellular_received') ?? 0;
     state = DataUsage(wifiSent: ws, wifiReceived: wr, cellularSent: cs, cellularReceived: cr);
   }
 
@@ -159,13 +163,6 @@ class DataUsageNotifier extends StateNotifier<DataUsage> {
       await prefs.setInt('cellular_received', cr);
       state = state.copyWith(cellularSent: cs, cellularReceived: cr);
     }
-  }
-
-  Future<void> _incrementSimulatedTelemetry() async {
-    final isWifi = (DateTime.now().second % 3 != 0);
-    final sent = 50 + (DateTime.now().millisecond % 150);
-    final received = 100 + (DateTime.now().millisecond % 300);
-    await addBytes(sent: sent, received: received, isWifi: isWifi);
   }
 
   Future<void> resetStats() async {

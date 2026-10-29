@@ -250,6 +250,72 @@ class _SoftwareUpdateScreenState extends ConsumerState<SoftwareUpdateScreen>
 
               const SizedBox(height: 36),
 
+              // ─── Download Progress Indicator ─────────────────────────
+              if (updateService.status == AppUpdateStatus.downloading) ...[
+                const SizedBox(height: 16),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text('Downloading APK...', style: TextStyle(color: textPrimary, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Text('${(updateService.downloadProgress * 100).toInt()}%', style: const TextStyle(color: AppColors.aquaCore, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: LinearProgressIndicator(
+                        value: updateService.downloadProgress > 0 ? updateService.downloadProgress : null,
+                        backgroundColor: cardBorder,
+                        valueColor: const AlwaysStoppedAnimation(AppColors.aquaCore),
+                        minHeight: 8,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+
+              // ─── Changelog Box ───────────────────────────────────────
+              if (updateService.changelog.isNotEmpty) ...[
+                const SizedBox(height: 20),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cardBorder, width: 1),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.new_releases_outlined, color: AppColors.aquaCore, size: 18),
+                          const SizedBox(width: 8),
+                          Text('What\'s New in this Update', style: TextStyle(color: textPrimary, fontSize: 13, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      ...updateService.changelog.map((item) => Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('• ', style: TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.bold)),
+                            Expanded(child: Text(item, style: TextStyle(color: textSecondary, fontSize: 12, height: 1.4))),
+                          ],
+                        ),
+                      )),
+                    ],
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 24),
+
               // ─── Action Button Trigger ───────────────────────────────
               _buildActionButton(updateService, context),
 
@@ -386,7 +452,7 @@ class _SoftwareUpdateScreenState extends ConsumerState<SoftwareUpdateScreen>
         break;
       case AppUpdateStatus.downloading:
         headline = 'Downloading Update';
-        description = 'Streaming delta snapshot from cloud CDN...';
+        description = 'Streaming update package (${(service.downloadProgress * 100).toInt()}%)...';
         break;
       case AppUpdateStatus.restartRequired:
         headline = 'Update Staged & Ready';
