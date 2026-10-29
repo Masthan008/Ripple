@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
+
 import '../../../core/utils/l10n.dart';
+import '../../../core/utils/haptic_feedback.dart';
 import '../../../core/theme/theme_provider.dart';
-import 'navbar_item_widget.dart';
-import 'navbar_background.dart';
-import 'navbar_providers.dart';
 
-
-/// Full Liquid Glass Navigation Bar with fluid draggable indicator,
-/// real-time blur backdrop, glow effects, and responsive layout.
-class LiquidNavbarWidget extends ConsumerStatefulWidget {
+/// Official Liquid Glass Navigation Bar powered by [liquid_glass_widgets: ^1.16.0].
+///
+/// Features shader-based two-pass Gaussian blur, chromatic aberration,
+/// iOS 27 liquid glass material, magic lens masking, jelly physics pill indicator,
+/// and content-aware brightness adaptation.
+class LiquidNavbarWidget extends ConsumerWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
   final List<int> unreadCounts;
@@ -30,7 +33,7 @@ class LiquidNavbarWidget extends ConsumerStatefulWidget {
     this.unreadCounts = const [0, 0, 0, 0, 0],
     this.userPhotoUrl,
     this.indicatorWidth = 64,
-    this.navbarHeight = 72,
+    this.navbarHeight = 64,
     this.bottomPadding = 16,
     this.horizontalPadding = 16,
     this.customLabels,
@@ -38,13 +41,8 @@ class LiquidNavbarWidget extends ConsumerStatefulWidget {
     this.customInactiveIcons,
   });
 
-  @override
-  ConsumerState<LiquidNavbarWidget> createState() => _LiquidNavbarWidgetState();
-}
-
-class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
   List<String> _getLabels(WidgetRef ref) {
-    if (widget.customLabels != null) return widget.customLabels!;
+    if (customLabels != null) return customLabels!;
     return [
       L10n.s(ref, 'chats'),
       'Status',
@@ -70,132 +68,123 @@ class _LiquidNavbarWidgetState extends ConsumerState<LiquidNavbarWidget> {
     Icons.person_outline_rounded,
   ];
 
-  late List<GlobalKey> _iconKeys;
+  Widget _buildTabIcon(IconData iconData, int unreadCount) {
+    final icon = Icon(iconData, size: 24);
 
-  @override
-  void initState() {
-    super.initState();
-    final count = widget.customLabels?.length ?? 5;
-    _iconKeys = List.generate(count, (_) => GlobalKey());
+    if (unreadCount <= 0) return icon;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        final notifier = ref.read(liquidNavbarStateProvider.notifier);
-        notifier.initMeasuredPositions(_iconKeys, context);
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.center,
+      children: [
+        icon,
+        Positioned(
+          top: -4,
+          right: -8,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFF0EA5E9),
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0EA5E9).withValues(alpha: 0.5),
+                  blurRadius: 6,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+            child: Text(
+              unreadCount > 99 ? '99+' : '$unreadCount',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 10,
+                fontWeight: FontWeight.bold,
+                height: 1.1,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
-        final currentState = ref.read(liquidNavbarStateProvider);
-        if (currentState.currentIndex != widget.currentIndex) {
-          notifier.setCurrentIndex(widget.currentIndex);
-        }
-      }
-    });
+  Widget _buildAvatarIcon(String url, {required bool isSelected, required Color primaryColor}) {
+    return Container(
+      width: 26,
+      height: 26,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        border: Border.all(
+          color: isSelected ? primaryColor : Colors.transparent,
+          width: 1.5,
+        ),
+      ),
+      child: ClipOval(
+        child: CachedNetworkImage(
+          imageUrl: url,
+          fit: BoxFit.cover,
+          errorWidget: (_, __, ___) => Icon(
+            isSelected ? Icons.person_rounded : Icons.person_outline_rounded,
+            size: 22,
+          ),
+        ),
+      ),
+    );
   }
 
   @override
-  void didUpdateWidget(covariant LiquidNavbarWidget oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.currentIndex != widget.currentIndex) {
-      final notifier = ref.read(liquidNavbarStateProvider.notifier);
-      final currentState = ref.read(liquidNavbarStateProvider);
-      if (currentState.currentIndex != widget.currentIndex) {
-        notifier.setCurrentIndex(widget.currentIndex);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final navbarState = ref.watch(liquidNavbarStateProvider);
-    final notifier = ref.read(liquidNavbarStateProvider.notifier);
+  Widget build(BuildContext context, WidgetRef ref) {
     final labels = _getLabels(ref);
     final theme = ref.watch(rippleThemeProvider);
 
-    final activeIcons = widget.customActiveIcons ?? _defaultActiveIcons;
-    final inactiveIcons = widget.customInactiveIcons ?? _defaultInactiveIcons;
-
-    final screenWidth = MediaQuery.of(context).size.width;
+    final activeIcons = customActiveIcons ?? _defaultActiveIcons;
+    final inactiveIcons = customInactiveIcons ?? _defaultInactiveIcons;
     final itemCount = labels.length;
 
-    // Safety checks
+    final tabs = List.generate(itemCount, (i) {
+      final unread = i < unreadCounts.length ? unreadCounts[i] : 0;
+      final isProfileTab = i == itemCount - 1;
 
+      Widget iconWidget;
+      Widget activeIconWidget;
 
-    final currentIndex = navbarState.currentIndex;
+      if (isProfileTab && userPhotoUrl != null && userPhotoUrl!.isNotEmpty) {
+        iconWidget = _buildAvatarIcon(userPhotoUrl!, isSelected: false, primaryColor: theme.colors.primary);
+        activeIconWidget = _buildAvatarIcon(userPhotoUrl!, isSelected: true, primaryColor: theme.colors.primary);
+      } else {
+        iconWidget = _buildTabIcon(inactiveIcons[i], unread);
+        activeIconWidget = _buildTabIcon(activeIcons[i], unread);
+      }
 
-    final bottomSafeArea = MediaQuery.of(context).padding.bottom;
-    final effectiveBottomPad = widget.bottomPadding + bottomSafeArea;
-    final parentWidth = (screenWidth - (widget.horizontalPadding * 2)).clamp(280.0, 600.0);
+      return GlassTab(
+        icon: iconWidget,
+        activeIcon: activeIconWidget,
+        label: labels[i],
+        glowColor: theme.colors.primary,
+      );
+    });
 
-    return Align(
-      alignment: Alignment.bottomCenter,
-      child: Container(
-        width: parentWidth + (widget.horizontalPadding * 2),
-        height: widget.navbarHeight + effectiveBottomPad,
-        padding: EdgeInsets.fromLTRB(
-          widget.horizontalPadding,
-          0,
-          widget.horizontalPadding,
-          effectiveBottomPad,
-        ),
-        child: Stack(
-          clipBehavior: Clip.none,
-          children: [
-            // 1. Background Liquid Glass Layer
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: LiquidNavbarBackground(
-                width: parentWidth,
-                height: widget.navbarHeight,
-                theme: theme,
-                child: const SizedBox.shrink(),
-              ),
-            ),
-
-            // 2. Tab Items Row (with locked liquid droplets)
-
-            // 3. Tab Items Row
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: SizedBox(
-                width: parentWidth,
-                height: widget.navbarHeight,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceAround,
-                  children: List.generate(itemCount, (i) {
-                    final isSelected = currentIndex == i;
-                    final unread = i < widget.unreadCounts.length
-                        ? widget.unreadCounts[i]
-                        : 0;
-
-                    return Expanded(
-                      child: LiquidNavbarItemWidget(
-                        key: _iconKeys[i],
-                        label: labels[i],
-                        icon: Icon(
-                          isSelected ? activeIcons[i] : inactiveIcons[i],
-                        ),
-                        isSelected: isSelected,
-                        selectedColor: theme.colors.primary,
-                        unselectedColor: theme.colors.textMuted,
-                        unreadCount: unread,
-                        userPhotoUrl: widget.userPhotoUrl,
-                        isProfileTab: i == itemCount - 1,
-                        onTap: () {
-                          notifier.setCurrentIndex(i);
-                          widget.onTap(i);
-                        },
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    return GlassTabBar.bottom(
+      selectedIndex: currentIndex.clamp(0, itemCount - 1),
+      onTabSelected: (index) {
+        AppHaptics.selectionTick();
+        onTap(index);
+      },
+      barHeight: navbarHeight,
+      horizontalPadding: horizontalPadding,
+      verticalPadding: bottomPadding,
+      maskingQuality: MaskingQuality.high,
+      adaptiveBrightness: true,
+      indicatorColor: theme.colors.primary.withValues(alpha: 0.35),
+      selectedIconColor: theme.colors.primary,
+      unselectedIconColor: theme.colors.textMuted,
+      selectedLabelColor: theme.colors.primary,
+      unselectedLabelColor: theme.colors.textMuted,
+      settings: LiquidGlassSettings.ios27Dark,
+      tabs: tabs,
     );
   }
 }

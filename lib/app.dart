@@ -1368,7 +1368,11 @@ class App extends ConsumerWidget {
         // 4. App Lock Gate — biometric/PIN lock on resume
         result = AppLockGate(child: result);
 
-        return result;
+        // Wrap with transparent Material so glass widgets render Text cleanly without debug underlines
+        return Material(
+          type: MaterialType.transparency,
+          child: result,
+        );
       },
     );
   }

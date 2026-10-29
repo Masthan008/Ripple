@@ -1,3 +1,4 @@
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/foundation.dart';
@@ -142,6 +143,9 @@ void main() async {
         if (!kIsWeb) {
           await NotificationService.initialize();
         }
+        // Initialize Liquid Glass Widgets shaders
+        await LiquidGlassWidgets.initialize(enablePerformanceMonitor: false);
+
 
         // Restore screenshot block setting (Android only)
         if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
@@ -176,7 +180,13 @@ void main() async {
       }
 
       // Launch the real app — splash replaced instantly
-      runApp(const ProviderScope(child: App()));
+      runApp(
+        LiquidGlassWidgets.wrap(
+          child: const ProviderScope(child: App()),
+          brightnessResolver: Theme.maybeBrightnessOf,
+          adaptiveQuality: true,
+        ),
+      );
 
       // Non-critical initialisation — runs after the UI is visible
       ScheduleService.startScheduleChecker();

@@ -313,6 +313,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
+  cupertino_icons:
+    dependency: "direct main"
+    description:
+      name: cupertino_icons
+      sha256: "41e005c33bd814be4d3096aff55b1908d419fde52ca656c8c47719ec745873cd"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.9"
   dart_jsonwebtoken:
     dependency: transitive
     description:
@@ -1237,6 +1245,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.0.0"
+  liquid_glass_widgets:
+    dependency: "direct main"
+    description:
+      name: liquid_glass_widgets
+      sha256: fb03298a2a631d0edb44160f9bcc353a0877f22d1f115c0cf6ef5046eb55d7fb
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.16.0"
   local_auth:
     dependency: "direct main"
     description:
@@ -2196,4 +2212,4 @@ packages:
     version: "2.1.0"
 sdks:
   dart: ">=3.10.3 <4.0.0"
-  flutter: ">=3.38.4"
+  flutter: ">=3.41.0"
