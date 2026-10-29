@@ -1,8 +1,8 @@
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../../../core/constants/app_colors.dart';
@@ -63,9 +63,11 @@ class _RippleDocScannerState extends State<RippleDocScanner> {
         Navigator.pop(context, scanFile.path);
       }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to save scan: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to save scan: $e')),
+        );
+      }
     }
   }
 
@@ -156,16 +158,20 @@ class _RippleDocScannerState extends State<RippleDocScanner> {
           ),
 
           // Filters selector bottom bar
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
-            color: const Color(0xFF070E17),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildFilterButton('original', 'Original', Icons.photo_outlined),
-                _buildFilterButton('grayscale', 'Grayscale', Icons.filter_b_and_w_outlined),
-                _buildFilterButton('monochrome', 'Monochrome Scan', Icons.document_scanner_outlined),
-              ],
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            child: GlassContainer(
+              useOwnLayer: true,
+              shape: const LiquidRoundedSuperellipse(borderRadius: 24),
+              padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                children: [
+                  _buildFilterButton('original', 'Original', Icons.photo_outlined),
+                  _buildFilterButton('grayscale', 'Grayscale', Icons.filter_b_and_w_outlined),
+                  _buildFilterButton('monochrome', 'Monochrome Scan', Icons.document_scanner_outlined),
+                ],
+              ),
             ),
           ),
         ],

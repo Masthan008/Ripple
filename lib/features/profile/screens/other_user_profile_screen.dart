@@ -18,7 +18,6 @@ import '../../auth/models/user_model.dart';
 import '../../chat/providers/chat_provider.dart';
 import '../../auth/providers/auth_provider.dart';
 import '../../social/services/social_service.dart';
-import '../../social/widgets/achievements_section.dart';
 import '../../chat/screens/chat_screen.dart';
 import '../../chat/screens/video_player_screen.dart';
 import '../../chat/models/message_model.dart';
@@ -1009,7 +1008,7 @@ class _OtherUserProfileScreenState
                     ),
 
                     const SizedBox(height: 32),
-                    AchievementsSection(uid: widget.uid),
+        
                     const SizedBox(height: 24),
                     _buildMutualFriendsSection(),
                     const SizedBox(height: 32),

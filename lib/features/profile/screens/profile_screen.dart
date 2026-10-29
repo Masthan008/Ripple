@@ -12,12 +12,10 @@ import '../../../shared/widgets/verified_badge.dart';
 
 import '../../auth/providers/auth_provider.dart';
 import 'edit_profile_screen.dart';
-import 'qr_code_screen.dart';
 import '../../premium/services/subscription_service.dart';
 import '../widgets/account_switcher_sheet.dart';
 import '../../chat/screens/saved_messages_screen.dart';
 import '../../social/services/social_service.dart';
-import '../../social/widgets/achievements_section.dart';
 
 /// Profile Screen — Complete modern overview with enriched account info,
 /// subscription status, storage metrics, quick shortcuts, and liquid glass styling.
@@ -141,22 +139,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                 children: [
                   const SizedBox(height: 8),
 
-                  // 1. Top bar: QR Code, Account Switcher, Settings
+                  // 1. Top bar: Account Switcher, Settings
                   Row(
                     children: [
-                      IconButton(
-                        icon: Icon(
-                          Icons.qr_code_2_rounded,
-                          color: textColor,
-                          size: 24,
-                        ),
-                        onPressed: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const QrCodeScreen(),
-                          ),
-                        ),
-                      ),
                       const Spacer(),
                       IconButton(
                         icon: const Icon(
@@ -308,13 +293,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ),
                   const SizedBox(height: 18),
 
-                  // 4. Quick Actions: Edit, Settings, Saved Messages, QR
+                  // 4. Quick Actions: Edit Profile & Saved Messages
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _buildPillAction(
                         icon: Icons.edit_note_rounded,
-                        label: 'Edit Info',
+                        label: 'Edit Profile',
                         textColor: textColor,
                         cardBg: cardBg,
                         borderColor: borderColor,
@@ -325,9 +310,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           ),
                         ),
                       ),
+                      const SizedBox(width: 16),
                       _buildPillAction(
                         icon: Icons.bookmark_rounded,
-                        label: 'Saved',
+                        label: 'Saved Messages',
                         textColor: textColor,
                         cardBg: cardBg,
                         borderColor: borderColor,
@@ -337,27 +323,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                             builder: (_) => const SavedMessagesScreen(),
                           ),
                         ),
-                      ),
-                      _buildPillAction(
-                        icon: Icons.qr_code_rounded,
-                        label: 'QR Code',
-                        textColor: textColor,
-                        cardBg: cardBg,
-                        borderColor: borderColor,
-                        onTap: () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const QrCodeScreen(),
-                          ),
-                        ),
-                      ),
-                      _buildPillAction(
-                        icon: Icons.settings_rounded,
-                        label: 'Settings',
-                        textColor: textColor,
-                        cardBg: cardBg,
-                        borderColor: borderColor,
-                        onTap: () => context.push('/settings'),
                       ),
                     ],
                   ),
@@ -576,10 +541,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                   ),
                   const SizedBox(height: 20),
 
-                  // 8. Achievements Section
-                  // 9. Achievements Section
-                  AchievementsSection(uid: u.uid),
-                  const SizedBox(height: 20),
+
 
                   // 10. App version footer
                   Text(

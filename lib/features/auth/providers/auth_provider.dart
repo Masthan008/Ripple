@@ -1,3 +1,6 @@
+import 'package:dio/dio.dart';
+import '../../../core/utils/env.dart';
+import '../../../core/services/account_vault_service.dart';
 import 'dart:io';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -291,7 +294,22 @@ class AuthService {
         }
       } catch (_) {}
 
-      // 7. Delete Firebase Auth account
+      // 7. Catalyst Backend & Local Vault Purge
+      if (Env.catalystFunctionUrl.isNotEmpty) {
+        try {
+          await Dio().post(
+            '\/deleteAccount',
+            data: {'uid': uid},
+            options: Options(headers: {
+              if (Env.catalystClientSecret.isNotEmpty)
+                'X-Catalyst-Secret': Env.catalystClientSecret,
+            }),
+          ).timeout(const Duration(seconds: 4));
+        } catch (_) {}
+      }
+      await AccountVaultService.removeAccount(uid);
+
+      // 8. Delete Firebase Auth account
       await user.delete();
     } catch (e) {
       rethrow;

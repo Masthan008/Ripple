@@ -1,4 +1,6 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Account metadata for Telegram-style Multi-Account switching
@@ -6,6 +8,7 @@ class SavedAccount {
   final String uid;
   final String email;
   final String displayName;
+  final String? password;
   final String? photoUrl;
   final String? phoneNumber;
   final DateTime lastActive;
@@ -14,6 +17,7 @@ class SavedAccount {
     required this.uid,
     required this.email,
     required this.displayName,
+    this.password,
     this.photoUrl,
     this.phoneNumber,
     required this.lastActive,
@@ -23,6 +27,7 @@ class SavedAccount {
     'uid': uid,
     'email': email,
     'displayName': displayName,
+    'password': password,
     'photoUrl': photoUrl,
     'phoneNumber': phoneNumber,
     'lastActive': lastActive.toIso8601String(),
@@ -32,6 +37,7 @@ class SavedAccount {
     uid: json['uid'] as String? ?? '',
     email: json['email'] as String? ?? '',
     displayName: json['displayName'] as String? ?? '',
+    password: json['password'] as String?,
     photoUrl: json['photoUrl'] as String?,
     phoneNumber: json['phoneNumber'] as String?,
     lastActive: DateTime.tryParse(json['lastActive'] as String? ?? '') ?? DateTime.now(),
@@ -82,6 +88,23 @@ class AccountVaultService {
       final jsonStr = jsonEncode(accounts.map((a) => a.toJson()).toList());
       await _storage.write(key: _accountsKey, value: jsonStr);
     } catch (_) {}
+  }
+
+  /// Perform live account authentication switch
+  static Future<bool> switchAccount(SavedAccount target) async {
+    try {
+      if (target.email.isNotEmpty && target.password != null && target.password!.isNotEmpty) {
+        await FirebaseAuth.instance.signInWithEmailAndPassword(
+          email: target.email,
+          password: target.password!,
+        );
+      }
+      await _storage.write(key: _currentUidKey, value: target.uid);
+      return true;
+    } catch (e) {
+      debugPrint('AccountVaultService: error switching account: $e');
+      return false;
+    }
   }
 
   /// Set the currently active account UID

@@ -2,8 +2,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
-import '../models/achievement_model.dart';
-import '../widgets/achievement_unlock_overlay.dart';
 
 class SocialService {
   static final _fs = FirebaseFirestore.instance;
@@ -76,91 +74,14 @@ class SocialService {
     }
   }
 
-  static Future<void> _checkStreakAchievements(String uid, int streak) async {
-    if (streak >= 7) {
-      await unlockAchievement(uid: uid, achievementId: 'on_fire');
-    }
-    if (streak >= 30) {
-      await unlockAchievement(uid: uid, achievementId: 'unstoppable');
-    }
-    if (streak >= 100) {
-      await unlockAchievement(uid: uid, achievementId: 'legendary');
-    }
-  }
+  static Future<void> _checkStreakAchievements(String uid, int streak) async {}
 
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   // ACHIEVEMENTS
   // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  static Future<bool> unlockAchievement({
-    required String uid,
-    required String achievementId,
-    BuildContext? context,
-  }) async {
-    final ref = _fs
-        .collection('users')
-        .doc(uid)
-        .collection('achievements')
-        .doc(achievementId);
+  static Future<bool> unlockAchievement({required String uid, required String achievementId, BuildContext? context}) async => false;
 
-    // Already unlocked — skip
-    final existing = await ref.get();
-    if (existing.exists) return false;
-
-    final definition = AchievementDefinitions.findById(achievementId);
-    if (definition == null) return false;
-
-    await ref.set({
-      'id': achievementId,
-      'title': definition.title,
-      'iconCode': definition.icon.codePoint,
-      'description': definition.description,
-      'tier': definition.tier.name,
-      'unlockedAt': FieldValue.serverTimestamp(),
-    });
-
-    // Add to ripple score
-    final tierPoints = {
-      'bronze': 50,
-      'silver': 100,
-      'gold': 200,
-      'diamond': 500,
-    };
-    await addRippleScore(
-      uid: uid,
-      points: tierPoints[definition.tier.name] ?? 50,
-      reason: 'achievement_$achievementId',
-    );
-
-    final wasNew = !existing.exists;
-    if (wasNew && context != null && context.mounted) {
-      final def = AchievementDefinitions.findById(achievementId);
-      if (def != null) {
-        AchievementUnlockOverlay.show(context, def);
-
-        // Post to activity feed
-        await postActivity(
-          uid: uid,
-          type: 'achievement',
-          title: 'Unlocked ${def.title}',
-          icon: def.icon,
-          extra: {'achievementId': achievementId},
-        );
-      }
-    }
-
-    return true; // Newly unlocked
-  }
-
-  static Stream<List<AchievementModel>> getAchievements(String uid) {
-    return _fs
-        .collection('users')
-        .doc(uid)
-        .collection('achievements')
-        .orderBy('unlockedAt', descending: true)
-        .snapshots()
-        .map((snap) =>
-            snap.docs.map(AchievementModel.fromFirestore).toList());
-  }
+  static Stream<List> getAchievements(String uid) => Stream.value([]);
 
   static Future<void> checkAndUnlock({
     required String uid,

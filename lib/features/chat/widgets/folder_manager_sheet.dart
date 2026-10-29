@@ -1,3 +1,4 @@
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -55,9 +56,9 @@ class _FolderManagerSheetState extends State<FolderManagerSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A1628),
-        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      decoration: const BoxDecoration(
+        color: Color(0xFF070E17),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -68,23 +69,25 @@ class _FolderManagerSheetState extends State<FolderManagerSheet> {
             width: 40,
             height: 4,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.3),
+              color: Colors.white.withValues(alpha: 0.3),
               borderRadius: BorderRadius.circular(2),
             ),
           ),
 
           // Header
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
             child: Row(
               children: [
+                const Icon(Icons.folder_special_rounded, color: AppColors.aquaCore, size: 22),
+                const SizedBox(width: 10),
                 Text(
                   'Chat Folders',
                   style: AppTextStyles.heading,
                 ),
                 const Spacer(),
                 if (_isCreating)
-                  SizedBox(
+                  const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(
@@ -116,38 +119,44 @@ class _FolderManagerSheetState extends State<FolderManagerSheet> {
           // Create new folder section
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Create New Folder',
-                  style: AppTextStyles.headingSmall.copyWith(
-                    fontWeight: FontWeight.w600,
+            child: GlassContainer(
+              useOwnLayer: true,
+              shape: const LiquidRoundedSuperellipse(borderRadius: 20),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Create New Folder',
+                    style: AppTextStyles.headingSmall.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-                // Folder name input
-                TextField(
-                  controller: _nameController,
-                  style: AppTextStyles.body,
-                  decoration: InputDecoration(
-                    hintText: 'Folder name (e.g., Work, Family)',
-                    hintStyle: AppTextStyles.body.copyWith(
-                      color: Colors.white54,
-                    ),
-                    filled: true,
-                    fillColor: Colors.white.withOpacity(0.05),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide.none,
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: BorderSide(color: AppColors.aquaCore),
+                  // Folder name input
+                  TextField(
+                    controller: _nameController,
+                    style: AppTextStyles.body,
+                    decoration: InputDecoration(
+                      hintText: 'Folder name (e.g., Work, VIP, Dev)',
+                      hintStyle: AppTextStyles.body.copyWith(
+                        color: Colors.white38,
+                      ),
+                      filled: true,
+                      fillColor: Colors.white.withValues(alpha: 0.04),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: const BorderSide(color: AppColors.aquaCore),
+                      ),
                     ),
                   ),
-                ),
                 const SizedBox(height: 16),
 
                 // Icon selection
@@ -239,34 +248,44 @@ class _FolderManagerSheetState extends State<FolderManagerSheet> {
               ],
             ),
           ),
+          ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // Create button
           Padding(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             child: SizedBox(
               width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isCreating ? null : _createFolder,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.aquaCore,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+              height: 50,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: AppColors.buttonGradient,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: AppColors.aquaGlow,
                 ),
-                child: _isCreating
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Text('Create Folder'),
+                child: ElevatedButton(
+                  onPressed: _isCreating ? null : _createFolder,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.transparent,
+                    foregroundColor: Colors.white,
+                    shadowColor: Colors.transparent,
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                  child: _isCreating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Create Folder', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                ),
               ),
             ),
           ),

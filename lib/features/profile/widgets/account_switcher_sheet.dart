@@ -1,3 +1,4 @@
+import '../../auth/providers/auth_provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -160,12 +161,20 @@ class _AccountSwitcherSheetState extends ConsumerState<AccountSwitcherSheet> {
                           ),
                     onTap: () async {
                       if (!isActive) {
-                        await AccountVaultService.setActiveAccount(acc.uid);
+                        final success = await AccountVaultService.switchAccount(acc);
                         if (context.mounted) {
                           Navigator.pop(context);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Switched to ${acc.displayName}')),
-                          );
+                          if (success) {
+                            ref.invalidate(authStateProvider);
+                            ref.invalidate(currentUserProvider);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Switched to ${acc.displayName}')),
+                            );
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Could not switch to ${acc.displayName}. Please log in again.')),
+                            );
+                          }
                         }
                       }
                     },

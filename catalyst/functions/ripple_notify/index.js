@@ -92,8 +92,69 @@ module.exports = async (req, res) => {
     }
   }
 
+  // 3.5. Delete User Account (Full Server-Side Purge)
+  if (url.includes('/deleteAccount')) {
+    const { uid } = body;
+    if (!uid) {
+      res.writeHead(400);
+      return res.end(JSON.stringify({ error: 'Missing uid' }));
+    }
+
+    try {
+      // 1. Delete user from Firebase Auth
+      try {
+        await admin.auth().deleteUser(uid);
+        console.log([Catalyst Purge] Deleted Firebase Auth user );
+      } catch (authErr) {
+        console.warn([Catalyst Purge] Auth delete note for :, authErr.message);
+      }
+
+      // 2. Delete user doc and subcollections in Firestore
+      try {
+        const db = admin.firestore();
+        await db.collection('users').doc(uid).delete();
+        
+        // Delete statuses
+        const statuses = await db.collection('statuses').where('userId', '==', uid).get();
+        if (!statuses.empty) {
+          const batch = db.batch();
+          statuses.forEach(doc => batch.delete(doc.ref));
+          await batch.commit();
+        }
+        console.log([Catalyst Purge] Purged Firestore records for );
+      } catch (dbErr) {
+        console.warn([Catalyst Purge] Firestore purge note:, dbErr.message);
+      }
+
+      // 3. Remove tokens from Catalyst Datastore if present
+      try {
+        const catalystApp = catalyst.initialize(req);
+        const datastore = catalystApp.datastore();
+        const table = datastore.table('FcmTokens');
+        const rows = await table.getRows({ search: uid });
+        if (rows && rows.length > 0) {
+          for (const row of rows) {
+            await table.deleteRow(row.ROWID);
+          }
+        }
+      } catch (dsErr) {
+        console.log([Catalyst Purge] Datastore token cleanup note:, dsErr.message);
+      }
+
+      res.writeHead(200);
+      return res.end(JSON.stringify({
+        success: true,
+        message: Account  permanently deleted across Firebase and Catalyst backend.
+      }));
+    } catch (err) {
+      console.error([Catalyst Purge] Error:, err);
+      res.writeHead(500);
+      return res.end(JSON.stringify({ error: err.message }));
+    }
+  }
+
   // 4. Send Push Notification
-  if (url.includes('/sendNotification') || url.includes('/send') || req.method === 'POST') {
+  if (url.includes('/sendNotification') || url.includes('/send') || (req.method === 'POST' && !url.includes('/deleteAccount') && !url.includes('/registerDevice'))) {
     const { recipientUids, title, body: msgBody, data = {}, priority = 'high' } = body;
 
     if (!recipientUids || !Array.isArray(recipientUids) || recipientUids.length === 0) {

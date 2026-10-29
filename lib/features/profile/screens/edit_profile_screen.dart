@@ -1,3 +1,4 @@
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -222,69 +223,116 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                // Name field
-                GlassCard(
-                  borderRadius: 16,
-                  padding: const EdgeInsets.all(16),
+                // Name field (Liquid Glass)
+                GlassContainer(
+                  useOwnLayer: true,
+                  shape: const LiquidRoundedSuperellipse(borderRadius: 18),
+                  padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Display Name', style: AppTextStyles.caption.copyWith(
-                        color: AppColors.aquaCore, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.person_rounded, size: 16, color: AppColors.aquaCore),
+                          const SizedBox(width: 8),
+                          Text('Display Name', style: AppTextStyles.caption.copyWith(
+                            color: AppColors.aquaCore, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       TextField(
                         controller: _nameController,
-                        style: AppTextStyles.body,
+                        style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
                         decoration: InputDecoration(
                           hintText: 'Enter your name',
                           hintStyle: TextStyle(color: AppColors.textMuted),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.04),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: AppColors.glassBorder),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.aquaCore),
+                            borderSide: const BorderSide(color: AppColors.aquaCore, width: 1.5),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: 16),
 
-                // Bio field
-                GlassCard(
-                  borderRadius: 16,
-                  padding: const EdgeInsets.all(16),
+                // Bio field (Liquid Glass)
+                GlassContainer(
+                  useOwnLayer: true,
+                  shape: const LiquidRoundedSuperellipse(borderRadius: 18),
+                  padding: const EdgeInsets.all(18),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Bio', style: AppTextStyles.caption.copyWith(
-                        color: AppColors.aquaCore, fontWeight: FontWeight.w600)),
-                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.aquaCore),
+                          const SizedBox(width: 8),
+                          Text('Bio / Status', style: AppTextStyles.caption.copyWith(
+                            color: AppColors.aquaCore, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
                       TextField(
                         controller: _bioController,
                         style: AppTextStyles.body,
                         maxLines: 3,
                         maxLength: 150,
                         decoration: InputDecoration(
-                          hintText: 'Tell us about yourself...',
+                          hintText: 'Tell contacts about yourself...',
                           hintStyle: TextStyle(color: AppColors.textMuted),
                           counterStyle: TextStyle(color: AppColors.textMuted),
+                          filled: true,
+                          fillColor: Colors.white.withValues(alpha: 0.04),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: AppColors.glassBorder),
+                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.aquaCore),
+                            borderSide: const BorderSide(color: AppColors.aquaCore, width: 1.5),
                           ),
-                          contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14, vertical: 12),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
+                      ),
+                      const SizedBox(height: 8),
+                      // Quick bio suggestion chips
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          'Available',
+                          'E2EE Verified',
+                          'In a meeting',
+                          'Focus Mode',
+                        ].map((suggestion) => InkWell(
+                          onTap: () {
+                            setState(() {
+                              _bioController.text = suggestion;
+                            });
+                          },
+                          borderRadius: BorderRadius.circular(20),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: AppColors.aquaCore.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(20),
+                              border: Border.all(color: AppColors.aquaCore.withValues(alpha: 0.25)),
+                            ),
+                            child: Text(
+                              suggestion,
+                              style: const TextStyle(color: AppColors.aquaCore, fontSize: 11, fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        )).toList(),
                       ),
                     ],
                   ),
@@ -294,11 +342,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 // Save button
                 SizedBox(
                   width: double.infinity,
-                  height: 48,
+                  height: 52,
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       gradient: AppColors.buttonGradient,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: AppColors.aquaGlow,
                     ),
                     child: ElevatedButton(
@@ -309,7 +357,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         shadowColor: Colors.transparent,
                         elevation: 0,
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
+                          borderRadius: BorderRadius.circular(16),
                         ),
                       ),
                       child: _isSaving
@@ -321,7 +369,14 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 valueColor: AlwaysStoppedAnimation(Colors.white),
                               ),
                             )
-                          : Text('Save Changes', style: AppTextStyles.button),
+                          : const Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.check_circle_outline_rounded, size: 20),
+                                SizedBox(width: 8),
+                                Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                              ],
+                            ),
                     ),
                   ),
                 ),

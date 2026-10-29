@@ -1,3 +1,4 @@
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
@@ -374,55 +375,61 @@ class _RippleDocViewerState extends State<RippleDocViewer> {
 
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.redAccent.withOpacity(0.08),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.picture_as_pdf_rounded,
-                color: Colors.redAccent,
-                size: 64,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              widget.fileName,
-              style: AppTextStyles.headingSmall.copyWith(fontSize: 18),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'PDF Document • $sizeMb MB',
-              style: const TextStyle(color: Colors.white54, fontSize: 13),
-            ),
-            const SizedBox(height: 32),
-            const Text(
-              'Ripple has safely loaded this PDF document. To view, search, or print, please tap the button below to open it in your system PDF viewer.',
-              style: TextStyle(color: Colors.white38, fontSize: 12, height: 1.5),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                onPressed: _openExternally,
-                icon: const Icon(Icons.picture_as_pdf_rounded),
-                label: const Text('Open PDF Document', style: TextStyle(fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.redAccent,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.all(24.0),
+        child: GlassContainer(
+          useOwnLayer: true,
+          shape: const LiquidRoundedSuperellipse(borderRadius: 24),
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: Colors.redAccent.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.redAccent.withValues(alpha: 0.2)),
+                ),
+                child: const Icon(
+                  Icons.picture_as_pdf_rounded,
+                  color: Colors.redAccent,
+                  size: 56,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(height: 20),
+              Text(
+                widget.fileName,
+                style: AppTextStyles.headingSmall.copyWith(fontSize: 18),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'PDF Document • $sizeMb MB',
+                style: const TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+              const SizedBox(height: 24),
+              const Text(
+                'Ripple has safely decrypted this PDF document. To view, search, or print, tap below to open it in your system viewer.',
+                style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.5),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                height: 48,
+                child: ElevatedButton.icon(
+                  onPressed: _openExternally,
+                  icon: const Icon(Icons.picture_as_pdf_rounded),
+                  label: const Text('Open PDF Document', style: TextStyle(fontWeight: FontWeight.bold)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.redAccent,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

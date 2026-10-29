@@ -269,16 +269,17 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                                 width: 100,
                                 height: 100,
                                 decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
+                                  borderRadius: BorderRadius.circular(26),
                                   boxShadow: [
                                     BoxShadow(
-                                      color: theme.colors.primary.withOpacity(0.4),
-                                      blurRadius: 30,
-                                      spreadRadius: 5,
+                                      color: theme.colors.primary.withValues(alpha: 0.45),
+                                      blurRadius: 32,
+                                      spreadRadius: 6,
                                     ),
                                   ],
                                 ),
-                                child: ClipOval(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(26),
                                   child: Image.asset(
                                     AppIconService.getLogoAsset(activeIcon),
                                     width: 100,
@@ -335,7 +336,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       child: Opacity(
                         opacity: _taglineOpacity.value,
                         child: Text(
-                          'Connect in liquid-clear conversations',
+                          'Next-Gen E2EE Communications',
                           style: AppTextStyles.subtitle.copyWith(
                             color: theme.colors.textSecondary,
                             fontSize: 14,

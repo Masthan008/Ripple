@@ -37,6 +37,7 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
     return Scaffold(
       backgroundColor: Colors.transparent, // Let HomeScreen handle background
       body: SafeArea(
+        bottom: false,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -101,17 +102,7 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
               },
             ),
 
-            // My Status list tile
-            _buildMyStatusSection(),
 
-            // Divider
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Divider(
-                color: Colors.white.withValues(alpha: 0.06),
-                height: 1,
-              ),
-            ),
 
             // "Recent updates" label
             Padding(
@@ -153,133 +144,6 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
     );
   }
 
-  Widget _buildMyStatusSection() {
-    return StreamBuilder<List<StatusModel>>(
-      stream: StatusService.getMyStatuses(),
-      builder: (context, snapshot) {
-        if (snapshot.hasError) {
-          debugPrint('❌ My status stream error: ${snapshot.error}');
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            child: Row(
-              children: [
-                Icon(
-                  Icons.error_outline,
-                  color: Colors.white.withValues(alpha: 0.3),
-                  size: 28,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  'Failed to load status',
-                  style: TextStyle(
-                    color: Colors.white.withValues(alpha: 0.4),
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-        final myStatuses = snapshot.data ?? [];
-
-        return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseService.usersCollection.doc(_currentUid).snapshots(),
-          builder: (context, userSnap) {
-            final userData =
-                userSnap.data?.data() as Map<String, dynamic>? ?? {};
-            final name = userData['name'] as String? ?? 'Me';
-            final photo = userData['photoUrl'] as String? ?? '';
-
-            return InkWell(
-              onTap: () {
-                if (myStatuses.isNotEmpty) {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder:
-                          (_) => StatusViewerScreen(
-                            statuses: myStatuses,
-                            initialIndex: 0,
-                            viewerName: name,
-                          ),
-                    ),
-                  );
-                } else {
-                  _showCreateStatusSheet();
-                }
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    // Avatar with + button
-                    Stack(
-                      children: [
-                        _buildStatusAvatar(
-                          photo,
-                          null,
-                          28,
-                          hasUnviewed: myStatuses.isNotEmpty,
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            width: 20,
-                            height: 20,
-                            decoration: BoxDecoration(
-                              color: AppColors.aquaCore,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: AppColors.abyssBackground,
-                                width: 2,
-                              ),
-                            ),
-                            child: const Icon(
-                              Icons.add,
-                              size: 14,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(width: 12),
-                    // Text
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          L10n.s(ref, 'myStatus'),
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          myStatuses.isEmpty
-                              ? L10n.s(ref, 'tapToAddStatus')
-                              : '${myStatuses.length} ${L10n.s(ref, 'updates')}',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.4),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
 
   Widget _buildFriendsStatusList() {
     // Get current user's friends list
@@ -413,7 +277,7 @@ class _StatusListScreenState extends ConsumerState<StatusListScreen> {
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              padding: const EdgeInsets.only(bottom: 80),
+              padding: const EdgeInsets.only(bottom: 120),
               itemCount: sortedKeys.length,
               itemBuilder: (context, i) {
                 final uid = sortedKeys[i];

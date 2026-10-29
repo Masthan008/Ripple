@@ -1914,7 +1914,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
                                   ),
 
-                                  padding: const EdgeInsets.only(bottom: 96),
+                                  padding: const EdgeInsets.only(bottom: 120),
 
                                   itemCount:
 

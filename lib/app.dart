@@ -68,7 +68,6 @@ import 'features/privacy/screens/blocked_contacts_screen.dart';
 import 'features/privacy/screens/app_lock_settings_screen.dart';
 import 'features/chat/screens/view_once_media_viewer_screen.dart';
 import 'features/profile/screens/other_user_profile_screen.dart';
-import 'features/social/screens/achievements_screen.dart';
 import 'features/social/screens/leaderboard_screen.dart';
 import 'features/social/screens/friend_suggestions_screen.dart';
 import 'features/social/screens/activity_feed_screen.dart';
@@ -689,30 +688,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           );
         },
-      ),
-      GoRoute(
-        path: '/achievements',
-        pageBuilder:
-            (context, state) => CustomTransitionPage(
-              key: state.pageKey,
-              child: const AchievementsScreen(),
-              transitionsBuilder: (
-                context,
-                animation,
-                secondaryAnimation,
-                child,
-              ) {
-                return SlideTransition(
-                  position: animation.drive(
-                    Tween(
-                      begin: const Offset(0.0, 1.0),
-                      end: Offset.zero,
-                    ).chain(CurveTween(curve: Curves.easeOutQuart)),
-                  ),
-                  child: child,
-                );
-              },
-            ),
       ),
       GoRoute(
         path: '/leaderboard',

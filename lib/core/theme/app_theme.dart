@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../constants/app_colors.dart';
 import 'theme_models.dart';
 
 /// App-wide ThemeData configuration — Dynamic Bioluminescent Themes
@@ -27,7 +26,7 @@ class AppTheme {
         surface: colors.surface,
         onSurface: colors.textPrimary,
       ),
-      textTheme: GoogleFonts.dmSansTextTheme(
+      textTheme: GoogleFonts.plusJakartaSansTextTheme(
         theme.isDark ? ThemeData.dark().textTheme : ThemeData.light().textTheme,
       ).apply(
         bodyColor: colors.textPrimary,
@@ -38,7 +37,7 @@ class AppTheme {
         elevation: 0,
         centerTitle: false,
         systemOverlayStyle: theme.isDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-        titleTextStyle: GoogleFonts.nunito(
+        titleTextStyle: GoogleFonts.plusJakartaSans(
           fontSize: 20,
           fontWeight: FontWeight.w700,
           color: colors.textPrimary,

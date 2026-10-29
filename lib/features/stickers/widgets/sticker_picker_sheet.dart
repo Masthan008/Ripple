@@ -4,8 +4,6 @@ import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../auth/providers/auth_provider.dart';
-import '../../social/models/achievement_model.dart';
-import '../../social/services/social_service.dart';
 import '../models/sticker_model.dart';
 
 /// Glassmorphism sticker picker sheet
@@ -46,7 +44,7 @@ class _StickerPickerSheetState extends ConsumerState<StickerPickerSheet>
     super.dispose();
   }
 
-  bool _isCategoryLocked(StickerCategory category, List<AchievementModel> achievements) {
+  bool _isCategoryLocked(StickerCategory category, List achievements) {
     if (!category.isLocked) return false;
     if (category.id == 'love') {
       return achievements.isEmpty;
@@ -64,16 +62,10 @@ class _StickerPickerSheetState extends ConsumerState<StickerPickerSheet>
       return _buildPickerContent([]);
     }
 
-    return StreamBuilder<List<AchievementModel>>(
-      stream: SocialService.getAchievements(uid),
-      builder: (context, snapshot) {
-        final achievements = snapshot.data ?? [];
-        return _buildPickerContent(achievements);
-      },
-    );
+    return _buildPickerContent(const []);
   }
 
-  Widget _buildPickerContent(List<AchievementModel> achievements) {
+  Widget _buildPickerContent(List achievements) {
     return Container(
       height: 400,
       decoration: BoxDecoration(
@@ -146,7 +138,7 @@ class _StickerPickerSheetState extends ConsumerState<StickerPickerSheet>
     );
   }
 
-  Widget _buildCategoryTabs(List<AchievementModel> achievements) {
+  Widget _buildCategoryTabs(List achievements) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: TabBar(
@@ -182,7 +174,7 @@ class _StickerPickerSheetState extends ConsumerState<StickerPickerSheet>
     );
   }
 
-  Widget _buildStickerGrid(List<AchievementModel> achievements) {
+  Widget _buildStickerGrid(List achievements) {
     final selectedCategoryObj = RippleStickers.categories.firstWhere(
       (c) => c.id == _selectedCategory,
       orElse: () => RippleStickers.categories.first,
