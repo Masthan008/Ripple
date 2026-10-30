@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/services/firebase_service.dart';
 import '../services/web_companion_service.dart';
 
 class WebPairingScreen extends ConsumerStatefulWidget {
@@ -93,13 +94,36 @@ class _WebPairingScreenState extends ConsumerState<WebPairingScreen> {
           setState(() => _isApproved = true);
 
           final uid = data['uid'] as String? ?? '';
+          final email = data['email'] as String? ?? '';
+          final authPassword = data['authPassword'] as String?;
           final name = data['displayName'] as String? ?? '';
           final photo = data['photoUrl'] as String? ?? '';
 
-          Future.delayed(const Duration(milliseconds: 600), () async {
+          Future.delayed(const Duration(milliseconds: 400), () async {
+            // Rehydrate / Authenticate Firebase Web Client
+            try {
+              if (email.isNotEmpty && authPassword != null && authPassword.isNotEmpty) {
+                await FirebaseService.auth.signInWithEmailAndPassword(
+                  email: email.trim(),
+                  password: authPassword,
+                );
+              } else if (FirebaseService.auth.currentUser == null) {
+                await FirebaseService.auth.signInAnonymously();
+              }
+            } catch (authErr) {
+              debugPrint('Web companion Firebase auth notice: $authErr');
+              if (FirebaseService.auth.currentUser == null) {
+                try {
+                  await FirebaseService.auth.signInAnonymously();
+                } catch (_) {}
+              }
+            }
+
             await service.completeWebLogin(
               sessionId: sessionId,
               uid: uid,
+              email: email,
+              password: authPassword,
               displayName: name,
               photoUrl: photo,
             );

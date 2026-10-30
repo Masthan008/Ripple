@@ -86,6 +86,26 @@ class _WebMainScreenState extends ConsumerState<WebMainScreen> {
 
     final uid = session['uid']!;
     final sessionId = session['sessionId']!;
+    final email = session['email'];
+    final password = session['password'];
+
+    // Ensure Firebase Auth is authenticated on Web for Firestore security rules
+    if (FirebaseService.auth.currentUser == null) {
+      try {
+        if (email != null && email.isNotEmpty && password != null && password.isNotEmpty) {
+          await FirebaseService.auth.signInWithEmailAndPassword(email: email, password: password);
+        } else {
+          await FirebaseService.auth.signInAnonymously();
+        }
+      } catch (e) {
+        debugPrint('Web companion Firebase auth rehydration: $e');
+        if (FirebaseService.auth.currentUser == null) {
+          try {
+            await FirebaseService.auth.signInAnonymously();
+          } catch (_) {}
+        }
+      }
+    }
 
     setState(() {
       _myUid = uid;
@@ -209,11 +229,21 @@ class _WebMainScreenState extends ConsumerState<WebMainScreen> {
     batch.set(msgDoc, messageData);
 
     final chatDoc = FirebaseService.firestore.collection('chats').doc(_selectedChatId);
-    batch.update(chatDoc, {
-      'lastMessage': type == 'text' ? text : '📎 $type',
-      'lastMessageAt': Timestamp.fromDate(now),
-      'lastSenderId': _myUid,
-    });
+    batch.set(
+      chatDoc,
+      {
+        'lastMessage': {
+          'text': type == 'text' ? text : '[$type]',
+          'senderId': _myUid,
+          'timestamp': Timestamp.fromDate(now),
+          'type': type,
+        },
+        'updatedAt': FieldValue.serverTimestamp(),
+        'lastMessageAt': Timestamp.fromDate(now),
+        'lastSenderId': _myUid,
+      },
+      SetOptions(merge: true),
+    );
 
     await batch.commit();
 
@@ -759,6 +789,26 @@ class _WebMainScreenState extends ConsumerState<WebMainScreen> {
           return const Center(child: CircularProgressIndicator(color: Color(0xFF0284C7)));
         }
 
+        if (snapshot.hasError) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.cloud_off_rounded, color: Color(0xFFEF4444), size: 36),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Syncing chats error: ${snapshot.error}',
+                    style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         final docs = snapshot.data?.docs ?? [];
         if (docs.isEmpty) {
           return Center(
@@ -794,11 +844,26 @@ class _WebMainScreenState extends ConsumerState<WebMainScreen> {
             if (_activeFolder == 'Direct' && isGroup) return const SizedBox.shrink();
 
             final isSelected = chatId == _selectedChatId;
-            final lastMessage = chatData['lastMessage'] as String? ?? 'No messages';
-            final lastTimestamp = chatData['lastMessageAt'] as Timestamp?;
-            final timeStr = lastTimestamp != null
-                ? DateFormat('HH:mm').format(lastTimestamp.toDate())
-                : '';
+
+            // Safe extraction of lastMessage across both String and Map schemas
+            String lastMessage = 'No messages';
+            final rawLastMsg = chatData['lastMessage'];
+            if (rawLastMsg is Map) {
+              lastMessage = rawLastMsg['text']?.toString() ?? 'Message';
+            } else if (rawLastMsg is String && rawLastMsg.isNotEmpty) {
+              lastMessage = rawLastMsg;
+            }
+
+            // Safe timestamp extraction
+            DateTime? lastDate;
+            if (chatData['updatedAt'] is Timestamp) {
+              lastDate = (chatData['updatedAt'] as Timestamp).toDate();
+            } else if (rawLastMsg is Map && rawLastMsg['timestamp'] is Timestamp) {
+              lastDate = (rawLastMsg['timestamp'] as Timestamp).toDate();
+            } else if (chatData['lastMessageAt'] is Timestamp) {
+              lastDate = (chatData['lastMessageAt'] as Timestamp).toDate();
+            }
+            final timeStr = lastDate != null ? DateFormat('HH:mm').format(lastDate) : '';
 
             if (isGroup) {
               final groupName = chatData['name'] as String? ?? 'Group';
@@ -1099,6 +1164,15 @@ class _WebMainScreenState extends ConsumerState<WebMainScreen> {
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator(color: Color(0xFF0284C7)));
+              }
+
+              if (snapshot.hasError) {
+                return Center(
+                  child: Text(
+                    'Error loading messages: ${snapshot.error}',
+                    style: const TextStyle(color: Color(0xFFEF4444), fontSize: 13),
+                  ),
+                );
               }
 
               final docs = snapshot.data?.docs ?? [];

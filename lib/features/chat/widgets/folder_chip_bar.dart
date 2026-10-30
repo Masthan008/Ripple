@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
+import '../../../core/utils/l10n.dart';
 import '../models/folder_model.dart';
 import '../services/chat_organisation_service.dart';
 
@@ -40,7 +41,7 @@ class _FolderChipBarState extends ConsumerState<FolderChipBar> {
               if (index == 0) {
                 // "All" chip
                 return _buildChip(
-                  label: 'All',
+                  label: L10n.s(ref, 'all'),
                   icon: Icons.chat_bubble_outline,
                   isSelected: widget.selectedFolderId == null,
                   onTap: () => widget.onFolderSelected(null),

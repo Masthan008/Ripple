@@ -66,6 +66,7 @@ import 'features/privacy/screens/chat_lock_settings_screen.dart';
 import 'features/privacy/screens/fake_passcode_screen.dart';
 import 'features/privacy/screens/blocked_contacts_screen.dart';
 import 'features/privacy/screens/app_lock_settings_screen.dart';
+import 'features/privacy/screens/stealth_vault_screen.dart';
 import 'features/chat/screens/view_once_media_viewer_screen.dart';
 import 'features/profile/screens/other_user_profile_screen.dart';
 import 'features/social/screens/leaderboard_screen.dart';
@@ -520,6 +521,30 @@ final routerProvider = Provider<GoRouter>((ref) {
                       begin: const Offset(0.0, 1.0),
                       end: Offset.zero,
                     ).chain(CurveTween(curve: Curves.easeOutQuart)),
+                  ),
+                  child: child,
+                );
+              },
+            ),
+      ),
+      GoRoute(
+        path: StealthVaultScreen.routePath,
+        pageBuilder:
+            (context, state) => CustomTransitionPage(
+              key: state.pageKey,
+              child: const StealthVaultScreen(),
+              transitionsBuilder: (
+                context,
+                animation,
+                secondaryAnimation,
+                child,
+              ) {
+                return SlideTransition(
+                  position: animation.drive(
+                    Tween(
+                      begin: const Offset(0.0, 1.0),
+                      end: Offset.zero,
+                    ).chain(CurveTween(curve: Curves.easeOutCubic)),
                   ),
                   child: child,
                 );

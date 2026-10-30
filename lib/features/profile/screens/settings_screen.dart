@@ -449,7 +449,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                       iconColor: AppColors.aquaCore,
 
-                      title: 'Linked Devices',
+                      title: L10n.s(ref, 'linkedDevices'),
 
                       subtitle: 'Active companions and paired machines',
 
@@ -527,7 +527,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                       iconColor: const Color(0xFF673AB7),
 
-                      title: 'Accessibility',
+                      title: L10n.s(ref, 'accessibility'),
 
                       subtitle: 'Contrast, text size & speech feedback',
 
@@ -541,9 +541,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                       iconColor: AppColors.aquaCore,
 
-                      title: 'Chat Backup & Restore',
+                      title: L10n.s(ref, 'chatBackup'),
 
-                      subtitle: 'Google Drive snapshot manager',
+                      subtitle: 'Encrypted local & cloud archive',
 
                       onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ChatBackupScreen())),
 
@@ -569,7 +569,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                       iconColor: const Color(0xFFFF9800),
 
-                      title: 'App Icon',
+                      title: L10n.s(ref, 'appIcon'),
 
                       subtitle: 'Interactive launcher selector',
 
@@ -669,7 +669,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
                       iconColor: AppColors.aquaCore,
 
-                      title: 'Software Update',
+                      title: L10n.s(ref, 'systemUpdate'),
 
                       subtitle: 'Cloud OTA patches & version checks',
 

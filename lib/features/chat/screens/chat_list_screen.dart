@@ -1,3 +1,4 @@
+import '../../../core/services/stealth_vault_service.dart';
 import 'dart:ui';
 
 import 'package:shimmer/shimmer.dart';
@@ -1044,7 +1045,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
         if (chatSnap.hasData) {
 
+          final stealthHidden = ref.watch(stealthVaultProvider);
           for (final doc in chatSnap.data!.docs) {
+            if (stealthHidden.contains(doc.id)) continue;
 
             final unreadRaw = doc.data()['unreadCount'];
 
@@ -1260,19 +1263,20 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
               children: [
 
-                Text(L10n.s(ref, 'chats'), style: AppTextStyles.heading),
+                GestureDetector(
+                  onLongPress: () async {
+                    AppHaptics.heavyTap();
+                    final success = await ref.read(stealthVaultProvider.notifier).authenticate();
+                    if (success && context.mounted) {
+                      GoRouter.of(context).push('/stealth-vault');
+                    }
+                  },
+                  child: Text(L10n.s(ref, 'chats'), style: AppTextStyles.heading),
+                ),
 
                 const Spacer(),
 
-                _GlassIconButton(
 
-                  icon: Icons.sensors_rounded,
-
-                  onTap: () => GoRouter.of(context).push('/offline-radar'),
-
-                ),
-
-                const SizedBox(width: 6),
 
                 _GlassIconButton(
 
@@ -1740,13 +1744,8 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
                               // Filter out archived
 
-                              chats =
-
-                                  chats
-
-                                      .where((d) => !archivedIds.contains(d.id))
-
-                                      .toList();
+                              final hiddenVaultIds = ref.watch(stealthVaultProvider);
+                              chats = chats.where((d) => !archivedIds.contains(d.id) && !hiddenVaultIds.contains(d.id)).toList();
 
 
 
@@ -2582,6 +2581,36 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
                 },
 
+              ),
+
+              ListTile(
+                leading: const Icon(
+                  Icons.visibility_off_rounded,
+                  color: Color(0xFF0EA5E9),
+                ),
+                title: Text(
+                  L10n.s(ref, 'hideChat'),
+                  style: const TextStyle(color: Colors.white),
+                ),
+                onTap: () async {
+                  if (context.mounted) Navigator.pop(context);
+                  AppHaptics.mediumTap();
+                  final auth = await ref.read(stealthVaultProvider.notifier).authenticate(
+                    reason: 'Authenticate to hide this chat in Stealth Vault',
+                  );
+                  if (auth) {
+                    await ref.read(stealthVaultProvider.notifier).hideChat(chatId);
+                    AppHaptics.success();
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Chat moved to Stealth Vault.'),
+                          backgroundColor: AppColors.onlineGreen,
+                        ),
+                      );
+                    }
+                  }
+                },
               ),
 
               ListTile(

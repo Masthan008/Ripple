@@ -10,6 +10,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/utils/haptic_feedback.dart';
 import '../../../core/utils/l10n.dart';
+import '../../../core/services/stealth_vault_service.dart';
 
 /// Global search screen — searches people, chats, messages, media, and links.
 /// Phase 2 upgrade: filter chips, media/link search, functional navigation.
@@ -60,7 +61,16 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
             hintStyle: const TextStyle(color: Colors.white38),
             border: InputBorder.none,
           ),
-          onChanged: (q) {
+          onChanged: (q) async {
+            if (await ref.read(stealthVaultProvider.notifier).verifySecretCode(q.trim())) {
+              _controller.clear();
+              AppHaptics.heavyTap();
+              if (mounted) {
+                Navigator.pop(context);
+                GoRouter.of(context).push('/stealth-vault');
+              }
+              return;
+            }
             setState(() => _query = q);
             if (q.trim().length >= 2) {
               _performSearch(q.trim());
@@ -595,7 +605,9 @@ class _GlobalSearchScreenState extends ConsumerState<GlobalSearchScreen> {
               .limit(20)
               .get();
 
+      final hiddenVaultIds = ref.read(stealthVaultProvider);
       for (final chat in chatsSnap.docs) {
+        if (hiddenVaultIds.contains(chat.id)) continue;
         final participants = List<String>.from(
           chat.data()['participants'] ?? [],
         );

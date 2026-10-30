@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/account_vault_service.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../auth/models/user_model.dart';
 
@@ -18,6 +19,8 @@ class WebCompanionService {
 
   static const String keyLinkedUid = 'web_companion_uid';
   static const String keySessionId = 'web_companion_session_id';
+  static const String keyEmail = 'web_companion_email';
+  static const String keyPassword = 'web_companion_password';
   static const String keyDisplayName = 'web_companion_name';
   static const String keyPhotoUrl = 'web_companion_photo';
 
@@ -47,15 +50,31 @@ class WebCompanionService {
   }) async {
     final batch = _firestore.batch();
 
-    // 1. Update the pairing handshake session to approved
+    // Look up password if available from AccountVault
+    String? authPassword;
+    try {
+      final accounts = await AccountVaultService.getSavedAccounts();
+      final current = accounts.firstWhere(
+        (a) => a.uid == user.uid,
+        orElse: () => SavedAccount(uid: user.uid, email: user.email, displayName: user.name, lastActive: DateTime.now()),
+      );
+      authPassword = current.password;
+    } catch (_) {}
+
+    // 1. Update the pairing handshake session to approved with credentials
     final pairingDoc = _firestore.collection('pairing_sessions').doc(sessionId);
-    batch.update(pairingDoc, {
+    final sessionPayload = <String, dynamic>{
       'status': 'approved',
       'uid': user.uid,
+      'email': user.email,
       'displayName': user.name,
       'photoUrl': user.photoUrl,
       'approvedAt': FieldValue.serverTimestamp(),
-    });
+    };
+    if (authPassword != null && authPassword.isNotEmpty) {
+      sessionPayload['authPassword'] = authPassword;
+    }
+    batch.update(pairingDoc, sessionPayload);
 
     // 2. Add companion device record under the user's devices subcollection
     final deviceDoc = _firestore
@@ -80,12 +99,16 @@ class WebCompanionService {
   Future<void> completeWebLogin({
     required String sessionId,
     required String uid,
+    String? email,
+    String? password,
     String? displayName,
     String? photoUrl,
   }) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(keyLinkedUid, uid);
     await prefs.setString(keySessionId, sessionId);
+    if (email != null && email.isNotEmpty) await prefs.setString(keyEmail, email);
+    if (password != null && password.isNotEmpty) await prefs.setString(keyPassword, password);
     if (displayName != null) await prefs.setString(keyDisplayName, displayName);
     if (photoUrl != null) await prefs.setString(keyPhotoUrl, photoUrl);
 
@@ -110,6 +133,8 @@ class WebCompanionService {
     return {
       'uid': uid,
       'sessionId': sessionId,
+      'email': prefs.getString(keyEmail) ?? '',
+      'password': prefs.getString(keyPassword) ?? '',
       'displayName': prefs.getString(keyDisplayName) ?? 'User',
       'photoUrl': prefs.getString(keyPhotoUrl) ?? '',
     };
@@ -124,8 +149,15 @@ class WebCompanionService {
     // 1. Immediately wipe all local credentials so browser is unlinked locally
     await prefs.remove(keyLinkedUid);
     await prefs.remove(keySessionId);
+    await prefs.remove(keyEmail);
+    await prefs.remove(keyPassword);
     await prefs.remove(keyDisplayName);
     await prefs.remove(keyPhotoUrl);
+
+    // Also sign out Firebase on Web
+    try {
+      await FirebaseService.auth.signOut();
+    } catch (_) {}
 
     // 2. Non-blocking fire-and-forget deletion of device document with strict timeout
     if (uid != null && sessionId != null) {

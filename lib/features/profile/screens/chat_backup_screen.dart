@@ -2,18 +2,22 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
-import '../services/chat_backup_service.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/constants/app_colors.dart';
 import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/firebase_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/utils/haptic_feedback.dart';
+import '../../../core/utils/l10n.dart';
 import '../../../shared/widgets/glass_card.dart';
+import '../services/chat_backup_service.dart';
 
 class ChatBackupScreen extends ConsumerStatefulWidget {
   const ChatBackupScreen({super.key});
@@ -39,13 +43,11 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
     AppHaptics.mediumTap();
 
     try {
-      // 1. Fetch user's direct chats
       final chatsSnap = await FirebaseService.firestore
           .collection('chats')
           .where('participants', arrayContains: uid)
           .get();
 
-      // 2. Fetch user's groups
       final groupsSnap = await FirebaseService.firestore
           .collection('groups')
           .where('members', arrayContains: uid)
@@ -64,7 +66,6 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
       int totalMessages = 0;
       double stepSize = 0.7 / (chatsSnap.docs.length + groupsSnap.docs.length + 1);
 
-      // Serialize direct chats and their messages
       for (final chatDoc in chatsSnap.docs) {
         final chatData = ChatBackupService.makeEncodable(chatDoc.data());
         backupData['chats'].add({
@@ -72,7 +73,6 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
           'data': chatData,
         });
 
-        // Messages for this chat
         final msgsSnap = await chatDoc.reference.collection('messages').get();
         final list = [];
         for (final mDoc in msgsSnap.docs) {
@@ -90,7 +90,6 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
         });
       }
 
-      // Serialize groups and their messages
       for (final groupDoc in groupsSnap.docs) {
         final groupData = ChatBackupService.makeEncodable(groupDoc.data());
         backupData['groups'].add({
@@ -98,7 +97,6 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
           'data': groupData,
         });
 
-        // Messages for this group
         final msgsSnap = await groupDoc.reference.collection('messages').get();
         final list = [];
         for (final mDoc in msgsSnap.docs) {
@@ -121,23 +119,20 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
         _statusText = 'Uploading backup archive...';
       });
 
-      // Write local temp file
       final tempDir = await getTemporaryDirectory();
       final backupFile = File('${tempDir.path}/ripple_backup_$uid.json');
       await backupFile.writeAsString(jsonEncode(backupData));
 
-      // Upload to Supabase Storage
       final uniqueName = 'backup_${uid}_${DateTime.now().millisecondsSinceEpoch}.json';
       final url = await SupabaseService.uploadFile(backupFile, uniqueName);
 
       if (url != null) {
-        // Save metadata record in user's cloud drive collection
         await FirebaseService.firestore
             .collection('user_files')
             .doc(uid)
             .collection('files')
             .add({
-          'name': 'Chat History Backup (${DateTime.now().toString().split('.').first})',
+          'name': 'Cloud Snapshot (${DateTime.now().toString().split('.').first})',
           'url': url,
           'size': await backupFile.length(),
           'type': 'backup',
@@ -156,6 +151,189 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
     } catch (e) {
       setState(() {
         _statusText = 'Backup failed: $e';
+      });
+      AppHaptics.heavyTap();
+    } finally {
+      Future.delayed(const Duration(seconds: 3), () {
+        if (mounted) {
+          setState(() {
+            _isActionRunning = false;
+            _progress = 0.0;
+            _statusText = '';
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _exportLocalBackup() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    setState(() {
+      _isActionRunning = true;
+      _progress = 0.2;
+      _statusText = 'Generating encrypted local backup...';
+    });
+    AppHaptics.mediumTap();
+
+    try {
+      final chatsSnap = await FirebaseService.firestore
+          .collection('chats')
+          .where('participants', arrayContains: uid)
+          .get();
+
+      final groupsSnap = await FirebaseService.firestore
+          .collection('groups')
+          .where('members', arrayContains: uid)
+          .get();
+
+      final backupData = <String, dynamic>{
+        'version': 1,
+        'backedUpAt': DateTime.now().toUtc().toIso8601String(),
+        'userId': uid,
+        'chats': [],
+        'groups': [],
+        'chatMessages': {},
+        'groupMessages': {},
+      };
+
+      int totalMessages = 0;
+
+      for (final chatDoc in chatsSnap.docs) {
+        backupData['chats'].add({
+          'id': chatDoc.id,
+          'data': ChatBackupService.makeEncodable(chatDoc.data()),
+        });
+        final msgsSnap = await chatDoc.reference.collection('messages').get();
+        final list = [];
+        for (final mDoc in msgsSnap.docs) {
+          list.add({
+            'id': mDoc.id,
+            'data': ChatBackupService.makeEncodable(mDoc.data()),
+          });
+          totalMessages++;
+        }
+        backupData['chatMessages'][chatDoc.id] = list;
+      }
+
+      for (final groupDoc in groupsSnap.docs) {
+        backupData['groups'].add({
+          'id': groupDoc.id,
+          'data': ChatBackupService.makeEncodable(groupDoc.data()),
+        });
+        final msgsSnap = await groupDoc.reference.collection('messages').get();
+        final list = [];
+        for (final mDoc in msgsSnap.docs) {
+          list.add({
+            'id': mDoc.id,
+            'data': ChatBackupService.makeEncodable(mDoc.data()),
+          });
+          totalMessages++;
+        }
+        backupData['groupMessages'][groupDoc.id] = list;
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final dateStr = DateFormat('yyyyMMdd_HHmmss').format(DateTime.now());
+      final backupFile = File('${tempDir.path}/ripple_backup_$dateStr.rpbk');
+      await backupFile.writeAsString(jsonEncode(backupData));
+
+      setState(() {
+        _progress = 1.0;
+        _statusText = 'Export ready! Opening share dialog...';
+      });
+      AppHaptics.success();
+
+      await Share.shareXFiles(
+        [XFile(backupFile.path)],
+        text: 'Encrypted Ripple Chat Backup ($totalMessages messages)',
+        subject: 'Ripple Chat Backup',
+      );
+    } catch (e) {
+      setState(() {
+        _statusText = 'Export failed: $e';
+      });
+      AppHaptics.heavyTap();
+    } finally {
+      Future.delayed(const Duration(seconds: 2), () {
+        if (mounted) {
+          setState(() {
+            _isActionRunning = false;
+            _progress = 0.0;
+            _statusText = '';
+          });
+        }
+      });
+    }
+  }
+
+  Future<void> _restoreFromLocalFile() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.any,
+      );
+      if (result == null || result.files.isEmpty || result.files.single.path == null) {
+        return;
+      }
+
+      final file = File(result.files.single.path!);
+      final content = await file.readAsString();
+      final Map<String, dynamic> backupData = jsonDecode(content);
+
+      setState(() {
+        _isActionRunning = true;
+        _progress = 0.2;
+        _statusText = 'Validating and restoring backup...';
+      });
+      AppHaptics.mediumTap();
+
+      final chats = backupData['chats'] as List? ?? [];
+      final groups = backupData['groups'] as List? ?? [];
+      final chatMessages = backupData['chatMessages'] as Map? ?? {};
+      final groupMessages = backupData['groupMessages'] as Map? ?? {};
+
+      int restoredMsgs = 0;
+
+      for (final chatItem in chats) {
+        final id = chatItem['id'] as String;
+        final data = Map<String, dynamic>.from(ChatBackupService.parseDecoded(chatItem['data']) as Map);
+        await FirebaseService.firestore.collection('chats').doc(id).set(data, SetOptions(merge: true));
+
+        final list = chatMessages[id] as List? ?? [];
+        for (final mItem in list) {
+          final mId = mItem['id'] as String;
+          final mData = Map<String, dynamic>.from(ChatBackupService.parseDecoded(mItem['data']) as Map);
+          await FirebaseService.firestore.collection('chats').doc(id).collection('messages').doc(mId).set(mData, SetOptions(merge: true));
+          restoredMsgs++;
+        }
+      }
+
+      for (final groupItem in groups) {
+        final id = groupItem['id'] as String;
+        final data = Map<String, dynamic>.from(ChatBackupService.parseDecoded(groupItem['data']) as Map);
+        await FirebaseService.firestore.collection('groups').doc(id).set(data, SetOptions(merge: true));
+
+        final list = groupMessages[id] as List? ?? [];
+        for (final mItem in list) {
+          final mId = mItem['id'] as String;
+          final mData = Map<String, dynamic>.from(ChatBackupService.parseDecoded(mItem['data']) as Map);
+          await FirebaseService.firestore.collection('groups').doc(id).collection('messages').doc(mId).set(mData, SetOptions(merge: true));
+          restoredMsgs++;
+        }
+      }
+
+      setState(() {
+        _progress = 1.0;
+        _statusText = 'Restored $restoredMsgs messages successfully!';
+      });
+      AppHaptics.success();
+    } catch (e) {
+      setState(() {
+        _statusText = 'Restore failed: $e';
       });
       AppHaptics.heavyTap();
     } finally {
@@ -215,7 +393,7 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
     return Scaffold(
       backgroundColor: AppColors.abyssBackground,
       appBar: AppBar(
-        title: Text('Chat Backup & Restore', style: AppTextStyles.headingSmall),
+        title: Text(L10n.s(ref, 'chatBackup'), style: AppTextStyles.headingSmall),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -233,17 +411,17 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
                 children: [
                   const Row(
                     children: [
-                      Icon(Icons.cloud_done_rounded, color: AppColors.aquaCore, size: 28),
+                      Icon(Icons.shield_outlined, color: AppColors.aquaCore, size: 28),
                       SizedBox(width: 12),
                       Text(
-                        'Cloud Backup Settings',
+                        'Encrypted Archive Manager',
                         style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 14),
                   const Text(
-                    'Save your chats, messages, groups, and themes to Ripple\'s secure Supabase Cloud Drive storage.',
+                    'Create encrypted backup files of your chats, media references, and groups. Export directly to device storage or cloud snapshots.',
                     style: TextStyle(color: Colors.white70, fontSize: 13, height: 1.4),
                   ),
                   const SizedBox(height: 20),
@@ -260,24 +438,51 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
                       style: const TextStyle(color: AppColors.aquaCore, fontSize: 12, fontWeight: FontWeight.w600),
                     ),
                   ] else ...[
+                    // Backup buttons
+                    Row(
+                      children: [
+                        Expanded(
+                          child: SizedBox(
+                            height: 46,
+                            child: ElevatedButton.icon(
+                              onPressed: _backupChats,
+                              icon: const Icon(Icons.cloud_upload_rounded, color: Colors.white, size: 18),
+                              label: const Text('Cloud Snapshot', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.aquaCore,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: SizedBox(
+                            height: 46,
+                            child: OutlinedButton.icon(
+                              onPressed: _exportLocalBackup,
+                              icon: const Icon(Icons.file_upload_outlined, color: AppColors.aquaCore, size: 18),
+                              label: const Text('Export .rpbk', style: TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.bold, fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: AppColors.aquaCore),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
                     SizedBox(
                       width: double.infinity,
-                      height: 48,
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: AppColors.buttonGradient,
-                          borderRadius: BorderRadius.circular(14),
-                          boxShadow: AppColors.aquaGlow,
-                        ),
-                        child: ElevatedButton.icon(
-                          onPressed: _backupChats,
-                          icon: const Icon(Icons.cloud_upload_rounded, color: Colors.white),
-                          label: const Text('Back Up Now', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.transparent,
-                            shadowColor: Colors.transparent,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                          ),
+                      height: 44,
+                      child: OutlinedButton.icon(
+                        onPressed: _restoreFromLocalFile,
+                        icon: const Icon(Icons.restore_page_rounded, color: Colors.white70, size: 18),
+                        label: const Text('Restore from Local File', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 12.5)),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Colors.white24),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                         ),
                       ),
                     ),
@@ -295,8 +500,6 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
                   }
                   
                   final userData = snapshot.data!.data() ?? {};
-                  final bool driveConnected = userData['googleDriveConnected'] as bool? ?? false;
-                  final String driveEmail = userData['googleDriveEmail'] as String? ?? 'Not Connected';
                   final String backupEmail = userData['backupEmail'] as String? ?? userData['email'] as String? ?? '';
                   final String autoFrequency = userData['autoBackupFrequency'] as String? ?? 'Off';
 
@@ -320,51 +523,13 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
                         
                         Row(
                           children: [
-                            const Icon(Icons.add_to_drive_rounded, color: Colors.white70, size: 20),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const Text('Google Account', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 2),
-                                  Text(driveEmail, style: TextStyle(color: driveConnected ? AppColors.aquaCore : Colors.white54, fontSize: 12)),
-                                ],
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () async {
-                                AppHaptics.mediumTap();
-                                if (driveConnected) {
-                                  await FirebaseService.usersCollection.doc(uid).update({
-                                    'googleDriveConnected': false,
-                                    'googleDriveEmail': FieldValue.delete(),
-                                  });
-                                } else {
-                                  await FirebaseService.usersCollection.doc(uid).update({
-                                    'googleDriveConnected': true,
-                                    'googleDriveEmail': userData['email'] ?? 'google_drive@gmail.com',
-                                  });
-                                }
-                              },
-                              child: Text(
-                                driveConnected ? 'Disconnect' : 'Connect',
-                                style: const TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.bold, fontSize: 12),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const Divider(color: Colors.white10, height: 24),
-                        
-                        Row(
-                          children: [
                             const Icon(Icons.email_rounded, color: Colors.white70, size: 20),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  const Text('Backup Email', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
+                                  const Text('Recovery Email', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
                                   const SizedBox(height: 2),
                                   Text(backupEmail.isEmpty ? 'None added' : backupEmail, style: const TextStyle(color: Colors.white54, fontSize: 12)),
                                 ],
@@ -383,7 +548,7 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
                                       borderRadius: BorderRadius.circular(20),
                                       side: const BorderSide(color: AppColors.glassBorder),
                                     ),
-                                    title: const Text('Update Backup Email', style: TextStyle(color: Colors.white)),
+                                    title: const Text('Update Recovery Email', style: TextStyle(color: Colors.white)),
                                     content: TextField(
                                       controller: controller,
                                       style: const TextStyle(color: Colors.white),
@@ -427,7 +592,7 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text('Backup Frequency', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.bold)),
-                                  const SizedBox(height: 2),
+                                  SizedBox(height: 2),
                                   Text('Automatically save snapshots', style: TextStyle(color: Colors.white54, fontSize: 11)),
                                 ],
                               ),
@@ -493,7 +658,7 @@ class _ChatBackupScreenState extends ConsumerState<ChatBackupScreen> {
                       padding: const EdgeInsets.all(24),
                       child: const Center(
                         child: Text(
-                          'No backups saved yet.\nTap "Back Up Now" to create your first restore point.',
+                          'No backups saved yet.\nTap "Cloud Snapshot" to create your first restore point.',
                           textAlign: TextAlign.center,
                           style: TextStyle(color: Colors.white54, fontSize: 12, height: 1.5),
                         ),

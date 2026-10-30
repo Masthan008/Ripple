@@ -45,7 +45,7 @@ class LiquidNavbarWidget extends ConsumerWidget {
     if (customLabels != null) return customLabels!;
     return [
       L10n.s(ref, 'chats'),
-      'Status',
+      L10n.s(ref, 'status'),
       L10n.s(ref, 'groups'),
       L10n.s(ref, 'calls'),
       L10n.s(ref, 'profile'),
