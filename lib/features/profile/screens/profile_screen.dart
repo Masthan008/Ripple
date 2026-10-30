@@ -1,3 +1,4 @@
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -185,30 +186,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen>
                           size: 104,
                         ),
                       ),
-                      GestureDetector(
-                        onTap: () => Navigator.push(
+                      GlassIconButton(
+                        icon: Icon(Icons.edit_rounded, color: isDark ? Colors.white : Colors.black, size: 16),
+                        size: 34,
+                        quality: GlassQuality.standard,
+                        settings: isDark ? LiquidGlassSettings.ios27Dark : LiquidGlassSettings.ios27Light,
+                        onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
                             builder: (_) => const EditProfileScreen(),
-                          ),
-                        ),
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            gradient: AppColors.buttonGradient,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: isDark
-                                  ? AppColors.abyssBackground
-                                  : Colors.white,
-                              width: 2.5,
-                            ),
-                          ),
-                          child: const Icon(
-                            Icons.camera_alt_rounded,
-                            color: Colors.white,
-                            size: 14,
                           ),
                         ),
                       ),

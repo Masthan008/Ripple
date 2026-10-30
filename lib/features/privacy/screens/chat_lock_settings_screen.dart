@@ -33,9 +33,9 @@ class _ChatLockSettingsScreenState extends State<ChatLockSettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF060D1A),
+      backgroundColor: Colors.transparent,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF0A1628),
+        backgroundColor: Colors.transparent,
         title: const Row(
           children: [
             Icon(Icons.lock_outline_rounded, color: Color(0xFF0EA5E9), size: 22),

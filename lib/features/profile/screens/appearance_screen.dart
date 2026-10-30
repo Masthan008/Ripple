@@ -167,13 +167,13 @@ class AppearanceScreen extends ConsumerWidget {
                 Row(
                   children: [
                     _ThemeCard(
-                      label: L10n.s(ref, 'darkOcean'),
-                      colors: [const Color(0xFF060D1A), const Color(0xFF0C4A6E)],
-                      isSelected: rippleTheme.id == 'aqua_ocean',
+                      label: 'Vercel Light',
+                      colors: [const Color(0xFFFAFAFA), const Color(0xFFE4E4E7)],
+                      isSelected: rippleTheme.id == 'vercel_light' || rippleTheme.id == 'aqua_ocean',
                       accentColor: rippleTheme.colors.primary,
                       onTap: () {
-                        ref.read(rippleThemeProvider.notifier).setTheme('aqua_ocean');
-                        ref.read(themeProvider.notifier).setTheme('dark_ocean');
+                        ref.read(rippleThemeProvider.notifier).setTheme('vercel_light');
+                        ref.read(themeProvider.notifier).setTheme('vercel_light');
                       },
                     ),
                     const SizedBox(width: 10),

@@ -30,6 +30,11 @@ class _SoftwareUpdateScreenState extends ConsumerState<SoftwareUpdateScreen>
       duration: const Duration(milliseconds: 2200),
     )..repeat();
     _loadPackageMetadata();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(updateServiceProvider).checkForUpdates();
+      }
+    });
   }
 
   @override

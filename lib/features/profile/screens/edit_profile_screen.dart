@@ -1,3 +1,4 @@
+import 'package:liquid_glass_widgets/liquid_glass_widgets.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -317,15 +318,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           )
                         else
                           AquaAvatar(imageUrl: _photoUrl, name: _nameController.text, size: 90),
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: theme.colors.primary,
-                            shape: BoxShape.circle,
-                            border: Border.all(color: theme.colors.background, width: 2.5),
-                          ),
-                          child: Icon(Icons.camera_alt_rounded, color: isDark ? Colors.black : Colors.white, size: 15),
+                        GlassIconButton(
+                          icon: Icon(Icons.edit_rounded, color: isDark ? Colors.white : Colors.black, size: 16),
+                          size: 34,
+                          quality: GlassQuality.standard,
+                          settings: isDark ? LiquidGlassSettings.ios27Dark : LiquidGlassSettings.ios27Light,
+                          onPressed: _pickPhoto,
                         ),
                       ],
                     ),

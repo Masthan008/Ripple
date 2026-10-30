@@ -153,6 +153,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   // Applied chat wallpaper theme (instant local feedback)
   List<Color>? _appliedWallpaperColors;
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _themeStream;
 
   @override
   void initState() {
@@ -160,6 +161,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _chatId = widget.chatId.isNotEmpty
         ? widget.chatId
         : ref.read(chatServiceProvider).getChatId(widget.partnerUid);
+    _themeStream = ChatThemeService.getThemeStream(_chatId);
     _sensoryController = SensoryTextController(controller: _messageController);
     // Track active chat for foreground notification suppression
     NotificationService.currentActiveChatId = _chatId;
@@ -776,7 +778,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final currentTheme = ref.watch(themeProvider);
 
     // Auto-scroll on new messages
-    messages.whenData((_) => _scrollToBottom());
+    ref.listen<AsyncValue>(chatMessagesProvider(_chatId), (prev, next) {
+      next.whenData((_) => _scrollToBottom());
+    });
 
     // Theme logic
     Color bgColor = AppColors.abyssBackground;
@@ -786,7 +790,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final sentienceState = ref.watch(sentienceProvider(_chatId));
 
     return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: ChatThemeService.getThemeStream(_chatId),
+      stream: _themeStream,
       builder: (context, snapshot) {
         final themeData = snapshot.data?.data();
         List<Color>? wallpaperColors;
@@ -978,94 +982,72 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       );
                     }
 
-                    return AnimationLimiter(
-                      child: RefreshIndicator(
-                        onRefresh: () async {
-                          AppHaptics.mediumTap();
-                          // Trigger reload by refreshing providers if needed,
-                          // or just simulate work for the "Liquid" effect.
-                          await Future.delayed(const Duration(seconds: 1));
-                          ref.invalidate(chatMessagesProvider(_chatId));
-                        },
-                        color: AppColors.aquaCore,
-                        backgroundColor: AppColors.abyssBackground.withOpacity(
-                          0.8,
+                    return RefreshIndicator(
+                      onRefresh: () async {
+                        AppHaptics.mediumTap();
+                        await Future.delayed(const Duration(seconds: 1));
+                        ref.invalidate(chatMessagesProvider(_chatId));
+                      },
+                      color: AppColors.aquaCore,
+                      backgroundColor: AppColors.abyssBackground.withOpacity(
+                        0.8,
+                      ),
+                      child: ListView.builder(
+                        controller: _scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(
+                          parent: BouncingScrollPhysics(),
                         ),
-                        child: ListView.builder(
-                          controller: _scrollController,
-                          physics: const AlwaysScrollableScrollPhysics(
-                            parent: BouncingScrollPhysics(),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          itemCount:
-                              filtered.length +
-                              (partner.valueOrNull?.isTypingTo == currentUser
-                                  ? 1
-                                  : 0),
-                          itemBuilder: (_, i) {
-                            final isFirstInSequence = i == 0 || 
-                                (i > 0 && i < filtered.length && filtered[i].senderId != filtered[i - 1].senderId);
-                            final isLastInSequence = i == filtered.length - 1 || 
-                                (i < filtered.length - 1 && filtered[i].senderId != filtered[i + 1].senderId);
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        itemCount:
+                            filtered.length +
+                            (partner.valueOrNull?.isTypingTo == currentUser
+                                ? 1
+                                : 0),
+                        itemBuilder: (_, i) {
+                          final isFirstInSequence = i == 0 || 
+                              (i > 0 && i < filtered.length && filtered[i].senderId != filtered[i - 1].senderId);
+                          final isLastInSequence = i == filtered.length - 1 || 
+                              (i < filtered.length - 1 && filtered[i].senderId != filtered[i + 1].senderId);
 
-                            return AnimationConfiguration.staggeredList(
-                              position: i,
-                              duration: const Duration(milliseconds: 400),
-                              child: SlideAnimation(
-                                verticalOffset: 20.0,
-                                curve: Curves.easeOutCubic,
-                                child: FadeInAnimation(
-                                  child:
-                                      i == filtered.length
-                                          ? const Padding(
-                                            padding: EdgeInsets.only(
-                                              left: 12,
-                                              bottom: 8,
-                                            ),
-                                            child: Align(
-                                              alignment: Alignment.centerLeft,
-                                              child: TypingIndicator(),
-                                            ),
-                                          )
-                                          : MessageBubble(
-                                            message: filtered[i],
-                                            isMe:
-                                                filtered[i].senderId ==
-                                                currentUser,
-                                            currentUid: currentUser,
-                                            chatId: _chatId,
-                                            isGroup: false,
-                                            isSelected: _selectedMessageIds
-                                                .contains(filtered[i].id),
-                                            isMultiSelectMode:
-                                                _isMultiSelectMode,
-                                            isFirstInSequence: isFirstInSequence,
-                                            isLastInSequence: isLastInSequence,
-                                            onLongPress: () {
-                                              if (_isMultiSelectMode) {
-                                                _toggleSelection(
-                                                  filtered[i].id,
-                                                );
-                                              } else {
-                                                _showContextMenu(
-                                                  filtered[i],
-                                                  filtered[i].senderId ==
-                                                      currentUser,
-                                                );
-                                              }
-                                            },
-                                            onTap:
-                                                _isMultiSelectMode
-                                                    ? () => _toggleSelection(
-                                                      filtered[i].id,
-                                                    )
-                                                    : null,
-                                          ),
-                                ),
+                          if (i == filtered.length) {
+                            return const Padding(
+                              padding: EdgeInsets.only(
+                                left: 12,
+                                bottom: 8,
+                              ),
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: TypingIndicator(),
                               ),
                             );
-                          },
-                        ),
+                          }
+
+                          return MessageBubble(
+                            key: ValueKey(filtered[i].id),
+                            message: filtered[i],
+                            isMe: filtered[i].senderId == currentUser,
+                            currentUid: currentUser,
+                            chatId: _chatId,
+                            isGroup: false,
+                            isSelected: _selectedMessageIds.contains(filtered[i].id),
+                            isMultiSelectMode: _isMultiSelectMode,
+                            isFirstInSequence: isFirstInSequence,
+                            isLastInSequence: isLastInSequence,
+                            onLongPress: () {
+                              if (_isMultiSelectMode) {
+                                _toggleSelection(filtered[i].id);
+                              } else {
+                                _showContextMenu(
+                                  filtered[i],
+                                  filtered[i].senderId == currentUser,
+                                );
+                              }
+                            },
+                            onTap: _isMultiSelectMode
+                                ? () => _toggleSelection(filtered[i].id)
+                                : null,
+                          );
+                        },
                       ),
                     );
                   },
@@ -1681,7 +1663,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         const SizedBox(width: 6),
 
-        // Audio call
+        // Audio call (Temporarily hidden per sovereign privacy guidelines; see HIDDEN_FEATURES.md)
+        /*
         GestureDetector(
           onTap: () => _startCall(isVideo: false),
           child: Container(
@@ -1700,6 +1683,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
         ),
         const SizedBox(width: 2),
+        */
 
         // More menu
         PopupMenuButton<String>(

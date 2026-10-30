@@ -15,6 +15,7 @@ class AppHaptics {
 
   /// Success vibration — message sent, AI completed
   static void success() => HapticFeedback.mediumImpact();
+  static void error() => HapticFeedback.heavyImpact();
 
   /// Selection tick — picker scrolls, tab switches
   static void selectionTick() => HapticFeedback.selectionClick();

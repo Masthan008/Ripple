@@ -8,13 +8,13 @@ final themeProvider = StateNotifierProvider<ThemeNotifier, String>((ref) {
 });
 
 class ThemeNotifier extends StateNotifier<String> {
-  ThemeNotifier() : super('dark_ocean') {
+  ThemeNotifier() : super('vercel_light') {
     _load();
   }
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    state = prefs.getString('app_theme') ?? 'dark_ocean';
+    state = prefs.getString('app_theme') ?? 'vercel_light';
   }
 
   Future<void> setTheme(String theme) async {

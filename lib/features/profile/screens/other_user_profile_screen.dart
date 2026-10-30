@@ -640,16 +640,18 @@ class _OtherUserProfileScreenState
                             }
                           },
                         ),
+                        // Voice call hidden per sovereign privacy guidelines (see HIDDEN_FEATURES.md)
+                        /*
                         _buildActionButton(
                           icon: Icons.call_rounded,
                           label: 'Call',
                           onTap: () {
-                            // Start voice call
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(content: Text('Starting voice call...')),
                             );
                           },
                         ),
+                        */
                         _buildActionButton(
                           icon: Icons.videocam_rounded,
                           label: 'Video',

@@ -71,8 +71,8 @@ module.exports = async (req, res) => {
   if (url.includes('/checkUpdate')) {
     res.writeHead(200);
     return res.end(JSON.stringify({
-      version: '1.0.2',
-      buildNumber: 44,
+      version: '1.0.3',
+      buildNumber: 45,
       downloadUrl: 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk',
       changelog: [
         'Vercel modern light theme & precision monochrome design',

@@ -1,3 +1,4 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -296,6 +297,61 @@ class PrivacyService {
         .collection('messages')
         .doc(messageId)
         .update({'deleteAt': deleteAt});
+  }
+
+  // ── CHAT LOCK PIN MANAGEMENT ───────────────────────────
+  static const _secureStorage = FlutterSecureStorage();
+
+  static Future<String?> getStoredPin() async {
+    try {
+      final pin = await _secureStorage.read(key: 'chat_lock_pin');
+      if (pin != null && pin.isNotEmpty) return pin;
+    } catch (_) {}
+
+    final prefs = await SharedPreferences.getInstance();
+    final localPin = prefs.getString('chat_lock_pin');
+    if (localPin != null && localPin.isNotEmpty) return localPin;
+
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        final doc = await _fs.collection('users').doc(user.uid).get();
+        final firestorePin = doc.data()?['twoStepPin'] as String?;
+        if (firestorePin != null && firestorePin.isNotEmpty) {
+          await setChatLockPin(firestorePin);
+          return firestorePin;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
+  static Future<void> setChatLockPin(String pin) async {
+    try {
+      await _secureStorage.write(key: 'chat_lock_pin', value: pin);
+    } catch (_) {}
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('chat_lock_pin', pin);
+    final user = _auth.currentUser;
+    if (user != null) {
+      try {
+        await _fs.collection('users').doc(user.uid).set({
+          'twoStepPin': pin,
+          'twoFactorEnabled': true,
+        }, SetOptions(merge: true));
+      } catch (_) {}
+    }
+  }
+
+  static Future<bool> hasChatLockPin() async {
+    final pin = await getStoredPin();
+    return pin != null && pin.isNotEmpty;
+  }
+
+  static Future<bool> verifyPin(String enteredPin) async {
+    final stored = await getStoredPin();
+    if (stored == null || stored.isEmpty) return false;
+    return stored == enteredPin;
   }
 
   // ── CHAT LOCK ──────────────────────────────────────────

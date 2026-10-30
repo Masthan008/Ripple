@@ -31,7 +31,7 @@ class _SplashApp extends StatelessWidget {
         const SystemUiOverlayStyle(
           statusBarColor: Colors.transparent,
           statusBarIconBrightness: Brightness.light,
-          systemNavigationBarColor: Color(0xFF060D1A),
+          systemNavigationBarColor: Colors.transparent,
           systemNavigationBarIconBrightness: Brightness.light,
         ),
       );
@@ -101,7 +101,7 @@ void main() async {
           const SystemUiOverlayStyle(
             statusBarColor: Colors.transparent,
             statusBarIconBrightness: Brightness.light,
-            systemNavigationBarColor: Color(0xFF060D1A),
+            systemNavigationBarColor: Colors.transparent,
             systemNavigationBarIconBrightness: Brightness.light,
           ),
         );

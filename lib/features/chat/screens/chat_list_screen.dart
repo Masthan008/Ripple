@@ -1,3 +1,5 @@
+import '../../privacy/widgets/pin_setup_dialog.dart';
+import '../../privacy/widgets/pin_entry_dialog.dart';
 import '../../../core/services/stealth_vault_service.dart';
 import 'dart:ui';
 
@@ -2530,13 +2532,21 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
                   if (isLocked) {
 
-                    final auth = await ChatLockService.authenticate(
+                    final auth = await showDialog<bool>(
 
-                      reason: L10n.s(ref, 'unlockReason'),
+                      context: context,
+
+                      barrierDismissible: false,
+
+                      builder: (_) => PinEntryDialog(
+
+                        title: L10n.s(ref, 'unlockChat'),
+
+                      ),
 
                     );
 
-                    if (auth) {
+                    if (auth == true) {
 
                       await PrivacyService.unlockChatLock(chatId);
 
@@ -2553,6 +2563,24 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
                     }
 
                   } else {
+
+                    final hasPin = await PrivacyService.hasChatLockPin();
+
+                    if (!hasPin) {
+
+                      final setupPin = await showDialog<String>(
+
+                        context: context,
+
+                        builder: (_) => const PinSetupDialog(),
+
+                      );
+
+                      if (setupPin == null || setupPin.isEmpty) return;
+
+                      await PrivacyService.setChatLockPin(setupPin);
+
+                    }
 
                     await PrivacyService.lockChat(chatId);
 

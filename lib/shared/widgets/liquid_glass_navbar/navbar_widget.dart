@@ -167,6 +167,7 @@ class LiquidNavbarWidget extends ConsumerWidget {
       );
     });
 
+    final isDark = theme.isDark;
     return GlassTabBar.bottom(
       selectedIndex: currentIndex.clamp(0, itemCount - 1),
       onTabSelected: (index) {
@@ -177,13 +178,16 @@ class LiquidNavbarWidget extends ConsumerWidget {
       horizontalPadding: horizontalPadding,
       verticalPadding: bottomPadding,
       maskingQuality: MaskingQuality.high,
-      adaptiveBrightness: true,
-      indicatorColor: theme.colors.primary.withValues(alpha: 0.35),
+      adaptiveBrightness: false,
+      brightnessOverride: ValueNotifier(isDark ? Brightness.dark : Brightness.light),
+      indicatorColor: isDark
+          ? theme.colors.primary.withValues(alpha: 0.35)
+          : const Color(0xFF09090B).withValues(alpha: 0.08),
       selectedIconColor: theme.colors.primary,
-      unselectedIconColor: theme.colors.textMuted,
+      unselectedIconColor: isDark ? theme.colors.textMuted : const Color(0xFF71717A),
       selectedLabelColor: theme.colors.primary,
-      unselectedLabelColor: theme.colors.textMuted,
-      settings: theme.isDark ? LiquidGlassSettings.ios27Dark : LiquidGlassSettings.ios27Light,
+      unselectedLabelColor: isDark ? theme.colors.textMuted : const Color(0xFF71717A),
+      settings: isDark ? LiquidGlassSettings.ios27Dark : LiquidGlassSettings.ios27Light,
       tabs: tabs,
     );
   }
