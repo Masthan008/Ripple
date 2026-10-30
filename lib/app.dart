@@ -34,7 +34,6 @@ import 'features/groups/screens/group_info_screen.dart';
 import 'features/groups/providers/group_provider.dart';
 import 'features/calls/screens/call_screen.dart';
 import 'features/calls/screens/daily_call_screen.dart';
-import 'features/calls/screens/meetings_screen.dart';
 import 'features/calls/screens/incoming_call_screen.dart';
 import 'features/profile/screens/profile_screen.dart';
 import 'features/profile/screens/settings_screen.dart';
@@ -1049,24 +1048,6 @@ final routerProvider = Provider<GoRouter>((ref) {
             },
           );
         },
-      ),
-      GoRoute(
-        path: '/meetings',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          key: state.pageKey,
-          child: const MeetingsScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return SlideTransition(
-              position: animation.drive(
-                Tween(
-                  begin: const Offset(0.0, 1.0),
-                  end: Offset.zero,
-                ).chain(CurveTween(curve: Curves.easeOutQuart)),
-              ),
-              child: child,
-            );
-          },
-        ),
       ),
       GoRoute(
         path: '/linked-devices',

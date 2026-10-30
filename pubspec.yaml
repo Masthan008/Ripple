@@ -1,7 +1,7 @@
 name: ripple
 description: "Ripple: Next-Gen Zero-Trace Encrypted Messenger"
 publish_to: 'none'
-version: 1.0.1+43
+version: 1.0.2+44
 
 environment:
   sdk: ^3.7.0

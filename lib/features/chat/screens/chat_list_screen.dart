@@ -1278,15 +1278,6 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
 
 
-                _GlassIconButton(
-
-                  icon: Icons.video_call_rounded,
-
-                  onTap: () => GoRouter.of(context).push('/meetings'),
-
-                ),
-
-                const SizedBox(width: 6),
 
                 _GlassIconButton(
 

@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
 
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_text_styles.dart';
+import '../../../core/theme/theme_provider.dart';
 import '../../../core/utils/l10n.dart';
 import '../providers/settings_provider.dart';
 
@@ -28,6 +27,13 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
   @override
   Widget build(BuildContext context) {
     final currentLang = ref.watch(languageProvider);
+    final theme = ref.watch(rippleThemeProvider);
+    final isDark = theme.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF09090B);
+    final textMuted = isDark ? Colors.white60 : const Color(0xFF71717A);
+    final cardBorder = isDark ? Colors.white12 : const Color(0xFFE4E4E7);
+    final cardBg = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white;
+
     final allLanguages = L10n.worldLanguages;
     final filtered = allLanguages.where((l) {
       if (_filter.isEmpty) return true;
@@ -38,13 +44,13 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
     }).toList();
 
     return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
+      backgroundColor: theme.colors.background,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(L10n.s(ref, 'language'), style: AppTextStyles.headingSmall),
+        title: Text(L10n.s(ref, 'language'), style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: Colors.white, size: 20),
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 20),
           onPressed: () => Navigator.pop(context),
         ),
       ),
@@ -56,21 +62,25 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               child: TextField(
                 controller: _searchCtrl,
-                style: const TextStyle(color: Colors.white, fontSize: 14),
+                style: TextStyle(color: textColor, fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Search 25+ world languages...',
-                  hintStyle: const TextStyle(color: Colors.white30),
-                  prefixIcon: const Icon(Icons.search_rounded, color: AppColors.aquaCore),
+                  hintText: 'Search Indian & regional languages...',
+                  hintStyle: TextStyle(color: textMuted),
+                  prefixIcon: Icon(Icons.search_rounded, color: theme.colors.primary),
                   filled: true,
-                  fillColor: Colors.white.withValues(alpha: 0.04),
+                  fillColor: cardBg,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                    borderSide: BorderSide(color: cardBorder),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(14),
+                    borderSide: BorderSide(color: cardBorder),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: AppColors.aquaCore),
+                    borderSide: BorderSide(color: theme.colors.primary),
                   ),
                 ),
                 onChanged: (val) => setState(() => _filter = val.trim()),
@@ -103,10 +113,19 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
                           );
                         }
                       },
-                      child: GlassContainer(
-                        useOwnLayer: true,
-                        shape: const LiquidRoundedSuperellipse(borderRadius: 16),
+                      child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: cardBg,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: isSelected ? theme.colors.primary : cardBorder,
+                            width: isSelected ? 1.5 : 1,
+                          ),
+                          boxShadow: isSelected
+                              ? [BoxShadow(color: theme.colors.primary.withValues(alpha: 0.1), blurRadius: 10)]
+                              : [],
+                        ),
                         child: Row(
                           children: [
                             Container(
@@ -114,18 +133,18 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
                               height: 38,
                               decoration: BoxDecoration(
                                 color: isSelected
-                                    ? AppColors.aquaCore.withValues(alpha: 0.2)
-                                    : Colors.white.withValues(alpha: 0.05),
+                                    ? theme.colors.primary.withValues(alpha: isDark ? 0.2 : 0.1)
+                                    : (isDark ? Colors.white.withValues(alpha: 0.05) : const Color(0xFFF4F4F5)),
                                 shape: BoxShape.circle,
                                 border: Border.all(
-                                  color: isSelected ? AppColors.aquaCore : Colors.white12,
+                                  color: isSelected ? theme.colors.primary : cardBorder,
                                 ),
                               ),
                               child: Center(
                                 child: Text(
                                   lang.code.toUpperCase(),
                                   style: TextStyle(
-                                    color: isSelected ? AppColors.aquaCore : Colors.white70,
+                                    color: isSelected ? theme.colors.primary : textMuted,
                                     fontWeight: FontWeight.bold,
                                     fontSize: 12,
                                   ),
@@ -139,23 +158,24 @@ class _LanguageScreenState extends ConsumerState<LanguageScreen> {
                                 children: [
                                   Text(
                                     lang.name,
-                                    style: AppTextStyles.body.copyWith(
+                                    style: TextStyle(
                                       fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                      color: isSelected ? AppColors.aquaCore : Colors.white,
+                                      color: isSelected ? theme.colors.primary : textColor,
+                                      fontSize: 14,
                                     ),
                                   ),
                                   const SizedBox(height: 2),
                                   Text(
                                     lang.nativeName,
-                                    style: AppTextStyles.caption.copyWith(color: Colors.white60),
+                                    style: TextStyle(color: textMuted, fontSize: 12),
                                   ),
                                 ],
                               ),
                             ),
                             if (isSelected)
-                              const Icon(
+                              Icon(
                                 Icons.check_circle_rounded,
-                                color: AppColors.aquaCore,
+                                color: theme.colors.primary,
                                 size: 22,
                               ),
                           ],

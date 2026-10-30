@@ -101,93 +101,97 @@ class ThemePresets {
   ThemePresets._();
 
   // ═══════════════════════════════════════════════════════════════════
-  // AQUA OCEAN (Default) - Deep sea bioluminescence
+  // VERCEL LIGHT THEME (Default) — Inspired by @serafimcloud on 21st.dev
   // ═══════════════════════════════════════════════════════════════════
-  static final RippleTheme aquaOcean = RippleTheme(
-    id: 'aqua_ocean',
-    name: 'Aqua Ocean',
-    description: 'Deep sea bioluminescence with cyan glow',
-    isDark: true,
+  static final RippleTheme vercelLight = RippleTheme(
+    id: 'vercel_light',
+    name: 'Vercel Light',
+    description: 'Ultra-minimal monochrome precision inspired by Vercel & shadcn',
+    isDark: false,
     colors: const ThemeColors(
-      primary: Color(0xFF0EA5E9),
-      secondary: Color(0xFF22D3EE),
-      accent: Color(0xFF38BDF8),
-      background: Color(0xFF060D1A),
-      surface: Color(0xFF0A1628),
-      surfaceHighlight: Color(0xFF0F2240),
-      textPrimary: Colors.white,
-      textSecondary: Color(0xCCFFFFFF),
-      textMuted: Color(0x80FFFFFF),
-      success: Color(0xFF4ADE80),
-      error: Color(0xFFF87171),
-      warning: Color(0xFFFBBF24),
-      online: Color(0xFF4ADE80),
-      glassBorder: Color(0x33FFFFFF),
-      glassSurface: Color(0x1AFFFFFF),
-      bubbleIncoming: Color(0x1AFFFFFF),
-      bubbleOutgoing: Color(0x660EA5E9),
+      primary: Color(0xFF000000),
+      secondary: Color(0xFF18181B),
+      accent: Color(0xFF27272A),
+      background: Color(0xFFFAFAFA),
+      surface: Color(0xFFFFFFFF),
+      surfaceHighlight: Color(0xFFF4F4F5),
+      textPrimary: Color(0xFF09090B),
+      textSecondary: Color(0xFF71717A),
+      textMuted: Color(0xFFA1A1AA),
+      success: Color(0xFF10B981),
+      error: Color(0xFFE5484D),
+      warning: Color(0xFFF59E0B),
+      online: Color(0xFF10B981),
+      glassBorder: Color(0xFFE4E4E7),
+      glassSurface: Color(0xE6FFFFFF),
+      bubbleIncoming: Color(0xFFF4F4F5),
+      bubbleOutgoing: Color(0xFF09090B),
     ),
-    gradients: ThemeGradients(
-      primary: const LinearGradient(
-        colors: [Color(0xFF0EA5E9), Color(0xFF22D3EE)],
+    gradients: const ThemeGradients(
+      primary: LinearGradient(
+        colors: [Color(0xFF000000), Color(0xFF18181B)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
-      surface: const LinearGradient(
-        colors: [Color(0xFF0A1628), Color(0xFF060D1A)],
+      surface: LinearGradient(
+        colors: [Color(0xFFFFFFFF), Color(0xFFFAFAFA)],
         begin: Alignment.topCenter,
         end: Alignment.bottomCenter,
       ),
-      bubbleOutgoing: const LinearGradient(
-        colors: [Color(0x660EA5E9), Color(0x4D38BDF8)],
+      bubbleOutgoing: LinearGradient(
+        colors: [Color(0xFF09090B), Color(0xFF18181B)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
-      shimmer: const LinearGradient(
-        colors: [Color(0x2DFFFFFF), Colors.transparent, Color(0x1A0EA5E9)],
+      shimmer: LinearGradient(
+        colors: [Color(0x1A000000), Colors.transparent, Color(0x0D000000)],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
       glass: LinearGradient(
         colors: [
-          Colors.white.withOpacity(0.1),
-          Colors.white.withOpacity(0.05),
+          Color(0xF0FFFFFF),
+          Color(0xD9FAFAFA),
         ],
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
       ),
     ),
-    shadows: ThemeShadows(
+    shadows: const ThemeShadows(
       primaryGlow: [
         BoxShadow(
-          color: const Color(0xFF0EA5E9).withOpacity(0.25),
-          blurRadius: 24,
-          spreadRadius: -2,
+          color: Color(0x14000000),
+          blurRadius: 16,
+          spreadRadius: 0,
         ),
       ],
       secondaryGlow: [
         BoxShadow(
-          color: const Color(0xFF22D3EE).withOpacity(0.35),
-          blurRadius: 20,
+          color: Color(0x0F000000),
+          blurRadius: 12,
           spreadRadius: -1,
         ),
       ],
       accentGlow: [
         BoxShadow(
-          color: const Color(0xFF38BDF8).withOpacity(0.4),
-          blurRadius: 32,
-          spreadRadius: 2,
+          color: Color(0x12000000),
+          blurRadius: 20,
+          spreadRadius: 1,
         ),
       ],
       soft: [
         BoxShadow(
-          color: Colors.black.withOpacity(0.2),
-          blurRadius: 10,
+          color: Color(0x0A000000),
+          blurRadius: 8,
           spreadRadius: 0,
         ),
       ],
     ),
   );
+
+  // Alias for backward compatibility with existing saved user preferences
+  static final RippleTheme aquaOcean = vercelLight;
+
 
   // ═══════════════════════════════════════════════════════════════════
   // MIDNIGHT PURPLE - Mystic abyss
@@ -730,7 +734,7 @@ class ThemePresets {
   // GET ALL THEMES
   // ═══════════════════════════════════════════════════════════════════
   static List<RippleTheme> get all => [
-    aquaOcean,
+    vercelLight,
     midnightPurple,
     coralReef,
     emeraldDepth,
@@ -742,7 +746,7 @@ class ThemePresets {
   static RippleTheme getById(String id) {
     return all.firstWhere(
       (theme) => theme.id == id,
-      orElse: () => aquaOcean,
+      orElse: () => vercelLight,
     );
   }
 }

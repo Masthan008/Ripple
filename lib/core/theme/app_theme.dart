@@ -18,7 +18,7 @@ class AppTheme {
       colorScheme: ColorScheme(
         brightness: theme.isDark ? Brightness.dark : Brightness.light,
         primary: colors.primary,
-        onPrimary: colors.textPrimary,
+        onPrimary: theme.isDark ? Colors.black : Colors.white,
         secondary: colors.secondary,
         onSecondary: colors.textPrimary,
         error: colors.error,
@@ -100,5 +100,5 @@ class AppTheme {
   }
 
   /// Legacy dark theme (Aqua Ocean) - for backward compatibility
-  static ThemeData get darkTheme => fromRippleTheme(ThemePresets.aquaOcean);
+  static ThemeData get darkTheme => fromRippleTheme(ThemePresets.vercelLight);
 }

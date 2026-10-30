@@ -1,19 +1,20 @@
 <p align="center">
-  <img src="assets/images/ripple_logo.png" alt="Ripple Logo" width="128" height="128" style="border-radius: 28px;" />
+  <img src="assets/images/ripple_logo.png" alt="Ripple Logo" width="128" height="128" style="border-radius: 28px; box-shadow: 0 16px 36px rgba(0, 0, 0, 0.2);" />
 </p>
 
 <h1 align="center">Ripple</h1>
 
 <p align="center">
-  <strong>Next-Generation Encrypted Communications & Liquid Glass Workstation</strong>
+  <strong>Sovereign Zero-Trace Encrypted Messenger & Real-Time Communications Suite</strong>
 </p>
 
 <p align="center">
-  <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.41%2B-02569B?logo=flutter&logoColor=white" alt="Flutter Version" /></a>
-  <a href="https://dart.dev"><img src="https://img.shields.io/badge/Dart-3.5%2B-0175C2?logo=dart&logoColor=white" alt="Dart Version" /></a>
-  <a href="https://firebase.google.com"><img src="https://img.shields.io/badge/Firebase-Enterprise-FFCA28?logo=firebase&logoColor=black" alt="Firebase" /></a>
-  <a href="https://catalyst.zoho.com"><img src="https://img.shields.io/badge/Zoho%20Catalyst-Serverless-0072C6?logo=zoho&logoColor=white" alt="Zoho Catalyst" /></a>
+  <a href="https://flutter.dev"><img src="https://img.shields.io/badge/Flutter-3.7%2B-02569B?logo=flutter&logoColor=white" alt="Flutter Version" /></a>
+  <a href="https://dart.dev"><img src="https://img.shields.io/badge/Dart-3.7%2B-0175C2?logo=dart&logoColor=white" alt="Dart Version" /></a>
+  <a href="https://firebase.google.com"><img src="https://img.shields.io/badge/Firebase-Auth%20%26%20Firestore-FFCA28?logo=firebase&logoColor=black" alt="Firebase" /></a>
+  <a href="https://catalyst.zoho.com"><img src="https://img.shields.io/badge/Zoho%20Catalyst-Serverless%20I%2FO-0072C6?logo=zoho&logoColor=white" alt="Zoho Catalyst" /></a>
   <a href="https://shorebird.dev"><img src="https://img.shields.io/badge/Shorebird-OTA%20CodePush-2C3E50" alt="Shorebird" /></a>
+  <a href="PRIVACY.md"><img src="https://img.shields.io/badge/Privacy-Zero%20Metadata-10B981" alt="Privacy" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License" /></a>
 </p>
 
@@ -21,55 +22,58 @@
 
 ## ⚡ Overview
 
-**Ripple** is an elite, privacy-first encrypted communications platform engineered for high-performance mobile devices and desktop web browsers. Built with modern Flutter and cutting-edge Impeller shaders, Ripple combines military-grade cryptographic security with an ultra-fluid **Liquid Glass (iOS 27 aesthetic)** interface.
+**Ripple** is an elite, sovereign, zero-trace encrypted communications platform engineered for Android, iOS, and Desktop Web. Designed from first principles to prioritize user autonomy and mathematical confidentiality, Ripple pairs military-grade cryptographic protocols (**Signal Double Ratchet**, **X3DH**, **AES-256-GCM**) with the ultra-clean **Vercel Design System** (`@serafimcloud/themes/vercel` shadcn tokens) and custom GPU-accelerated **Liquid Glass** shaders.
 
-With native multi-device synchronization, Wikipedia-backed 25-language localization, a secret **Stealth Vault (Ghost Mode)**, real-time byte counters, and a resilient dual-engine update system, Ripple sets a new benchmark for secure messaging.
+Ripple delivers real-time two-way web pairing, hardware-backed biometric security, live storage directory scanning, Indian demographic localization across 13 languages, an uncrackable dial-code **Stealth Vault**, and dual-engine over-the-air updates.
 
 ---
 
-## 🚀 Key Architectural Highlights
+## 🚀 Key Architectural Innovations
 
-### 1. 🛡️ Signal Protocol & Cryptographic Architecture
-- **Double Ratchet Algorithm**: Continuous ephemeral key-exchange for forward and backward secrecy.
-- **X3DH Key Agreement**: Prekey bundles with curve25519 identity keys ensuring quantum-resistant key negotiation.
-- **Biometric Chat Lock**: Local hardware keystore integration (`local_auth`) guarding sensitive conversations.
-- **Hardware-Level Protection**: `FLAG_SECURE` prevents OS screenshots and task-switcher previews.
+### 1. 🛡️ Sovereign Cryptographic Core
+- **Signal Protocol & Double Ratchet**: Ephemeral session keys rotated on every message with immediate cryptographic deletion to guarantee forward and future secrecy.
+- **Hardware Keystore Isolation**: Private keys, biometric credentials, and stealth vault states are anchored inside the Android Keystore / iOS Secure Enclave via `flutter_secure_storage`.
+- **Zero Metadata Retention**: Servers retain zero message contents, sender-recipient routing graphs, or geo-telemetry.
+- **Hardware Protection**: Android `FLAG_SECURE` prevents OS screen capture, screen recording, and task-switcher caching.
 
 ### 2. 🥷 Military-Grade Stealth Vault (Ghost Mode)
-- **Zero-Trace Isolation**: Hidden chats vanish entirely from the primary feed, unread counters, and global search.
-- **Secret Dial Code Entry**: Enter your custom secret code (e.g. `*7777#`) directly into the Search Bar to instantly unlock the vault.
-- **App Bar Long-Press Gate**: 2.5-second tactile hold on the Ripple app bar logo triggers biometric/PIN verification to open the hidden chamber.
-- **One-Tap Restoration**: Restore any hidden conversation back to the active feed at any time.
+- **Zero-Trace Chamber**: Flagged conversations vanish entirely from the primary feed, unread badges, and global search.
+- **Secret Dial Code Entry**: Enter your custom secret code (e.g., `*7777#`) directly into the Search Bar to instantly reveal the hidden partition.
+- **App Bar Long-Press Trigger**: A 2.5-second tactile hold on the Ripple app bar logo challenges with biometric or 2SV PIN verification before opening the chamber.
+- **Bidirectional Migration**: Safely migrate chats into and out of the vault with zero data loss or session disruption.
 
-### 3. 🌐 Next-Gen Web Companion Workstation (WhatsApp & Telegram Web Parity)
-- **Instant QR Pairing**: Secure cryptographic handshake syncing accounts with desktop web browsers.
-- **Interactive Chat Folders**: Rapidly toggle between *"All"*, *"Unread"*, *"Direct"*, and *"Groups"*.
-- **Stories & Status Carousel**: Ephemeral visual stories with auto-advancing progress timers.
+### 3. 🎨 Vercel Design System & Liquid Glass Shaders
+- **Vercel Light Architecture**: Minimalist, high-contrast monochrome aesthetic inspired by `@serafimcloud/themes/vercel` (`#FAFAFA` canvas, `#09090B` high-contrast typography, `#E4E4E7` precision borders, and `#FFFFFF` cards).
+- **GPU-Accelerated Liquid Glass**: Two-pass Gaussian blur with dynamic light/dark refraction index adaptation, chromatic aberration, and spring physics.
+- **Responsive Layout Engine**: Effortlessly scales across smartphones, tablets, foldables, and desktop browsers.
+
+### 4. 🇮🇳 Focused Indian Demographic Localization (13 Languages)
+Comprehensive, app-wide reactive localization built for the Indian subcontinent and international users:
+- **Languages Supported**: English, Arabic (العربية), Hindi (हिन्दी), Bengali (বাংলা), Telugu (తెలుగు), Marathi (मराठी), Tamil (தமிழ்), Urdu (اردو), Gujarati (ગુજરાતી), Kannada (ಕನ್ನಡ), Malayalam (മലയാളം), Punjabi (ਪੰਜਾਬੀ), and Odia (ଓଡ଼ିଆ).
+- **Full Coverage**: 74 localized core application keys across all settings, navigation, vaults, chats, and modals.
+
+### 5. 🔍 Real-Time Unique Username Enforcement
+- **Collision Prevention**: Every user can claim a unique `@username` handle.
+- **Debounced Cloud Queries**: 350ms debounced Firestore indexing checks handle uniqueness in real-time. If a handle is taken by another user, an immediate collision warning is displayed, gating profile updates until resolved.
+
+### 6. 📊 Real-Time Storage & Data Usage Engines
+- **True Directory Scanner**: Real-time scanning across `getApplicationDocumentsDirectory()`, temporary cache, SQLite chat databases, encrypted audio notes, and local backup partitions.
+- **One-Tap Cache Purge**: Safely clear cached media and temporary thumbnails without deleting encrypted chat logs.
+- **Hardware Byte Monitor**: Real sent and received byte counters tracking cellular vs. Wi-Fi consumption across messages, media, voice notes, and documents.
+
+### 7. 🩺 Live System Diagnostics
+- **Real Hardware Status**: Live battery percentage, charging state, OS architecture, and core system telemetry.
+- **Network RTT & Serverless Ping**: Real cloud round-trip latency (ms) and live serverless health verification replacing static mockups.
+
+### 8. 🌐 Web Companion Workstation (WhatsApp & Telegram Web Parity)
+- **Instant Cryptographic QR Pairing**: Authenticate desktop browsers via end-to-end encrypted session handshake.
+- **Full Real-Time Chat Synchronization**: Real-time Firestore streams mirror conversations, contacts, voice notes, and media attachments between mobile and web.
 - **Voice Note Waveform Engine**: Interactive scrubable audio waveform player with `1.0x`, `1.5x`, and `2.0x` variable speed selection.
-- **Media & Attachment Suite**: Native support for Photos, Videos, Documents, Audio recordings, Contacts, and Location pins.
-- **Contextual Actions**: In-line quoted reply previews, message forwarding, starring, and deletion.
+- **Smart Chat Folders**: Quick-filter by *All*, *Unread*, *Direct*, and *Groups*.
 
-### 4. 💎 Official Liquid Glass Navigation Suite
-- **Impeller Shaders**: Powered by `liquid_glass_widgets: ^1.16.0` delivering two-pass Gaussian blur, chromatic aberration, and jelly physics pill indicators.
-- **Adaptive Brightness**: Content-aware refraction that dynamically contrasts against both light and dark themes.
-- **Responsive Rail Mode**: Automatically transforms into a sleek Liquid Glass Rail on tablets and desktop browsers.
-
-### 5. 🌍 Wikipedia Top 25 Demographic World Languages
-Full app-wide reactive localization covering the 25 most spoken languages globally:
-> English, Hindi, Spanish, Mandarin Chinese, French, Standard Arabic, Russian, German, Portuguese, Japanese, Turkish, Bengali, Urdu, Indonesian, Telugu, Marathi, Tamil, Vietnamese, Tagalog, Italian, Korean, Iranian Persian, Polish, Ukrainian, and Dutch.
-
-### 6. 📊 Real-Time Byte-Level Data Usage Tracker
-- **Hardware Byte Monitor**: Replaces static simulations with live sent and received byte counters for Wi-Fi and Cellular networks.
-- **Granular Breakdown**: Tracks real upload and download consumption across Messages, Photos, Videos, Audio, and Documents.
-
-### 7. 🔄 Resilient Dual-Engine Software Updater
-- **Primary Engine**: Shorebird Cloud instant Over-The-Air (OTA) binary code-push for zero-downtime updates.
-- **Serverless Fallback**: Zoho Catalyst Serverless (`/checkUpdate`) and GitHub Releases API fallback with in-app APK download progress and native package installation.
-
-### 8. 💾 Real Encrypted Backup & Restore
-- **Encrypted Local Export**: Export your complete conversation history and media manifests into an AES-256 encrypted `.rpbk` file.
-- **Device Share Sheet**: Save backups directly to local storage, Files app, external flash drives, or cloud providers via the native OS share sheet.
-- **File Picker Restoration**: Pick any `.rpbk` or `.json` file from your device to restore all chats, messages, and groups in seconds.
+### 9. 🔄 Dual-Engine Over-the-Air Update System
+- **Engine A (Shorebird Cloud)**: Instantaneous, zero-downtime hot-push of Dart compiled bytecode directly to user devices.
+- **Engine B (Zoho Catalyst & GitHub OTA)**: Robust Advanced I/O stream parser (`ripple_notify`) querying GitHub Releases API with automated background update notifications and in-app APK installer.
 
 ---
 
@@ -77,40 +81,45 @@ Full app-wide reactive localization covering the 25 most spoken languages global
 
 ```mermaid
 graph TD
-    subgraph Mobile_Client["Ripple Mobile App (Android / iOS)"]
-        UI[Liquid Glass UI & Material 3]
-        VAULT[Stealth Vault Engine]
-        AUTH[Multi-Account & Biometric Gate]
-        L10N[Wikipedia 25-Language L10n]
-        DATA[Real-Time Data Usage Tracker]
+    subgraph Mobile_Client["Ripple Client (Android / iOS / Web)"]
+        UI["Vercel Light & Liquid Glass UI"]
+        VAULT["Stealth Vault & Biometrics"]
+        AUTH["Unique Username & Multi-Account Hub"]
+        L10N["13-Language Reactive Engine"]
+        STORAGE["Real Directory Storage Scanner"]
+        SECURITY["2SV PIN & Session Controller"]
     end
 
-    subgraph Backend_Cloud["Enterprise Cloud & Serverless Infrastructure"]
-        FB[(Firebase Firestore & Auth)]
-        CATALYST[Zoho Catalyst Serverless Functions]
-        SUPABASE[(Supabase Storage & DB)]
-        DAILY[Daily.co WebRTC Signaling]
-        SHOREBIRD[Shorebird OTA Cloud]
+    subgraph Serverless_Cloud["Serverless Infrastructure"]
+        FB_AUTH["Firebase Auth"]
+        FIRESTORE[("Cloud Firestore Real-Time DB")]
+        CATALYST["Zoho Catalyst Advanced I/O (ripple_notify)"]
+        FCM["Firebase Cloud Messaging (Stream Parser)"]
+        SHOREBIRD["Shorebird CodePush OTA Cloud"]
+        GITHUB["GitHub Releases CDN"]
     end
 
-    subgraph Web_Companion["Ripple Web Workstation"]
-        BROWSER[Desktop Browser Client]
-        FOLDERS[Folder Filters & Voice Waveforms]
+    subgraph Web_Workstation["Ripple Web Companion"]
+        BROWSER["Desktop Web Client"]
+        QR_SYNC["Two-Way QR Session Sync"]
     end
 
     UI --> AUTH
-    AUTH --> FB
+    AUTH --> FB_AUTH
+    UI --> FIRESTORE
     UI --> VAULT
-    UI --> L10N
-    UI --> DATA
+    UI --> STORAGE
+    UI --> SECURITY
     
-    CATALYST -->|/checkUpdate & /webSession/verify| FB
-    CATALYST -->|OTA Release Management| UI
+    CATALYST -->|Serverless Health & OTA Check| GITHUB
+    CATALYST -->|Stream JSON Body Parse| FCM
+    FCM -->|High-Priority Push Notification| UI
     
-    UI -.->|QR Pairing Handshake| BROWSER
-    BROWSER -->|Two-Way Synchronized Stream| FB
-    UI -->|P2P Encrypted Audio/Video| DAILY
-    UI -->|Cloud Snapshots| SUPABASE
+    UI <-->|Cryptographic Pairing Handshake| QR_SYNC
+    QR_SYNC <-->|Synced Active Sessions| BROWSER
+    BROWSER <-->|Real-Time Streams| FIRESTORE
+    
+    SHOREBIRD -.->|Zero-Downtime Patch| UI
 ```
 
 ---
@@ -119,27 +128,29 @@ graph TD
 
 ```
 ripple/
-├── android/                     # Native Android platform config & densities
-├── ios/                         # Native iOS runner & AppIcon assets
+├── android/                     # Native Android Gradle configuration & Keystore
+├── ios/                         # Native iOS runner & Keychain entitlements
 ├── web/                         # Flutter Web companion workstation runner
 ├── catalyst/                    # Zoho Catalyst Serverless Backend
-│   └── functions/ripple_notify/ # Node.js Cloud Functions (/checkUpdate, /webSession/verify)
+│   └── functions/ripple_notify/ # Node.js Cloud Functions (/checkUpdate, stream parser)
 ├── release/                     # Production binary distribution (Git LFS tracked)
 │   └── ripple-release.apk       # Ready-to-install Android Release APK
+├── PRIVACY.md                   # Formal zero-metadata privacy disclosure
+├── TERMS.md                     # Terms of Service & acceptable use agreement
 ├── lib/
 │   ├── app.dart                 # Application root, theme binding & GoRouter routes
 │   ├── main.dart                # Entry point & shader initialization
 │   ├── core/
 │   │   ├── constants/           # Colors, typography, and styling tokens
-│   │   ├── services/            # UpdateService, StealthVaultService, DataUsageTracker
-│   │   ├── theme/               # Liquid Glass themes (ios27, crystal_water, cyber, abyss)
-│   │   └── utils/               # Wikipedia L10n dictionary (25 languages), Haptics, Helpers
+│   │   ├── services/            # UpdateService, StealthVaultService, NotificationService
+│   │   ├── theme/               # Vercel Light Theme & Liquid Glass presets
+│   │   └── utils/               # 13-Language Indian demographic dictionary, Haptics
 │   ├── features/
-│   │   ├── auth/                # Multi-Account authentication & secure vault
-│   │   ├── chat/                # Real-time messaging, bubbles, media viewer, and folders
+│   │   ├── auth/                # Multi-Account authentication & unique username validator
+│   │   ├── chat/                # Real-time messaging, bubbles, media viewer, saved messages
 │   │   ├── calls/               # Daily.co WebRTC audio & video calling
 │   │   ├── privacy/             # Stealth Vault, Chat Lock, App Gate, Blocklist
-│   │   ├── profile/             # Settings, Backup & Restore, Data Usage, Language picker
+│   │   ├── profile/             # Real Storage Scanner, Diagnostics, Security Hub, L10n
 │   │   ├── status/              # Ephemeral stories with auto-advancing progress
 │   │   └── web_companion/       # Web pairing screen and desktop workstation
 │   └── shared/                  # Reusable Liquid Glass cards, navigation bars, avatars
@@ -150,12 +161,12 @@ ripple/
 ## 🔧 Getting Started
 
 ### Prerequisites
-- **Flutter SDK**: `^3.41.0` (Dart `^3.5.0`)
+- **Flutter SDK**: `^3.7.0` (Dart `^3.7.0`)
 - **Node.js**: `v18+` (for Zoho Catalyst deployment)
 - **Java**: JDK 17 (for Android release builds)
 - **Git LFS**: Installed and initialized (`git lfs install`)
 
-### Environment Configuration
+### Environment Setup
 Create a `.env` file in the project root:
 ```env
 # Firebase Configuration
@@ -177,43 +188,35 @@ SUPABASE_ANON_KEY=your_supabase_anon_key
 CLOUDINARY_CLOUD_NAME=your_cloudinary_name
 ```
 
-### Installation & Run
+### Build & Run Commands
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/Masthan008/Ripple.git
-   cd Ripple/ripple
-   git lfs pull
-   ```
+```bash
+# 1. Clone repository & pull Git LFS binaries
+git clone https://github.com/Masthan008/Ripple.git
+cd Ripple/ripple
+git lfs pull
 
-2. **Install Flutter dependencies**:
-   ```bash
-   flutter pub get
-   ```
+# 2. Install dependencies
+flutter pub get
 
-3. **Run on connected device**:
-   ```bash
-   flutter run
-   ```
+# 3. Run on connected Android / iOS device
+flutter run
 
-4. **Run Desktop Web Companion**:
-   ```bash
-   flutter run -d chrome
-   ```
+# 4. Run Desktop Web Companion Workstation
+flutter run -d chrome
 
-5. **Build Production Release APK**:
-   ```bash
-   flutter build apk --release
-   ```
+# 5. Build Production Release APK
+flutter build apk --release
+```
 
 ---
 
-## 🛡️ Security & Privacy Disclosures
+## 🛡️ Sovereign Security & Privacy Guarantees
 
-Ripple adheres to strict data minimization and user sovereignty principles:
-- **No Analytics / No Ad SDKs**: Zero tracking, zero telemetry, zero device fingerprinting.
-- **Ephemeral Metadata**: Unread counts and typing indicators are transient.
-- **Biometric Isolation**: Passcodes and vault keys are stored exclusively in hardware keystores (`flutter_secure_storage`).
+- **Zero-Trace Architecture**: No cloud logging of unread message badges, contacts, or message bodies.
+- **Hardware Biometric Lock**: 2SV PIN and Biometrics guard access to the app, secret conversations, and system settings.
+- **True Account Erasure**: The "Delete Account" action irreversibly destroys authentication credentials, cloud records, and local encryption keys across all platforms.
+- **Formal Documentation**: Review our comprehensive [PRIVACY.md](PRIVACY.md) and [TERMS.md](TERMS.md).
 
 ---
 

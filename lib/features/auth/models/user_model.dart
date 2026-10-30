@@ -7,6 +7,7 @@ class UserModel {
   final String email;
   final String photoUrl;
   final String bio;
+  final String username;
   final bool isOnline;
   final DateTime? lastSeen;
   final String fcmToken;
@@ -30,6 +31,7 @@ class UserModel {
     required this.email,
     this.photoUrl = '',
     this.bio = '',
+    this.username = '',
     this.isOnline = false,
     this.lastSeen,
     this.fcmToken = '',
@@ -69,6 +71,7 @@ class UserModel {
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'] ?? '',
       bio: data['bio'] ?? '',
+      username: data['username'] ?? '',
       isOnline: data['isOnline'] ?? false,
       lastSeen: (data['lastSeen'] as Timestamp?)?.toDate(),
       fcmToken: data['fcmToken'] ?? '',
@@ -99,6 +102,7 @@ class UserModel {
       email: data['email'] ?? '',
       photoUrl: data['photoUrl'] ?? '',
       bio: data['bio'] ?? '',
+      username: data['username'] ?? '',
       isOnline: data['isOnline'] ?? false,
       lastSeen: (data['lastSeen'] as Timestamp?)?.toDate(),
       fcmToken: data['fcmToken'] ?? '',
@@ -129,6 +133,7 @@ class UserModel {
       'email': email,
       'photoUrl': photoUrl,
       'bio': bio,
+      'username': username,
       'isOnline': isOnline,
       'lastSeen': lastSeen != null ? Timestamp.fromDate(lastSeen!) : null,
       'fcmToken': fcmToken,
@@ -155,6 +160,7 @@ class UserModel {
     String? email,
     String? photoUrl,
     String? bio,
+    String? username,
     bool? isOnline,
     DateTime? lastSeen,
     String? fcmToken,
@@ -178,6 +184,7 @@ class UserModel {
       email: email ?? this.email,
       photoUrl: photoUrl ?? this.photoUrl,
       bio: bio ?? this.bio,
+      username: username ?? this.username,
       isOnline: isOnline ?? this.isOnline,
       lastSeen: lastSeen ?? this.lastSeen,
       fcmToken: fcmToken ?? this.fcmToken,

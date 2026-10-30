@@ -636,6 +636,34 @@ class NotificationService {
 
 
 
+  /// Displays an immediate high-priority system alert (e.g. for new app updates)
+  static Future<void> showLocalAlert({
+    required String title,
+    required String body,
+    String? payload,
+  }) async {
+    try {
+      const androidDetails = AndroidNotificationDetails(
+        'ripple_updates',
+        'System & App Updates',
+        channelDescription: 'Over-the-air update notifications and security advisories',
+        importance: Importance.high,
+        priority: Priority.high,
+        playSound: true,
+        enableVibration: true,
+      );
+      await _localNotifications.show(
+        DateTime.now().millisecond,
+        title,
+        body,
+        const NotificationDetails(android: androidDetails),
+        payload: payload,
+      );
+    } catch (e) {
+      debugPrint('[NotificationService] showLocalAlert note: ' + e.toString());
+    }
+  }
+
   /// Show Mute Notification dialog (8 hours, 1 week, Always)
 
   static Future<void> showMuteDialog(BuildContext context, String chatId) async {

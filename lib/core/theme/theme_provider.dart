@@ -10,7 +10,7 @@ final rippleThemeProvider = StateNotifierProvider<RippleThemeNotifier, RippleThe
 
 /// Theme notifier that manages the current theme
 class RippleThemeNotifier extends StateNotifier<RippleTheme> {
-  RippleThemeNotifier() : super(ThemePresets.aquaOcean) {
+  RippleThemeNotifier() : super(ThemePresets.vercelLight) {
     _load();
   }
 

@@ -183,7 +183,7 @@ class LiquidNavbarWidget extends ConsumerWidget {
       unselectedIconColor: theme.colors.textMuted,
       selectedLabelColor: theme.colors.primary,
       unselectedLabelColor: theme.colors.textMuted,
-      settings: LiquidGlassSettings.ios27Dark,
+      settings: theme.isDark ? LiquidGlassSettings.ios27Dark : LiquidGlassSettings.ios27Light,
       tabs: tabs,
     );
   }

@@ -18,6 +18,39 @@ if (!admin.apps.length) {
 }
 
 /**
+ * Helper to safely extract and parse JSON payload from raw Catalyst streams or express body.
+ */
+function getRequestBody(req) {
+  return new Promise((resolve) => {
+    if (typeof req.body === 'object' && req.body !== null) {
+      return resolve(req.body);
+    }
+    if (typeof req.body === 'string' && req.body.trim().length > 0) {
+      try {
+        return resolve(JSON.parse(req.body));
+      } catch (_) {
+        return resolve({});
+      }
+    }
+    let data = '';
+    req.on('data', chunk => {
+      data += chunk;
+    });
+    req.on('end', () => {
+      if (!data || !data.trim()) return resolve({});
+      try {
+        resolve(JSON.parse(data));
+      } catch (_) {
+        resolve({});
+      }
+    });
+    req.on('error', () => {
+      resolve({});
+    });
+  });
+}
+
+/**
  * Advanced I/O function for Zoho Catalyst Pay-As-You-Go plan.
  * Dispatches high-priority FCM v1 push notifications for Ripple calls and messages.
  */
@@ -38,16 +71,17 @@ module.exports = async (req, res) => {
   if (url.includes('/checkUpdate')) {
     res.writeHead(200);
     return res.end(JSON.stringify({
-      version: '1.0.1',
-      buildNumber: 43,
+      version: '1.0.2',
+      buildNumber: 44,
       downloadUrl: 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk',
       changelog: [
-        'Liquid Glass & Quantum interface overhaul',
-        'Real-time network data usage monitor',
-        'Multi-account fast switcher with GoRouter bypass',
-        'High-contrast accessibility mode & voice semantics',
-        'Wikipedia Top-25 international languages app-wide',
-        'WhatsApp & Telegram Web feature-parity (Voice notes, Folders, Stories)'
+        'Vercel modern light theme & precision monochrome design',
+        'Focused Indian demographic languages (Hindi, Bengali, Telugu, Tamil, Marathi, Urdu, Gujarati, Kannada, Malayalam, Punjabi, Odia) + English & Arabic',
+        'Real-time disk storage manager & live network data usage tracker',
+        'Live hardware & system diagnostics (battery, network latency RTT, serverless status)',
+        'Enforced unique @username verification and collision detection',
+        'Redesigned real-time account security suite with biometric lock & 2SV PIN',
+        'Stealth Vault isolated chat hiding with secret dial code & biometrics'
       ],
       forceUpdate: false,
       timestamp: new Date().toISOString()
@@ -64,18 +98,8 @@ module.exports = async (req, res) => {
     }));
   }
 
-  // 2. Parse JSON body
-  let body = {};
-  try {
-    if (typeof req.body === 'object') {
-      body = req.body;
-    } else if (req.body) {
-      body = JSON.parse(req.body);
-    }
-  } catch (e) {
-    res.writeHead(400);
-    return res.end(JSON.stringify({ error: 'Invalid JSON payload' }));
-  }
+  // 2. Parse JSON body safely from stream
+  const body = await getRequestBody(req);
 
   // 2.5 Web Session Verification Endpoint
   if (url.includes('/webSession/verify')) {
@@ -182,9 +206,11 @@ module.exports = async (req, res) => {
 
   // 4. Send Push Notification
   if (url.includes('/sendNotification') || url.includes('/send') || (req.method === 'POST' && !url.includes('/deleteAccount') && !url.includes('/registerDevice'))) {
-    const { recipientUids, title, body: msgBody, data = {}, priority = 'high' } = body;
+    const { title, body: msgBody, data = {}, priority = 'high' } = body;
+    const rawRecipients = body.recipientUids || body.recipients || (body.recipientUid ? [body.recipientUid] : []);
+    const recipientUids = Array.isArray(rawRecipients) ? rawRecipients : [rawRecipients].filter(Boolean);
 
-    if (!recipientUids || !Array.isArray(recipientUids) || recipientUids.length === 0) {
+    if (recipientUids.length === 0) {
       res.writeHead(400);
       return res.end(JSON.stringify({ error: 'Missing recipientUids array' }));
     }

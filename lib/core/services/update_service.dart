@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:restart_app/restart_app.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:shorebird_code_push/shorebird_code_push.dart';
+import 'notification_service.dart';
 
 /// Application update states for the dual-engine OTA cloud system.
 enum AppUpdateStatus {
@@ -235,6 +236,11 @@ class UpdateService extends ChangeNotifier {
                 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk';
             _changelog = List<String>.from(data['changelog'] ?? []);
             _status = AppUpdateStatus.updateAvailable;
+            NotificationService.showLocalAlert(
+              title: 'New Ripple Update Available: $_availableVersion',
+              body: 'A new release is ready with performance & security upgrades. Tap to install.',
+              payload: '/software-update',
+            );
             return;
           }
         }
@@ -265,6 +271,11 @@ class UpdateService extends ChangeNotifier {
             _downloadUrl = apkUrl ?? 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk';
             _changelog = [ghData['body']?.toString() ?? 'Latest performance & security updates'];
             _status = AppUpdateStatus.updateAvailable;
+            NotificationService.showLocalAlert(
+              title: 'New Ripple Update Available: $_availableVersion',
+              body: 'A new release is ready with performance & security upgrades. Tap to install.',
+              payload: '/software-update',
+            );
             return;
           }
         }

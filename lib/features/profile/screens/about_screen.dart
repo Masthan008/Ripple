@@ -17,8 +17,8 @@ class AboutScreen extends ConsumerStatefulWidget {
 }
 
 class _AboutScreenState extends ConsumerState<AboutScreen> with SingleTickerProviderStateMixin {
-  String _version = '1.0.1';
-  String _buildNumber = '43';
+  String _version = '1.0.2';
+  String _buildNumber = '44';
   late AnimationController _pulseController;
 
   @override
@@ -42,8 +42,8 @@ class _AboutScreenState extends ConsumerState<AboutScreen> with SingleTickerProv
       final info = await PackageInfo.fromPlatform();
       if (mounted) {
         setState(() {
-          _version = info.version.isNotEmpty ? info.version : '1.0.1';
-          _buildNumber = info.buildNumber.isNotEmpty ? info.buildNumber : '43';
+          _version = info.version.isNotEmpty ? info.version : '1.0.2';
+          _buildNumber = info.buildNumber.isNotEmpty ? info.buildNumber : '44';
         });
       }
     } catch (_) {}
@@ -224,10 +224,10 @@ class _AboutScreenState extends ConsumerState<AboutScreen> with SingleTickerProv
                       ),
                       Divider(color: cardBorder, height: 1, indent: 56),
                       _buildSpecTile(
-                        icon: Icons.hub_rounded,
+                        icon: Icons.shield_rounded,
                         iconColor: const Color(0xFF0EA5E9),
-                        title: 'Decentralized Offline Mesh',
-                        subtitle: 'Nearby Bluetooth LE & Wi-Fi Direct peer fallback',
+                        title: 'Stealth Vault & Biometric Isolation',
+                        subtitle: 'PIN-secured encrypted local partition & hardware biometrics',
                         textColor: textColor,
                         textMuted: textMuted,
                       ),
@@ -271,7 +271,7 @@ class _AboutScreenState extends ConsumerState<AboutScreen> with SingleTickerProv
                         icon: Icons.code_rounded,
                         iconColor: const Color(0xFF38BDF8),
                         title: 'GitHub Source Repository',
-                        subtitle: 'github.com/Masthan008/Ripple',
+                        subtitle: 'Masthan008/Ripple',
                         textColor: textColor,
                         textMuted: textMuted,
                         onTap: () => _launchUrl('https://github.com/Masthan008/Ripple'),
@@ -280,11 +280,21 @@ class _AboutScreenState extends ConsumerState<AboutScreen> with SingleTickerProv
                       _buildLinkTile(
                         icon: Icons.privacy_tip_outlined,
                         iconColor: const Color(0xFF10B981),
-                        title: 'Privacy Policy & Terms',
-                        subtitle: 'Zero data retention principles',
+                        title: 'Privacy Policy',
+                        subtitle: 'Zero metadata retention & cryptographic isolation',
                         textColor: textColor,
                         textMuted: textMuted,
-                        onTap: () => _launchUrl('https://github.com/Masthan008/Ripple#privacy'),
+                        onTap: () => _launchUrl('https://github.com/Masthan008/Ripple/blob/main/PRIVACY.md'),
+                      ),
+                      Divider(color: cardBorder, height: 1, indent: 56),
+                      _buildLinkTile(
+                        icon: Icons.description_outlined,
+                        iconColor: const Color(0xFF8B5CF6),
+                        title: 'Terms of Service',
+                        subtitle: 'Acceptable use & client sovereignty agreements',
+                        textColor: textColor,
+                        textMuted: textMuted,
+                        onTap: () => _launchUrl('https://github.com/Masthan008/Ripple/blob/main/TERMS.md'),
                       ),
                     ],
                   ),

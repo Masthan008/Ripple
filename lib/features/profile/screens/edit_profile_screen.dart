@@ -1,20 +1,19 @@
-import 'package:liquid_glass_widgets/liquid_glass_widgets.dart' hide GlassTheme, GlassCard;
+import 'dart:async';
 import 'dart:io';
 
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:go_router/go_router.dart';
-
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_text_styles.dart';
 import '../../../core/services/cloudinary_service.dart';
 import '../../../core/services/firebase_service.dart';
+import '../../../core/theme/theme_provider.dart';
+import '../../../core/utils/l10n.dart';
 import '../../../shared/widgets/aqua_avatar.dart';
-import '../../../shared/widgets/glass_card.dart';
 import '../../auth/providers/auth_provider.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -26,10 +25,16 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _nameController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _bioController = TextEditingController();
   bool _isSaving = false;
   bool _isUploadingPhoto = false;
   String? _photoUrl;
+
+  String _initialUsername = '';
+  String? _usernameError;
+  bool _isCheckingUsername = false;
+  Timer? _debounceTimer;
 
   @override
   void initState() {
@@ -40,13 +45,100 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _bioController.text = user.bio;
       _photoUrl = user.photoUrl;
     }
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final uid = FirebaseService.auth.currentUser?.uid;
+    if (uid == null) return;
+    try {
+      final doc = await FirebaseService.firestore.collection('users').doc(uid).get();
+      if (doc.exists && mounted) {
+        final u = (doc.data()?['username'] as String?) ?? '';
+        setState(() {
+          _usernameController.text = u;
+          _initialUsername = u.trim().toLowerCase();
+        });
+      }
+    } catch (_) {}
   }
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _nameController.dispose();
+    _usernameController.dispose();
     _bioController.dispose();
     super.dispose();
+  }
+
+  void _onUsernameChanged(String val) {
+    _debounceTimer?.cancel();
+    final raw = val.trim().toLowerCase();
+
+    if (raw.isEmpty) {
+      setState(() {
+        _usernameError = 'Username cannot be empty';
+        _isCheckingUsername = false;
+      });
+      return;
+    }
+
+    if (raw.length < 3) {
+      setState(() {
+        _usernameError = 'Username must be at least 3 characters';
+        _isCheckingUsername = false;
+      });
+      return;
+    }
+
+    if (!RegExp(r'^[a-zA-Z0-9_.]+$').hasMatch(raw)) {
+      setState(() {
+        _usernameError = 'Use only letters, numbers, underscores, and dots';
+        _isCheckingUsername = false;
+      });
+      return;
+    }
+
+    if (raw == _initialUsername) {
+      setState(() {
+        _usernameError = null;
+        _isCheckingUsername = false;
+      });
+      return;
+    }
+
+    setState(() {
+      _isCheckingUsername = true;
+      _usernameError = null;
+    });
+
+    _debounceTimer = Timer(const Duration(milliseconds: 350), () async {
+      try {
+        final query = await FirebaseService.firestore
+            .collection('users')
+            .where('username', isEqualTo: raw)
+            .limit(2)
+            .get();
+        final currentUid = FirebaseService.auth.currentUser?.uid;
+        final isTaken = query.docs.any((doc) => doc.id != currentUid);
+
+        if (mounted) {
+          setState(() {
+            _isCheckingUsername = false;
+            if (isTaken) {
+              _usernameError = 'Username @$raw is already taken. Please choose another.';
+            } else {
+              _usernameError = null;
+            }
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() => _isCheckingUsername = false);
+        }
+      }
+    });
   }
 
   Future<void> _pickPhoto() async {
@@ -113,40 +205,61 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     final name = _nameController.text.trim();
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Name cannot be empty'),
-          backgroundColor: AppColors.errorRed,
-        ),
+        const SnackBar(content: Text('Name cannot be empty'), backgroundColor: AppColors.errorRed),
       );
       return;
     }
+
+    if (_usernameError != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(_usernameError!), backgroundColor: AppColors.errorRed),
+      );
+      return;
+    }
+
+    final newUsername = _usernameController.text.trim().toLowerCase();
 
     setState(() => _isSaving = true);
     try {
       final uid = FirebaseService.auth.currentUser?.uid;
       if (uid == null) return;
 
+      // Final uniqueness check before commit
+      if (newUsername.isNotEmpty && newUsername != _initialUsername) {
+        final q = await FirebaseService.firestore
+            .collection('users')
+            .where('username', isEqualTo: newUsername)
+            .limit(2)
+            .get();
+        if (q.docs.any((d) => d.id != uid)) {
+          if (mounted) {
+            setState(() {
+              _usernameError = 'Username @$newUsername is already taken by another user.';
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(_usernameError!), backgroundColor: AppColors.errorRed),
+            );
+          }
+          return;
+        }
+      }
+
       await FirebaseService.firestore.collection('users').doc(uid).update({
         'name': name,
+        'username': newUsername,
         'bio': _bioController.text.trim(),
       });
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Profile updated!'),
-            backgroundColor: AppColors.onlineGreen,
-          ),
+          const SnackBar(content: Text('Profile updated successfully!'), backgroundColor: AppColors.onlineGreen),
         );
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Something went wrong. Try again.'),
-            backgroundColor: AppColors.errorRed,
-          ),
+          SnackBar(content: Text('Failed to update: $e'), backgroundColor: AppColors.errorRed),
         );
       }
     } finally {
@@ -156,22 +269,32 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = ref.watch(rippleThemeProvider);
+    final isDark = theme.isDark;
+    final textColor = isDark ? Colors.white : const Color(0xFF09090B);
+    final textMuted = isDark ? Colors.white60 : const Color(0xFF71717A);
+    final cardBg = isDark ? Colors.white.withValues(alpha: 0.05) : Colors.white;
+    final cardBorder = isDark ? Colors.white12 : const Color(0xFFE4E4E7);
+
     return Scaffold(
-      backgroundColor: AppColors.abyssBackground,
+      backgroundColor: theme.colors.background,
       appBar: AppBar(
-        title: Text('Edit Profile', style: AppTextStyles.heading),
+        title: Text(L10n.s(ref, 'edit'), style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 18)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.aquaCore),
+        leading: IconButton(
+          icon: Icon(Icons.arrow_back_ios_new_rounded, color: textColor, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
       ),
       body: AnimationLimiter(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child: Column(
             children: AnimationConfiguration.toStaggeredList(
-              duration: const Duration(milliseconds: 450),
+              duration: const Duration(milliseconds: 400),
               childAnimationBuilder: (widget) => SlideAnimation(
-                verticalOffset: 50,
+                verticalOffset: 40,
                 curve: Curves.easeOutBack,
                 child: FadeInAnimation(child: widget),
               ),
@@ -187,35 +310,22 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           Container(
                             width: 90,
                             height: 90,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: AppColors.glassPanel,
-                            ),
-                            child: const Center(
-                              child: CircularProgressIndicator(
-                                valueColor: AlwaysStoppedAnimation(AppColors.aquaCore),
-                              ),
+                            decoration: BoxDecoration(shape: BoxShape.circle, color: cardBg),
+                            child: Center(
+                              child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation(theme.colors.primary)),
                             ),
                           )
                         else
-                          AquaAvatar(
-                            imageUrl: _photoUrl,
-                            name: _nameController.text,
-                            size: 90,
-                          ),
+                          AquaAvatar(imageUrl: _photoUrl, name: _nameController.text, size: 90),
                         Container(
                           width: 32,
                           height: 32,
                           decoration: BoxDecoration(
-                            gradient: AppColors.buttonGradient,
+                            color: theme.colors.primary,
                             shape: BoxShape.circle,
-                            border: Border.all(
-                              color: AppColors.abyssBackground,
-                              width: 3,
-                            ),
+                            border: Border.all(color: theme.colors.background, width: 2.5),
                           ),
-                          child: const Icon(Icons.camera_alt_rounded,
-                              color: Colors.white, size: 14),
+                          child: Icon(Icons.camera_alt_rounded, color: isDark ? Colors.black : Colors.white, size: 15),
                         ),
                       ],
                     ),
@@ -223,38 +333,40 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 ),
                 const SizedBox(height: 28),
 
-                // Name field (Liquid Glass)
-                GlassContainer(
-                  useOwnLayer: true,
-                  shape: const LiquidRoundedSuperellipse(borderRadius: 18),
-                  padding: const EdgeInsets.all(18),
+                // Name field
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cardBorder),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.person_rounded, size: 16, color: AppColors.aquaCore),
+                          Icon(Icons.person_rounded, size: 16, color: theme.colors.primary),
                           const SizedBox(width: 8),
-                          Text('Display Name', style: AppTextStyles.caption.copyWith(
-                            color: AppColors.aquaCore, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                          Text('DISPLAY NAME', style: TextStyle(color: textMuted, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5)),
                         ],
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: _nameController,
-                        style: AppTextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                        style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 15),
                         decoration: InputDecoration(
                           hintText: 'Enter your name',
-                          hintStyle: TextStyle(color: AppColors.textMuted),
+                          hintStyle: TextStyle(color: textMuted),
                           filled: true,
-                          fillColor: Colors.white.withValues(alpha: 0.04),
+                          fillColor: isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF4F4F5),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                            borderSide: BorderSide(color: cardBorder),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.aquaCore, width: 1.5),
+                            borderSide: BorderSide(color: theme.colors.primary, width: 1.5),
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
@@ -264,72 +376,150 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Bio field (Liquid Glass)
-                GlassContainer(
-                  useOwnLayer: true,
-                  shape: const LiquidRoundedSuperellipse(borderRadius: 18),
-                  padding: const EdgeInsets.all(18),
+                // Unique Username Field
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(
+                      color: _usernameError != null ? AppColors.errorRed : cardBorder,
+                      width: _usernameError != null ? 1.5 : 1,
+                    ),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.aquaCore),
+                          Icon(Icons.alternate_email_rounded, size: 16, color: theme.colors.primary),
                           const SizedBox(width: 8),
-                          Text('Bio / Status', style: AppTextStyles.caption.copyWith(
-                            color: AppColors.aquaCore, fontWeight: FontWeight.bold, letterSpacing: 0.5)),
+                          Text('UNIQUE USERNAME', style: TextStyle(color: textMuted, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5)),
+                          const Spacer(),
+                          if (_isCheckingUsername)
+                            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                          else if (_usernameController.text.isNotEmpty && _usernameError == null)
+                            const Icon(Icons.check_circle_rounded, color: AppColors.onlineGreen, size: 18),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      TextField(
+                        controller: _usernameController,
+                        onChanged: _onUsernameChanged,
+                        style: TextStyle(color: textColor, fontWeight: FontWeight.w600, fontSize: 15),
+                        decoration: InputDecoration(
+                          prefixText: '@',
+                          prefixStyle: TextStyle(color: theme.colors.primary, fontWeight: FontWeight.bold, fontSize: 15),
+                          hintText: 'username',
+                          hintStyle: TextStyle(color: textMuted),
+                          filled: true,
+                          fillColor: isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF4F4F5),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: _usernameError != null ? AppColors.errorRed : cardBorder,
+                            ),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            borderSide: BorderSide(
+                              color: _usernameError != null ? AppColors.errorRed : theme.colors.primary,
+                              width: 1.5,
+                            ),
+                          ),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                        ),
+                      ),
+                      if (_usernameError != null) ...[
+                        const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded, color: AppColors.errorRed, size: 14),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                _usernameError!,
+                                style: const TextStyle(color: AppColors.errorRed, fontSize: 12, fontWeight: FontWeight.w500),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          'Other users can find and message you using this unique @username.',
+                          style: TextStyle(color: textMuted, fontSize: 11),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Bio field
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cardBorder),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.info_outline_rounded, size: 16, color: theme.colors.primary),
+                          const SizedBox(width: 8),
+                          Text('BIO / STATUS', style: TextStyle(color: textMuted, fontWeight: FontWeight.bold, fontSize: 11, letterSpacing: 0.5)),
                         ],
                       ),
                       const SizedBox(height: 10),
                       TextField(
                         controller: _bioController,
-                        style: AppTextStyles.body,
+                        style: TextStyle(color: textColor, fontSize: 14),
                         maxLines: 3,
                         maxLength: 150,
                         decoration: InputDecoration(
                           hintText: 'Tell contacts about yourself...',
-                          hintStyle: TextStyle(color: AppColors.textMuted),
-                          counterStyle: TextStyle(color: AppColors.textMuted),
+                          hintStyle: TextStyle(color: textMuted),
+                          counterStyle: TextStyle(color: textMuted),
                           filled: true,
-                          fillColor: Colors.white.withValues(alpha: 0.04),
+                          fillColor: isDark ? Colors.white.withValues(alpha: 0.04) : const Color(0xFFF4F4F5),
                           enabledBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(color: Colors.white.withValues(alpha: 0.08)),
+                            borderSide: BorderSide(color: cardBorder),
                           ),
                           focusedBorder: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(12),
-                            borderSide: const BorderSide(color: AppColors.aquaCore, width: 1.5),
+                            borderSide: BorderSide(color: theme.colors.primary, width: 1.5),
                           ),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                         ),
                       ),
                       const SizedBox(height: 8),
-                      // Quick bio suggestion chips
                       Wrap(
                         spacing: 8,
                         runSpacing: 6,
                         children: [
                           'Available',
                           'E2EE Verified',
-                          'In a meeting',
+                          'Deep Work',
                           'Focus Mode',
+                          'Sovereign',
                         ].map((suggestion) => InkWell(
-                          onTap: () {
-                            setState(() {
-                              _bioController.text = suggestion;
-                            });
-                          },
+                          onTap: () => setState(() => _bioController.text = suggestion),
                           borderRadius: BorderRadius.circular(20),
                           child: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                             decoration: BoxDecoration(
-                              color: AppColors.aquaCore.withValues(alpha: 0.12),
+                              color: isDark ? Colors.white10 : const Color(0xFFF4F4F5),
                               borderRadius: BorderRadius.circular(20),
-                              border: Border.all(color: AppColors.aquaCore.withValues(alpha: 0.25)),
+                              border: Border.all(color: cardBorder),
                             ),
                             child: Text(
                               suggestion,
-                              style: const TextStyle(color: AppColors.aquaCore, fontSize: 11, fontWeight: FontWeight.w600),
+                              style: TextStyle(color: textColor, fontSize: 11, fontWeight: FontWeight.w600),
                             ),
                           ),
                         )).toList(),
@@ -342,42 +532,25 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 // Save button
                 SizedBox(
                   width: double.infinity,
-                  height: 52,
-                  child: DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: AppColors.buttonGradient,
-                      borderRadius: BorderRadius.circular(16),
-                      boxShadow: AppColors.aquaGlow,
+                  height: 48,
+                  child: ElevatedButton(
+                    onPressed: (_isSaving || _usernameError != null) ? null : _save,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: theme.colors.primary,
+                      foregroundColor: isDark ? Colors.black : Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _save,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.transparent,
-                        foregroundColor: Colors.white,
-                        shadowColor: Colors.transparent,
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                      ),
-                      child: _isSaving
-                          ? const SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(Colors.white),
-                              ),
-                            )
-                          : const Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(Icons.check_circle_outline_rounded, size: 20),
-                                SizedBox(width: 8),
-                                Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                              ],
-                            ),
-                    ),
+                    child: _isSaving
+                        ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)))
+                        : const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.check_circle_outline_rounded, size: 18),
+                              SizedBox(width: 8),
+                              Text('Save Changes', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                            ],
+                          ),
                   ),
                 ),
                 const SizedBox(height: 32),
@@ -385,40 +558,30 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 // Danger Zone / Delete Account Section
                 Align(
                   alignment: Alignment.centerLeft,
-                  child: Text(
-                    'DANGER ZONE',
-                    style: AppTextStyles.caption.copyWith(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                      color: AppColors.errorRed.withOpacity(0.8),
-                    ),
-                  ),
+                  child: Text('DANGER ZONE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 1.2, color: AppColors.errorRed)),
                 ),
                 const SizedBox(height: 8),
-                GlassCard(
-                  borderRadius: 16,
+                Container(
                   padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: cardBg,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: cardBorder),
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
+                      const Row(
                         children: [
-                          const Icon(Icons.warning_amber_rounded, color: AppColors.errorRed, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Permanently Delete Account',
-                            style: AppTextStyles.body.copyWith(
-                              color: AppColors.errorRed,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
+                          Icon(Icons.warning_amber_rounded, color: AppColors.errorRed, size: 20),
+                          SizedBox(width: 8),
+                          Text('Permanently Delete Account', style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold, fontSize: 14)),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Text(
-                        'Deleting your account will permanently wipe all your messages, profile details, uploaded media, and cloud backups from Ripple. This action is real-time and cannot be undone.',
-                        style: AppTextStyles.caption.copyWith(color: AppColors.textMuted, height: 1.3),
+                        'Deleting your account will permanently wipe all your messages, profile details, uploaded media, and cloud backups from Ripple. This action is real-time and irreversible.',
+                        style: TextStyle(color: textMuted, fontSize: 12, height: 1.3),
                       ),
                       const SizedBox(height: 16),
                       SizedBox(
@@ -428,12 +591,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           onPressed: _showDeleteAccountConfirmDialog,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: AppColors.errorRed,
-                            side: const BorderSide(color: AppColors.errorRed, width: 1.5),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
+                            side: const BorderSide(color: AppColors.errorRed, width: 1.2),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          child: const Text('Delete Account', style: TextStyle(fontWeight: FontWeight.bold)),
+                          child: const Text('Delete Account Permanently', style: TextStyle(fontWeight: FontWeight.bold)),
                         ),
                       ),
                     ],
@@ -467,7 +628,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
               backgroundColor: const Color(0xFF0F172A),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(20),
-                side: BorderSide(color: AppColors.errorRed.withOpacity(0.3)),
+                side: BorderSide(color: AppColors.errorRed.withValues(alpha: 0.3)),
               ),
               title: const Row(
                 children: [
@@ -481,10 +642,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      'Account Deletion Consequences:',
-                      style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold, fontSize: 13),
-                    ),
+                    const Text('Account Deletion Consequences:', style: TextStyle(color: AppColors.errorRed, fontWeight: FontWeight.bold, fontSize: 13)),
                     const SizedBox(height: 10),
                     _buildConsequenceRow('Profile data, bio, and display photo will be deleted.'),
                     _buildConsequenceRow('All direct message history and chat threads will be erased.'),
@@ -500,13 +658,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         Checkbox(
                           value: acceptedRules,
                           activeColor: AppColors.errorRed,
-                          onChanged: isDeleting
-                              ? null
-                              : (val) {
-                                  setDialogState(() {
-                                    acceptedRules = val ?? false;
-                                  });
-                                },
+                          onChanged: isDeleting ? null : (val) => setDialogState(() => acceptedRules = val ?? false),
                         ),
                         const Expanded(
                           child: Padding(
@@ -530,10 +682,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           hintStyle: const TextStyle(color: Colors.white30, fontSize: 13),
                           filled: true,
                           fillColor: Colors.white10,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(10),
-                            borderSide: BorderSide.none,
-                          ),
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                         ),
                       ),
@@ -557,9 +706,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             return;
                           }
 
-                          setDialogState(() {
-                            isDeleting = true;
-                          });
+                          setDialogState(() => isDeleting = true);
 
                           try {
                             if (isEmailUser) {
@@ -585,14 +732,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             }
                           } catch (e) {
                             if (context.mounted) {
-                              setDialogState(() {
-                                isDeleting = false;
-                              });
+                              setDialogState(() => isDeleting = false);
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text('Failed to delete account: $e'),
-                                  backgroundColor: AppColors.errorRed,
-                                ),
+                                SnackBar(content: Text('Failed to delete account: $e'), backgroundColor: AppColors.errorRed),
                               );
                             }
                           }
@@ -603,14 +745,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   ),
                   child: isDeleting
-                      ? const SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation(Colors.white),
-                          ),
-                        )
+                      ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, valueColor: AlwaysStoppedAnimation(Colors.white)))
                       : const Text('Delete Permanently'),
                 ),
               ],
@@ -629,12 +764,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         children: [
           const Icon(Icons.cancel_rounded, color: AppColors.errorRed, size: 14),
           const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              text,
-              style: const TextStyle(color: Colors.white70, fontSize: 12),
-            ),
-          ),
+          Expanded(child: Text(text, style: const TextStyle(color: Colors.white70, fontSize: 12))),
         ],
       ),
     );
