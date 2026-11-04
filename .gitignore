@@ -33,6 +33,9 @@ migrate_working_dir/
 # Node dependencies
 node_modules/
 package-lock.json
+functions/node_modules/
+*serviceAccountKey.json
+*.serviceaccount.json
 
 # Build outputs
 /build/

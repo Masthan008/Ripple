@@ -3,14 +3,24 @@
 const catalyst = require('zcatalyst-sdk-node');
 const admin = require('firebase-admin');
 
-// Initialize Firebase Admin only if service account credentials are provided
+// Initialize Firebase Admin with bundled service account or environment variable
 if (!admin.apps.length) {
   try {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT) {
-      const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    let serviceAccount;
+    try {
+      serviceAccount = require('./serviceAccountKey.json');
+    } catch (_) {
+      if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+        serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+      }
+    }
+    if (serviceAccount) {
       admin.initializeApp({
         credential: admin.credential.cert(serviceAccount)
       });
+      console.log('[Catalyst FCM] Firebase Admin successfully initialized with Service Account.');
+    } else {
+      console.warn('[Catalyst FCM] No service account key found.');
     }
   } catch (err) {
     console.warn('[Catalyst FCM] Firebase Admin initialization note:', err.message);
@@ -71,8 +81,8 @@ module.exports = async (req, res) => {
   if (url.includes('/checkUpdate')) {
     res.writeHead(200);
     return res.end(JSON.stringify({
-      version: '1.0.3',
-      buildNumber: 45,
+      version: '1.0.4',
+      buildNumber: 46,
       downloadUrl: 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk',
       changelog: [
         'Vercel modern light theme & precision monochrome design',
@@ -282,6 +292,17 @@ module.exports = async (req, res) => {
               badge: 1,
               contentAvailable: true,
             },
+          },
+        },
+        webpush: {
+          notification: {
+            title: title || 'Ripple',
+            body: msgBody || '',
+            icon: '/icons/Icon-192.png',
+            badge: '/icons/Icon-192.png',
+          },
+          fcmOptions: {
+            link: data.chatId ? '/#/chat/' + data.chatId : '/',
           },
         },
       };
