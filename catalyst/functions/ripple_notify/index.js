@@ -82,16 +82,15 @@ module.exports = async (req, res) => {
     res.writeHead(200);
     return res.end(JSON.stringify({
       version: '1.0.4',
-      buildNumber: 46,
+      buildNumber: 47,
       downloadUrl: 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk',
       changelog: [
-        'Vercel modern light theme & precision monochrome design',
-        'Focused Indian demographic languages (Hindi, Bengali, Telugu, Tamil, Marathi, Urdu, Gujarati, Kannada, Malayalam, Punjabi, Odia) + English & Arabic',
-        'Real-time disk storage manager & live network data usage tracker',
-        'Live hardware & system diagnostics (battery, network latency RTT, serverless status)',
-        'Enforced unique @username verification and collision detection',
-        'Redesigned real-time account security suite with biometric lock & 2SV PIN',
-        'Stealth Vault isolated chat hiding with secret dial code & biometrics'
+        'WhatsApp/Telegram-grade high-priority background push notification architecture',
+        'Direct inline reply, media previews, and interactive notification actions',
+        'Full-screen incoming audio/video call alerts & missed call callbacks',
+        'Fixed status profile black ring on light themes with adaptive surface styling',
+        'Eliminated chat list flickering and continuous rebuild loop with memoized stream caching',
+        'Real-time disk storage manager & live network data usage tracker'
       ],
       forceUpdate: false,
       timestamp: new Date().toISOString()
@@ -227,7 +226,14 @@ module.exports = async (req, res) => {
 
     try {
       const isCall = data.type === 'call';
-      const channelId = isCall ? 'ripple_calls' : 'ripple_messages';
+      let channelId = 'ripple_messages';
+      if (isCall || data.type === 'missed_call') {
+        channelId = 'ripple_calls';
+      } else if (data.type === 'group' || data.groupId) {
+        channelId = 'ripple_groups';
+      } else if (data.type === 'status_reaction' || data.type === 'status_comment' || data.type === 'friend_request') {
+        channelId = 'ripple_social';
+      }
 
       // Gather FCM tokens for recipients from Firestore
       const tokens = [];
@@ -263,24 +269,34 @@ module.exports = async (req, res) => {
       sanitizedData['title'] = title || 'Ripple';
       sanitizedData['body'] = msgBody || '';
 
-      // Construct FCM Multicast Payload
+      const isSilentRevocation = data.type === 'delete_message';
+
+      // Construct FCM Multicast Payload with WhatsApp-grade rich notifications
       const message = {
         tokens: tokens,
-        notification: {
-          title: title || 'Ripple',
-          body: msgBody || '',
-        },
+        ...(isSilentRevocation ? {} : {
+          notification: {
+            title: title || 'Ripple',
+            body: msgBody || '',
+            ...(data.imageUrl ? { imageUrl: data.imageUrl } : {})
+          }
+        }),
         data: sanitizedData,
         android: {
-          priority: priority === 'high' ? 'high' : 'normal',
-          notification: {
-            channelId: channelId,
-            priority: isCall ? 'max' : 'high',
-            defaultSound: true,
-            defaultVibrateTimings: true,
-            visibility: 'public',
-            notificationCount: 1,
-          },
+          priority: 'high',
+          ...(isSilentRevocation ? {} : {
+            notification: {
+              channelId: channelId,
+              priority: isCall ? 'max' : 'high',
+              defaultSound: true,
+              defaultVibrateTimings: true,
+              visibility: 'public',
+              icon: 'ic_stat_notification',
+              color: '#0EA5E9',
+              notificationCount: Number(data.badgeCount) || 1,
+              imageUrl: data.imageUrl || data.photoUrl || undefined,
+            }
+          })
         },
         apns: {
           headers: {
@@ -289,7 +305,7 @@ module.exports = async (req, res) => {
           payload: {
             aps: {
               sound: isCall ? 'call_ringtone.caf' : 'default',
-              badge: 1,
+              badge: Number(data.badgeCount) || 1,
               contentAvailable: true,
             },
           },

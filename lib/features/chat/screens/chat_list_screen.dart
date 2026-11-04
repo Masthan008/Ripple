@@ -1193,53 +1193,64 @@ class _ChatsTab extends ConsumerStatefulWidget {
 
 
 
-class _ChatsTabState extends ConsumerState<_ChatsTab> {
+class _ChatsTabState extends ConsumerState<_ChatsTab> with AutomaticKeepAliveClientMixin {
+  @override
+  bool get wantKeepAlive => true;
 
   String _filter = 'all'; // all | unread | groups | folderId
 
-  
-
-  // Folders stream and cached data
-
+  // Memoized streams & cached data to eliminate flickering and rebuild loops
   Stream<QuerySnapshot<Map<String, dynamic>>>? _foldersStream;
-
+  Stream<DocumentSnapshot<Map<String, dynamic>>>? _userStream;
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _chatsStream;
+  Stream<QuerySnapshot<Map<String, dynamic>>>? _statusesStream;
+  String? _initializedUid;
   List<QueryDocumentSnapshot<Map<String, dynamic>>> _folders = [];
 
-
+  void _initStreams(String uid) {
+    if (_initializedUid == uid && _userStream != null && _chatsStream != null) return;
+    _initializedUid = uid;
+    _foldersStream = FirebaseService.firestore
+        .collection('users')
+        .doc(uid)
+        .collection('folders')
+        .orderBy('order')
+        .snapshots();
+    _userStream = FirebaseService.firestore
+        .collection('users')
+        .doc(uid)
+        .snapshots();
+    _chatsStream = FirebaseService.chatsCollection
+        .where('participants', arrayContains: uid)
+        .snapshots()
+        .handleError((_) {});
+    _statusesStream = FirebaseService.firestore
+        .collection('statuses')
+        .where('uid', isNotEqualTo: uid)
+        .where('expiresAt', isGreaterThan: Timestamp.now())
+        .orderBy('expiresAt', descending: false)
+        .snapshots()
+        .handleError((_) {});
+  }
 
   @override
-
   void initState() {
-
     super.initState();
-
     final currentUser = ref.read(authStateProvider).valueOrNull;
-
     if (currentUser != null) {
-
-      _foldersStream = FirebaseService.firestore
-
-          .collection('users')
-
-          .doc(currentUser.uid)
-
-          .collection('folders')
-
-          .orderBy('order')
-
-          .snapshots();
-
+      _initStreams(currentUser.uid);
     }
-
   }
 
 
 
-  @override
-
+    @override
   Widget build(BuildContext context) {
-
+    super.build(context);
     final currentUser = ref.watch(authStateProvider).valueOrNull;
+    if (currentUser != null && _initializedUid != currentUser.uid) {
+      _initStreams(currentUser.uid);
+    }
 
 
 
@@ -1607,26 +1618,11 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
                             )
 
-                          : StreamBuilder<DocumentSnapshot>(
-
-                            stream:
-
-                                FirebaseService.firestore
-
-                                    .collection('users')
-
-                                    .doc(currentUser.uid)
-
-                                    .snapshots(),
-
+                          : StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+                            stream: _userStream,
                             builder: (ctx, userSnap) {
-
-                              if (userSnap.connectionState ==
-
-                                  ConnectionState.waiting) {
-
+                              if (userSnap.connectionState == ConnectionState.waiting && !userSnap.hasData) {
                                 return const _ChatShimmer();
-
                               }
 
                               final userData =
@@ -1660,33 +1656,12 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
 
                           return StreamBuilder<
-
                             QuerySnapshot<Map<String, dynamic>>
-
                           >(
-
-                            stream: FirebaseService.chatsCollection
-
-                                .where(
-
-                                  'participants',
-
-                                  arrayContains: currentUser.uid,
-
-                                )
-
-                                .snapshots()
-
-                                .handleError((_) {}),
-
+                            stream: _chatsStream,
                             builder: (ctx, snapshot) {
-
-                              if (snapshot.connectionState ==
-
-                                  ConnectionState.waiting) {
-
+                              if (snapshot.connectionState == ConnectionState.waiting && !snapshot.hasData) {
                                 return const _ChatShimmer();
-
                               }
 
 
@@ -2170,7 +2145,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
               height: 52,
 
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
 
                 shape: BoxShape.circle,
 
@@ -2262,7 +2237,7 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
               height: 52,
 
-              decoration: const BoxDecoration(
+              decoration: BoxDecoration(
 
                 shape: BoxShape.circle,
 
@@ -2986,29 +2961,13 @@ class _ChatsTabState extends ConsumerState<_ChatsTab> {
 
       child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
 
-        stream: FirebaseService.firestore
-
-            .collection('statuses')
-
-            .where('uid', isNotEqualTo: currentUser.uid)
-
-            .where('expiresAt', isGreaterThan: Timestamp.now())
-
-            .orderBy('expiresAt', descending: false)
-
-            .snapshots(),
+        stream: _statusesStream ?? FirebaseService.firestore.collection('statuses').where('uid', isNotEqualTo: currentUser.uid).where('expiresAt', isGreaterThan: Timestamp.now()).orderBy('expiresAt', descending: false).snapshots(),
 
         builder: (context, statusSnap) {
 
           return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
 
-            stream: FirebaseService.firestore
-
-                .collection('users')
-
-                .doc(currentUser.uid)
-
-                .snapshots(),
+            stream: _userStream ?? FirebaseService.firestore.collection('users').doc(currentUser.uid).snapshots(),
 
             builder: (context, userSnap) {
 
@@ -3534,11 +3493,11 @@ class _StatusBubble extends StatelessWidget {
 
               child: Container(
 
-                decoration: const BoxDecoration(
+                decoration: BoxDecoration(
 
                   shape: BoxShape.circle,
 
-                  color: AppColors.abyssBackground,
+                  color: Theme.of(context).scaffoldBackgroundColor,
 
                 ),
 
@@ -3552,7 +3511,7 @@ class _StatusBubble extends StatelessWidget {
 
                       radius: 28,
 
-                      backgroundColor: Colors.white10,
+                      backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
 
                       backgroundImage: photoUrl != null && photoUrl!.isNotEmpty
 
@@ -3566,9 +3525,9 @@ class _StatusBubble extends StatelessWidget {
 
                               name[0].toUpperCase(),
 
-                              style: const TextStyle(
+                              style: TextStyle(
 
-                                color: Colors.white,
+                                color: Theme.of(context).colorScheme.onSurface,
 
                                 fontSize: 20,
 
@@ -3606,7 +3565,7 @@ class _StatusBubble extends StatelessWidget {
 
                             border: Border.all(
 
-                              color: AppColors.abyssBackground,
+                              color: Theme.of(context).scaffoldBackgroundColor,
 
                               width: 2,
 
@@ -3641,17 +3600,11 @@ class _StatusBubble extends StatelessWidget {
             // Name
 
             Text(
-
               isMyStatus ? 'My Status' : name,
-
-              style: const TextStyle(
-
-                color: Colors.white,
-
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
                 fontSize: 11,
-
                 fontWeight: FontWeight.w500,
-
               ),
 
               maxLines: 1,
@@ -3716,7 +3669,7 @@ class _ChatShimmer extends StatelessWidget {
 
                     height: 52,
 
-                    decoration: const BoxDecoration(
+                    decoration: BoxDecoration(
 
                       color: Colors.white,
 
@@ -4782,7 +4735,7 @@ class _DecoyChatTile extends ConsumerWidget {
 
                           padding: const EdgeInsets.all(6),
 
-                          decoration: const BoxDecoration(
+                          decoration: BoxDecoration(
 
                             color: AppColors.aquaCore,
 
@@ -4881,35 +4834,16 @@ class _ChatTile extends ConsumerStatefulWidget {
 
 
 class _ChatTileState extends ConsumerState<_ChatTile> {
-
+  static final Map<String, DocumentSnapshot<Map<String, dynamic>>> _userSnapshotCache = {};
   late Future<DocumentSnapshot<Map<String, dynamic>>> _userFuture;
 
-
-
   @override
-
   void initState() {
-
     super.initState();
-
-    _userFuture = FirebaseService.usersCollection.doc(widget.otherUid).get();
-
-  }
-
-
-
-  @override
-
-  void didUpdateWidget(covariant _ChatTile oldWidget) {
-
-    super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.otherUid != widget.otherUid) {
-
-      _userFuture = FirebaseService.usersCollection.doc(widget.otherUid).get();
-
-    }
-
+    _userFuture = FirebaseService.usersCollection.doc(widget.otherUid).get().then((snap) {
+      if (snap.exists) _userSnapshotCache[widget.otherUid] = snap;
+      return snap;
+    });
   }
 
 
@@ -4965,8 +4899,8 @@ class _ChatTileState extends ConsumerState<_ChatTile> {
     final theme = ref.watch(rippleThemeProvider);
 
     return FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-
       future: _userFuture,
+      initialData: _userSnapshotCache[widget.otherUid],
 
       builder: (ctx, snap) {
 

@@ -29,116 +29,182 @@ import 'firebase_service.dart';
 
 
 @pragma('vm:entry-point')
-
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  try {
+    WidgetsFlutterBinding.ensureInitialized();
+    debugPrint('[Catalyst FCM] Background message received: ${message.messageId}');
+    final data = message.data;
+    final type = data['type'] as String?;
 
-  debugPrint('[Catalyst FCM] Background message: ${message.messageId}');
+    final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
+    const AndroidInitializationSettings initAndroid =
+        AndroidInitializationSettings('@drawable/ic_stat_notification');
+    const InitializationSettings initSettings =
+        InitializationSettings(android: initAndroid);
+    await localNotif.initialize(initSettings);
 
-  final data = message.data;
+    // 1. Silent message deletion / revocation
+    if (type == 'delete_message') {
+      final messageId = data['messageId'] as String?;
+      if (messageId != null && messageId.isNotEmpty) {
+        await localNotif.cancel(messageId.hashCode);
+        return;
+      }
+    }
 
-  final type = data['type'] as String?;
+    // 2. Incoming Audio / Video Call
+    if (type == 'call') {
+      final callId = data['callId'] as String? ?? '';
+      final callerName = data['callerName'] as String? ?? 'Incoming Call';
+      final callType = data['callType'] as String? ?? 'audio';
 
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'ripple_calls',
+        'Incoming Calls',
+        channelDescription: 'High-priority voice and video calls',
+        importance: Importance.max,
+        priority: Priority.max,
+        fullScreenIntent: true,
+        category: AndroidNotificationCategory.call,
+        visibility: NotificationVisibility.public,
+        color: Color(0xFF0EA5E9),
+        actions: <AndroidNotificationAction>[
+          AndroidNotificationAction(
+            'decline_call',
+            'Decline',
+            cancelNotification: true,
+            showsUserInterface: false,
+          ),
+          AndroidNotificationAction(
+            'answer_call',
+            'Answer',
+            showsUserInterface: true,
+          ),
+        ],
+      );
 
+      await localNotif.show(
+        callId.isNotEmpty ? callId.hashCode : message.hashCode,
+        'Incoming Call',
+        '$callerName is calling you (${callType == 'video' ? 'Video' : 'Voice'})...',
+        const NotificationDetails(android: androidDetails),
+        payload: jsonEncode(data),
+      );
+      return;
+    }
 
-  final FlutterLocalNotificationsPlugin localNotif = FlutterLocalNotificationsPlugin();
+    // 3. Missed Call Notification
+    if (type == 'missed_call') {
+      final callerName = data['callerName'] as String? ?? 'Someone';
+      final callType = data['callType'] as String? ?? 'voice';
 
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'ripple_calls',
+        'Incoming Calls',
+        importance: Importance.high,
+        priority: Priority.high,
+        category: AndroidNotificationCategory.missedCall,
+        color: Color(0xFF0EA5E9),
+        actions: <AndroidNotificationAction>[
+          AndroidNotificationAction('call_back', 'Call Back', showsUserInterface: true),
+        ],
+      );
 
+      await localNotif.show(
+        message.hashCode,
+        'Missed Call 📞',
+        'You missed a $callType call from $callerName',
+        const NotificationDetails(android: androidDetails),
+        payload: jsonEncode(data),
+      );
+      return;
+    }
 
-  if (type == 'call') {
+    // 4. Status Reactions & Likes
+    if (type == 'status_reaction' || type == 'status_comment') {
+      final title = message.notification?.title ?? data['title'] ?? 'Status Update';
+      final body = message.notification?.body ?? data['body'] ?? 'New reaction to your status';
 
-    final callId = data['callId'] as String? ?? '';
+      const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'ripple_social',
+        'Social',
+        channelDescription: 'Reactions, comments and friend alerts',
+        importance: Importance.defaultImportance,
+        priority: Priority.defaultPriority,
+        color: Color(0xFF0EA5E9),
+      );
 
-    final callerName = data['callerName'] as String? ?? 'Incoming Call';
+      await localNotif.show(
+        message.hashCode,
+        title,
+        body,
+        const NotificationDetails(android: androidDetails),
+        payload: jsonEncode(data),
+      );
+      return;
+    }
 
-    final callType = data['callType'] as String? ?? 'audio';
+    // 5. Group Chats
+    if (type == 'group' || data['groupId'] != null) {
+      final groupTitle = message.notification?.title ?? data['title'] ?? 'Group Chat';
+      final body = message.notification?.body ?? data['body'] ?? 'New message';
+      final groupId = data['groupId'] as String? ?? 'general';
 
+      final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+        'ripple_groups',
+        'Groups',
+        channelDescription: 'Group chat messages',
+        importance: Importance.high,
+        priority: Priority.high,
+        groupKey: 'group_$groupId',
+        color: const Color(0xFF0EA5E9),
+        actions: const <AndroidNotificationAction>[
+          AndroidNotificationAction('reply', 'Reply', inputs: [AndroidNotificationActionInput(label: 'Reply...')]),
+          AndroidNotificationAction('mark_read', 'Mark as Read', cancelNotification: true),
+        ],
+      );
 
+      await localNotif.show(
+        message.hashCode,
+        groupTitle,
+        body,
+        NotificationDetails(android: androidDetails),
+        payload: jsonEncode(data),
+      );
+      return;
+    }
 
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-
-      'ripple_calls',
-
-      'Incoming Calls',
-
-      channelDescription: 'High-priority voice and video calls',
-
-      importance: Importance.max,
-
-      priority: Priority.max,
-
-      fullScreenIntent: true,
-
-      category: AndroidNotificationCategory.call,
-
-      visibility: NotificationVisibility.public,
-
-    );
-
-    const NotificationDetails details = NotificationDetails(android: androidDetails);
-
-
-
-    await localNotif.show(
-
-      callId.hashCode,
-
-      'Incoming Call',
-
-      '$callerName is calling you (${callType == 'video' ? 'Video' : 'Voice'})...',
-
-      details,
-
-      payload: jsonEncode(data),
-
-    );
-
-  } else {
-
+    // 6. Direct 1-on-1 Chat
     final title = message.notification?.title ?? data['title'] ?? 'Ripple';
-
     final body = message.notification?.body ?? data['body'] ?? 'New encrypted message';
+    final chatId = data['chatId'] as String? ?? 'chat';
 
-
-
-    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-
+    final AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
       'ripple_messages',
-
       'Encrypted Messages',
-
       channelDescription: 'Chat and group message notifications',
-
       importance: Importance.high,
-
       priority: Priority.high,
-
       category: AndroidNotificationCategory.message,
-
+      groupKey: 'chat_$chatId',
+      color: const Color(0xFF0EA5E9),
+      actions: const <AndroidNotificationAction>[
+        AndroidNotificationAction('reply', 'Reply', inputs: [AndroidNotificationActionInput(label: 'Type a reply...')]),
+        AndroidNotificationAction('mark_read', 'Mark as Read', cancelNotification: true),
+      ],
     );
-
-    const NotificationDetails details = NotificationDetails(android: androidDetails);
-
-
 
     await localNotif.show(
-
       message.hashCode,
-
       title,
-
       body,
-
-      details,
-
+      NotificationDetails(android: androidDetails),
       payload: jsonEncode(data),
-
     );
-
+  } catch (err) {
+    debugPrint('[Catalyst FCM] Background handler error: $err');
   }
-
 }
-
-
 
 /// Global navigator key — used to push screens from notification handlers
 
@@ -204,7 +270,7 @@ class NotificationService {
 
       const AndroidInitializationSettings initAndroid =
 
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+          AndroidInitializationSettings('@drawable/ic_stat_notification');
 
       const InitializationSettings initSettings =
 
@@ -1156,7 +1222,26 @@ class NotificationService {
 
   /// Send a 1-to-1 chat message notification
 
-  static Future<void> sendMessageNotification({
+    /// Send a silent message revocation notification to cancel displayed tray notifications
+  static Future<void> sendMessageRevocationNotification({
+    required List<String> recipientUids,
+    required String messageId,
+    required String chatId,
+  }) async {
+    await _dispatchPushNotification(
+      recipientUids: recipientUids,
+      title: 'Message Deleted',
+      body: 'This message was deleted',
+      data: {
+        'type': 'delete_message',
+        'messageId': messageId,
+        'chatId': chatId,
+      },
+      priority: 'high',
+    );
+  }
+
+static Future<void> sendMessageNotification({
 
     String recipientPlayerId = '',
 
@@ -1250,12 +1335,9 @@ class NotificationService {
 
   }) async {
 
-    await _sendOneSignalNotification(
-
-      playerIds: recipientPlayerIds,
-
+    await _dispatchPushNotification(
+      recipientPlayerIds: recipientPlayerIds,
       recipientUids: recipientUids,
-
       title: groupName,
 
       body: '$senderName: $messageText',
@@ -1300,12 +1382,9 @@ class NotificationService {
 
     final currentUid = FirebaseService.auth.currentUser?.uid ?? '';
 
-    await _sendOneSignalNotification(
-
-      playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
-
+    await _dispatchPushNotification(
+      recipientPlayerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
-
       title: 'New Friend Request 👋',
 
       body: '$senderName wants to connect with you',
@@ -1356,12 +1435,9 @@ class NotificationService {
 
   }) async {
 
-    await _sendOneSignalNotification(
-
-      playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
-
+    await _dispatchPushNotification(
+      recipientPlayerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
-
       title: 'Status Reaction',
 
       body: '$reactorName reacted $emoji to your status',
@@ -1406,12 +1482,9 @@ class NotificationService {
 
   }) async {
 
-    await _sendOneSignalNotification(
-
-      playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
-
+    await _dispatchPushNotification(
+      recipientPlayerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
-
       title: 'Status Reply',
 
       body: '$commenterName: $commentText',
@@ -1540,18 +1613,12 @@ class NotificationService {
 
     final body = 'You missed a $callType call from $callerName';
 
-    await _sendOneSignalNotification(
-
-      playerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
-
+    await _dispatchPushNotification(
+      recipientPlayerIds: recipientPlayerId.isNotEmpty ? [recipientPlayerId] : null,
       recipientUids: recipientUid.isNotEmpty ? [recipientUid] : null,
-
       title: title,
-
       body: body,
-
       largeIcon: callerPhotoUrl,
-
       androidChannelId: 'ripple_calls',
 
       sound: sound,
