@@ -164,9 +164,9 @@ module.exports = async (req, res) => {
 
     return res.end(JSON.stringify({
 
-      version: '1.0.4',
+      version: '1.0.5',
 
-      buildNumber: 48,
+      buildNumber: 49,
 
       downloadUrl: 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk',
 
