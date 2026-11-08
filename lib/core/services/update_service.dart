@@ -90,6 +90,11 @@ class UpdateService extends ChangeNotifier {
   /// Returns whether Shorebird over-the-air code push is active on this device.
   bool get isUpdaterAvailable => _updater.isAvailable;
 
+  /// Returns true if an update is available or staged and ready to install
+  bool get hasUpdate =>
+      _status == AppUpdateStatus.updateAvailable ||
+      _status == AppUpdateStatus.restartRequired;
+
   /// Human-readable patch identifier.
   String get patchVersionString {
     if (_currentPatch != null) {
@@ -164,6 +169,10 @@ class UpdateService extends ChangeNotifier {
       } else {
         // Query Catalyst endpoint silently
         await _checkCatalystOrGitHubUpdate();
+        if (_status == AppUpdateStatus.updateAvailable && _autoCheckEnabled) {
+          // Pre-download APK silently in the background so it is ready on next launch
+          unawaited(downloadUpdateSilently());
+        }
       }
     } catch (e) {
       debugPrint('[UpdateEngine] Silent check skipped: $e');
@@ -396,15 +405,55 @@ class UpdateService extends ChangeNotifier {
   }
 
   /// Force download and install the latest APK directly (bypasses version check).
+
+  /// Downloads the APK silently in the background so that it is staged and ready for instant installation.
+  Future<void> downloadUpdateSilently() async {
+    try {
+      final url = _downloadUrl ??
+          'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk';
+
+      Directory? targetDir;
+      if (Platform.isAndroid) {
+        try {
+          final extDirs = await getExternalCacheDirectories();
+          if (extDirs != null && extDirs.isNotEmpty) {
+            targetDir = extDirs.first;
+          }
+        } catch (_) {}
+      }
+      targetDir ??= await getTemporaryDirectory();
+      final savePath = '${targetDir.path}/ripple-update.apk';
+
+      final oldFile = File(savePath);
+      if (await oldFile.exists()) {
+        await oldFile.delete();
+      }
+
+      await _dio.download(
+        url,
+        savePath,
+      );
+
+      _downloadedApkPath = savePath;
+      _status = AppUpdateStatus.restartRequired;
+      notifyListeners();
+      debugPrint('[UpdateEngine] Silent APK download completed: $savePath');
+    } catch (e) {
+      debugPrint('[UpdateEngine] Silent background download failed: $e');
+    }
+  }
+
   Future<bool> forceDownloadLatestApk() async {
-    _availableVersion = '1.0.4';
+    _availableVersion = '1.0.5';
     _downloadUrl = 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk';
     _changelog = [
       'Ripple Sovereign All-Access: 100% Free for everyone',
       'Restored Stealth Vault with *7777# secret dial search',
       'Redesigned Appearance: Vercel Light & OLED Obsidian',
       'WhatsApp-Grade Push Notifications with rich actions',
-      'AI Status Studio with Cyberpunk, Golden Hour & Chromatic effects'
+      'In-App Update highlights & silent background staging',
+      'Privacy Chat Lock Hub with resolved usernames & handles',
+      'Semantic Currents modernized with clean vector icons'
     ];
     _status = AppUpdateStatus.updateAvailable;
     notifyListeners();

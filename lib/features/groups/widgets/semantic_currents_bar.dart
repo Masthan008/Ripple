@@ -62,8 +62,7 @@ class SemanticCurrentsBar extends ConsumerWidget {
           if (index == 0) {
             // "All" chip
             return _TopicChip(
-              icon: '🌊',
-              label: 'All Currents',
+              icon: Icons.waves_rounded, label: 'All Currents',
               count: messages.length,
               isSelected: selectedTopic == null,
               onTap: () {
@@ -74,7 +73,7 @@ class SemanticCurrentsBar extends ConsumerWidget {
           }
 
           final topic = activeTopics[index - 1];
-          final icon = SemanticCurrentsService.currentIcons[topic] ?? '💬';
+          final icon = SemanticCurrentsService.currentIcons[topic] ?? Icons.chat_bubble_outline_rounded;
           final label = SemanticCurrentsService.currentLabels[topic] ?? topic;
           final count = topicCounts[topic] ?? 0;
 
@@ -100,7 +99,7 @@ class SemanticCurrentsBar extends ConsumerWidget {
 }
 
 class _TopicChip extends StatelessWidget {
-  final String icon;
+  final IconData icon;
   final String label;
   final int count;
   final bool isSelected;
@@ -148,7 +147,7 @@ class _TopicChip extends StatelessWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(icon, style: const TextStyle(fontSize: 14)),
+              Icon(icon, size: 14, color: isSelected ? AppColors.aquaCore : Colors.white70),
               const SizedBox(width: 6),
               Text(
                 label,

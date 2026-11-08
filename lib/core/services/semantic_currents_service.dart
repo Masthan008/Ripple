@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'dart:math';
 
 /// Semantic Currents™ — Fluid Auto-Threading
@@ -81,18 +82,19 @@ class SemanticCurrentsService {
   };
 
   // Current names with emoji icons
-  static const Map<String, String> currentIcons = {
-    'plans': '📅',
-    'media': '🎬',
-    'food': '🍕',
-    'work': '💼',
-    'tech': '💻',
-    'health': '🏃',
-    'money': '💰',
-    'travel': '✈️',
-    'gaming': '🎮',
-    'emotional': '💝',
-    'general': '💬',
+    // Current names with vector icons
+  static const Map<String, IconData> currentIcons = {
+    'plans': Icons.event_rounded,
+    'media': Icons.movie_outlined,
+    'food': Icons.restaurant_rounded,
+    'work': Icons.work_outline_rounded,
+    'tech': Icons.computer_rounded,
+    'health': Icons.fitness_center_rounded,
+    'money': Icons.account_balance_wallet_outlined,
+    'travel': Icons.flight_takeoff_rounded,
+    'gaming': Icons.sports_esports_outlined,
+    'emotional': Icons.favorite_outline_rounded,
+    'general': Icons.chat_bubble_outline_rounded,
   };
 
   static const Map<String, String> currentLabels = {

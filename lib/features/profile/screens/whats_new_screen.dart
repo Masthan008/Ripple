@@ -12,7 +12,7 @@ import '../../../core/utils/haptic_feedback.dart';
 class WhatsNewScreen extends ConsumerWidget {
   const WhatsNewScreen({super.key});
 
-  static const String currentAppVersion = '1.0.4+48';
+  static const String currentAppVersion = '1.0.5+49';
   static const String prefKeyLastVersion = 'ripple_last_seen_whats_new_version';
 
   /// Automatically displays What's New modal sheet on first launch of a new version
@@ -113,7 +113,7 @@ class WhatsNewScreen extends ConsumerWidget {
                         ),
                         const Spacer(),
                         Text(
-                          'v1.0.4 • Build 48',
+                          'v1.0.5 • Build 49',
                           style: TextStyle(
                             color: textMuted,
                             fontSize: 12,
@@ -373,7 +373,7 @@ class WhatsNewModalSheet extends ConsumerWidget {
                         ),
                       ),
                       Text(
-                        'Version 1.0.4 (Build 48)',
+                        'Version 1.0.5 (Build 49)',
                         style: TextStyle(color: textMuted, fontSize: 12),
                       ),
                     ],
@@ -455,7 +455,7 @@ class WhatsNewModalSheet extends ConsumerWidget {
                   Navigator.pop(context);
                 },
                 child: const Text(
-                  'Explore Ripple v1.0.4',
+                  'Explore Ripple v1.0.5',
                   style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ),

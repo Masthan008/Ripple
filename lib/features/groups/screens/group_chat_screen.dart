@@ -1171,25 +1171,7 @@ class _GroupChatScreenState extends ConsumerState<GroupChatScreen> {
             ),
           ),
 
-          const SizedBox(width: 4),
-          // Audio call button
-          GestureDetector(
-            onTap: () => _startGroupCall(isVideo: false),
-            child: Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: AppColors.glassPanel,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.glassBorder, width: 0.5),
-              ),
-              child: const Icon(
-                Icons.call_rounded,
-                color: AppColors.lightWave,
-                size: 16,
-              ),
-            ),
-          ),
+
           const SizedBox(width: 4),
           // Group info button
           GestureDetector(

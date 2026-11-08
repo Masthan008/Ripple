@@ -170,18 +170,13 @@ module.exports = async (req, res) => {
 
       downloadUrl: 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk',
 
-      changelog: [
-
-        'Ripple Sovereign All-Access: 100% Free for everyone, all paywalls & cloud limits eliminated',
-
-        'Restored Stealth Vault: Hidden chats display cleanly with secret dial code (*7777#) search',
-
-        'Appearance Redesign: Modern Vercel Light & OLED Obsidian themes with live interactive preview',
-
-        'WhatsApp-Grade Push Notifications: Reliable background alerts with avatars, quick reply & call banners',
-
-        'AI Status Studio: Instant AI caption and artwork generator with modern cyberpunk, golden hour, and chromatic effects'
-
+            changelog: [
+        'In-App Update Highlighting: Glowing alert banner in Chats & Settings pill badge',
+        'Silent Background Pre-Downloader: Updates pre-cache quietly with zero download delay',
+        'Pure Privacy: Completely removed AI Studio and status caption sparkle logos',
+        'Chat Lock Hub: Now displays real contact names, handles and avatars instead of raw UIDs',
+        'Semantic Currents: Replaced all emojis with sleek modern vector icon chips',
+        'Streamlined Group Calling: Clean group app bar without redundant phone call icon'
       ],
 
       forceUpdate: true,
