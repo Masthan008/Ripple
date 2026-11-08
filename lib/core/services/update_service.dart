@@ -345,17 +345,14 @@ class UpdateService extends ChangeNotifier {
       final url = _downloadUrl ??
           'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk';
 
-      // 2. Resolve accessible external cache directory so Android PackageInstaller has full read access
+      // 2. Resolve accessible external files directory (whitelisted by OpenFilex without MANAGE_EXTERNAL_STORAGE)
       Directory? targetDir;
       if (Platform.isAndroid) {
         try {
-          final extDirs = await getExternalCacheDirectories();
-          if (extDirs != null && extDirs.isNotEmpty) {
-            targetDir = extDirs.first;
-          }
+          targetDir = await getExternalStorageDirectory();
         } catch (_) {}
       }
-      targetDir ??= await getTemporaryDirectory();
+      targetDir ??= await getApplicationDocumentsDirectory();
       final savePath = '${targetDir.path}/ripple-update.apk';
 
       // Delete existing temporary file if present
@@ -415,13 +412,10 @@ class UpdateService extends ChangeNotifier {
       Directory? targetDir;
       if (Platform.isAndroid) {
         try {
-          final extDirs = await getExternalCacheDirectories();
-          if (extDirs != null && extDirs.isNotEmpty) {
-            targetDir = extDirs.first;
-          }
+          targetDir = await getExternalStorageDirectory();
         } catch (_) {}
       }
-      targetDir ??= await getTemporaryDirectory();
+      targetDir ??= await getApplicationDocumentsDirectory();
       final savePath = '${targetDir.path}/ripple-update.apk';
 
       final oldFile = File(savePath);

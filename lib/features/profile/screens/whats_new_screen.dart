@@ -12,7 +12,7 @@ import '../../../core/utils/haptic_feedback.dart';
 class WhatsNewScreen extends ConsumerWidget {
   const WhatsNewScreen({super.key});
 
-  static const String currentAppVersion = '1.0.5+49';
+  static const String currentAppVersion = '1.0.5+50';
   static const String prefKeyLastVersion = 'ripple_last_seen_whats_new_version';
 
   /// Automatically displays What's New modal sheet on first launch of a new version
