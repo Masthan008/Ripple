@@ -573,37 +573,56 @@ class _SoftwareUpdateScreenState extends ConsumerState<SoftwareUpdateScreen>
     final isBusy = service.status == AppUpdateStatus.checking ||
         service.status == AppUpdateStatus.downloading;
 
-    return SizedBox(
-      width: double.infinity,
-      height: 52,
-      child: OutlinedButton(
-        style: OutlinedButton.styleFrom(
-          side: const BorderSide(color: AppColors.aquaCore, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
-        onPressed: isBusy ? null : () => service.checkForUpdates(),
-        child: isBusy
-            ? const SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.aquaCore),
-              )
-            : const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.refresh_rounded, color: AppColors.aquaCore, size: 20),
-                  SizedBox(width: 8),
-                  Text(
-                    'Check for Updates',
-                    style: TextStyle(
-                      color: AppColors.aquaCore,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15,
-                    ),
+    return Column(
+      children: [
+        SizedBox(
+          width: double.infinity,
+          height: 52,
+          child: OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              side: const BorderSide(color: AppColors.aquaCore, width: 1.5),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            onPressed: isBusy ? null : () => service.checkForUpdates(),
+            child: isBusy
+                ? const SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: AppColors.aquaCore),
+                  )
+                : const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.refresh_rounded, color: AppColors.aquaCore, size: 20),
+                      SizedBox(width: 8),
+                      Text(
+                        'Check for Updates',
+                        style: TextStyle(
+                          color: AppColors.aquaCore,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+          ),
+        ),
+        if (!isBusy) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            height: 48,
+            child: TextButton.icon(
+              icon: const Icon(Icons.download_rounded, color: AppColors.aquaCore, size: 18),
+              label: const Text(
+                'Download Latest Release APK Directly',
+                style: TextStyle(color: AppColors.aquaCore, fontWeight: FontWeight.w600, fontSize: 13),
               ),
-      ),
+              onPressed: () => service.forceDownloadLatestApk(),
+            ),
+          ),
+        ],
+      ],
     );
   }
 

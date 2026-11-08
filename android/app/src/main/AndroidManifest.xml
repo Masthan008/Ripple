@@ -156,6 +156,16 @@
         <meta-data
             android:name="firebase_performance_logcat_enabled"
             android:value="true" />
+        <!-- FileProvider for secure APK package installation -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.valli.ripple.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/filepaths" />
+        </provider>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

@@ -1204,6 +1204,10 @@ class NotificationService {
 
         break;
 
+      case 'app_update':
+        router.push('/software-update');
+        break;
+
       default:
 
         router.go('/home');

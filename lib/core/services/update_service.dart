@@ -1,3 +1,4 @@
+import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
 import 'dart:io';
 import 'package:dio/dio.dart';
@@ -216,9 +217,9 @@ class UpdateService extends ChangeNotifier {
     try {
       final info = await PackageInfo.fromPlatform().catchError((_) => PackageInfo(
         appName: 'Ripple',
-        packageName: 'com.ripple.messenger',
-        version: '1.0.0',
-        buildNumber: '1',
+        packageName: 'com.valli.ripple',
+        version: '1.0.4',
+        buildNumber: '47',
       ));
       final currentBuild = int.tryParse(info.buildNumber) ?? 1;
 
@@ -230,7 +231,8 @@ class UpdateService extends ChangeNotifier {
         if (res.statusCode == 200 && res.data is Map) {
           final data = res.data as Map;
           final remoteBuild = data['buildNumber'] as int? ?? 1;
-          if (remoteBuild > currentBuild) {
+          final isForced = data['forceUpdate'] == true;
+          if (remoteBuild > currentBuild || isForced) {
             _availableVersion = data['version'] ?? 'v1.0.1';
             _downloadUrl = data['downloadUrl'] ??
                 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk';
@@ -317,10 +319,35 @@ class UpdateService extends ChangeNotifier {
 
     // Direct APK Download & Installation for Physical Devices
     try {
+      // 1. Ensure Android has permission to install unknown apps
+      if (Platform.isAndroid) {
+        final installPerm = await Permission.requestInstallPackages.status;
+        if (!installPerm.isGranted) {
+          final reqResult = await Permission.requestInstallPackages.request();
+          if (!reqResult.isGranted) {
+            _errorMessage = 'Please enable "Install unknown apps" in Android Settings for Ripple to install this update.';
+            _status = AppUpdateStatus.error;
+            notifyListeners();
+            return false;
+          }
+        }
+      }
+
       final url = _downloadUrl ??
           'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk';
-      final tempDir = await getTemporaryDirectory();
-      final savePath = '${tempDir.path}/ripple-update.apk';
+
+      // 2. Resolve accessible external cache directory so Android PackageInstaller has full read access
+      Directory? targetDir;
+      if (Platform.isAndroid) {
+        try {
+          final extDirs = await getExternalCacheDirectories();
+          if (extDirs != null && extDirs.isNotEmpty) {
+            targetDir = extDirs.first;
+          }
+        } catch (_) {}
+      }
+      targetDir ??= await getTemporaryDirectory();
+      final savePath = '${targetDir.path}/ripple-update.apk';
 
       // Delete existing temporary file if present
       final oldFile = File(savePath);
@@ -344,11 +371,19 @@ class UpdateService extends ChangeNotifier {
       _status = AppUpdateStatus.restartRequired;
       notifyListeners();
 
-      // Launch native Android Package Installer
-      await OpenFilex.open(
+      // 3. Launch native Android Package Installer via OpenFilex
+      final openResult = await OpenFilex.open(
         savePath,
         type: 'application/vnd.android.package-archive',
       );
+      debugPrint('[UpdateEngine] OpenFilex result: ${openResult.type} - ${openResult.message}');
+
+      if (openResult.type != ResultType.done) {
+        _errorMessage = 'Installation intent failed (${openResult.message}). Please allow unknown sources in Android Settings.';
+        _status = AppUpdateStatus.error;
+        notifyListeners();
+        return false;
+      }
 
       return true;
     } catch (e) {
@@ -358,6 +393,22 @@ class UpdateService extends ChangeNotifier {
       notifyListeners();
       return false;
     }
+  }
+
+  /// Force download and install the latest APK directly (bypasses version check).
+  Future<bool> forceDownloadLatestApk() async {
+    _availableVersion = '1.0.4';
+    _downloadUrl = 'https://github.com/Masthan008/Ripple/raw/main/release/ripple-release.apk';
+    _changelog = [
+      'Ripple Sovereign All-Access: 100% Free for everyone',
+      'Restored Stealth Vault with *7777# secret dial search',
+      'Redesigned Appearance: Vercel Light & OLED Obsidian',
+      'WhatsApp-Grade Push Notifications with rich actions',
+      'AI Status Studio with Cyberpunk, Golden Hour & Chromatic effects'
+    ];
+    _status = AppUpdateStatus.updateAvailable;
+    notifyListeners();
+    return downloadAndInstallUpdate();
   }
 
   /// Restarts the application or re-prompts the downloaded APK installer.
