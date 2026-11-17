@@ -134,6 +134,6 @@ flutter:
   assets:
     - .env
     - assets/images/
-    - assets/icon/
+    - assets/icons/
     - assets/sounds/
     - shorebird.yaml
